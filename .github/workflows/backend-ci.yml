@@ -75,4 +75,4 @@ jobs:
         run: uv run alembic upgrade head
 
       - name: Run tests
-        run: uv run pytest
+        run: uv run python -m pytest

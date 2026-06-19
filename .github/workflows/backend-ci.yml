@@ -1,0 +1,78 @@
+name: Backend CI
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - "compose.yaml"
+      - ".pre-commit-config.yaml"
+      - ".github/workflows/backend-ci.yml"
+  push:
+    paths:
+      - "backend/**"
+      - "compose.yaml"
+      - ".pre-commit-config.yaml"
+      - ".github/workflows/backend-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: applytogether_test
+          POSTGRES_USER: applytogether_test
+          POSTGRES_PASSWORD: applytogether_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready --username=applytogether_test --dbname=applytogether_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      ENVIRONMENT: test
+      DEV_IDENTITY_HEADER_ENABLED: "true"
+      DATABASE_URL: postgresql+psycopg://applytogether_test:applytogether_test@127.0.0.1:5432/applytogether_test
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install locked dependencies
+        run: uv sync --locked
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Check formatting
+        run: uv run ruff format --check .
+
+      - name: Type check
+        run: uv run mypy app
+
+      - name: Apply migrations
+        run: uv run alembic upgrade head
+
+      - name: Run tests
+        run: uv run pytest

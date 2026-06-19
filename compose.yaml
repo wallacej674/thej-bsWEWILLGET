@@ -1,0 +1,40 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: applytogether-db
+    environment:
+      POSTGRES_DB: applytogether
+      POSTGRES_USER: applytogether
+      POSTGRES_PASSWORD: applytogether
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - applytogether_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready --username=applytogether --dbname=applytogether"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  db-test:
+    image: postgres:16-alpine
+    container_name: applytogether-db-test
+    environment:
+      POSTGRES_DB: applytogether_test
+      POSTGRES_USER: applytogether_test
+      POSTGRES_PASSWORD: applytogether_test
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - applytogether_postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready --username=applytogether_test --dbname=applytogether_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+volumes:
+  applytogether_postgres_data:
+  applytogether_postgres_test_data:

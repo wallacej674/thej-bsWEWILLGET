@@ -2,6 +2,7 @@ import { Eye, Pencil, Trash2 } from "lucide-react";
 
 interface ApplicationActionsProps {
   applicationOwnerId: string;
+  canModerate: boolean;
   currentUserId: string;
   onDelete: () => void;
   onEdit: () => void;
@@ -10,6 +11,7 @@ interface ApplicationActionsProps {
 
 export function ApplicationActions({
   applicationOwnerId,
+  canModerate,
   currentUserId,
   onDelete,
   onEdit,
@@ -25,22 +27,22 @@ export function ApplicationActions({
         <Eye size={14} />
       </button>
       {owned && (
-        <>
-          <button
-            className={buttonClass}
-            onClick={onEdit}
-            aria-label="Edit application"
-          >
-            <Pencil size={14} />
-          </button>
-          <button
-            className={`${buttonClass} hover:text-red-400`}
-            onClick={onDelete}
-            aria-label="Delete application"
-          >
-            <Trash2 size={14} />
-          </button>
-        </>
+        <button
+          className={buttonClass}
+          onClick={onEdit}
+          aria-label="Edit application"
+        >
+          <Pencil size={14} />
+        </button>
+      )}
+      {(owned || canModerate) && (
+        <button
+          className={`${buttonClass} hover:text-red-400`}
+          onClick={onDelete}
+          aria-label="Delete application"
+        >
+          <Trash2 size={14} />
+        </button>
       )}
     </div>
   );

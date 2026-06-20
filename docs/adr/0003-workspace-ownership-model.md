@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted for Milestone 1.
+Partially superseded by ADR 0004. Application editing remains author-only;
+workspace owners now have explicit moderation deletion authority.
 
 ## Context
 

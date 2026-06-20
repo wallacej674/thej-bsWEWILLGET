@@ -183,9 +183,7 @@ def test_workspace_owner_can_moderate_another_members_application(
         headers={"X-User-Id": str(member.id)},
     )
     assert owner_deleted.json()["items"][0]["id"] == created["id"]
-    assert owner_deleted.json()["items"][0]["deleted_by"]["id"] == str(
-        active_member.id
-    )
+    assert owner_deleted.json()["items"][0]["deleted_by"]["id"] == str(active_member.id)
     assert owner_deleted.json()["items"][0]["moderated"] is True
     assert member_deleted.json()["items"] == []
 
@@ -332,7 +330,9 @@ def test_member_can_permanently_delete_selected_self_deleted_applications(
             "employment_type": "full_time",
         },
     ).json()
-    assert api_client.delete(f"{path}/{created['id']}", headers=headers).status_code == 204
+    assert (
+        api_client.delete(f"{path}/{created['id']}", headers=headers).status_code == 204
+    )
 
     response = api_client.post(
         f"{path}/deleted/permanent-delete",
@@ -384,7 +384,9 @@ def test_select_all_permanently_deletes_only_the_current_users_trash(
 
     assert response.status_code == 200
     assert response.json() == {"deleted_count": 1}
-    assert api_client.get(f"{path}/deleted", headers=owner_headers).json()["items"] == []
+    assert (
+        api_client.get(f"{path}/deleted", headers=owner_headers).json()["items"] == []
+    )
     other_trash = api_client.get(f"{path}/deleted", headers=other_headers).json()
     assert other_trash["pagination"]["total_items"] == 1
 
@@ -474,9 +476,10 @@ def test_member_cannot_permanently_delete_another_users_trash(
             "employment_type": "full_time",
         },
     ).json()
-    assert api_client.delete(
-        f"{path}/{created['id']}", headers=owner_headers
-    ).status_code == 204
+    assert (
+        api_client.delete(f"{path}/{created['id']}", headers=owner_headers).status_code
+        == 204
+    )
 
     response = api_client.post(
         f"{path}/deleted/permanent-delete",

@@ -99,7 +99,9 @@ def test_member_cannot_remove_members_and_owner_cannot_remove_an_owner(
     assert forbidden.status_code == 403
     assert forbidden.json()["error"]["code"] == "workspace_owner_required"
     assert owner_removal.status_code == 409
-    assert owner_removal.json()["error"]["code"] == "workspace_owner_removal_not_supported"
+    assert (
+        owner_removal.json()["error"]["code"] == "workspace_owner_removal_not_supported"
+    )
 
 
 def test_owner_can_soft_delete_workspace_and_members_lose_access(
@@ -254,9 +256,7 @@ def test_owner_can_promote_a_member_to_admin_and_return_them_to_member(
     api_client, database_session, active_member, shared_workspace
 ) -> None:
     member = _add_member(database_session, shared_workspace, name="Moderator")
-    path = (
-        f"/api/v1/workspaces/{shared_workspace.id}/members/{member.id}/role"
-    )
+    path = f"/api/v1/workspaces/{shared_workspace.id}/members/{member.id}/role"
     headers = {"X-User-Id": str(active_member.id)}
 
     promoted = api_client.patch(path, headers=headers, json={"role": "admin"})
@@ -273,16 +273,17 @@ def test_admin_cannot_manage_members_invites_or_delete_workspace(
 ) -> None:
     admin = _add_member(database_session, shared_workspace, name="Admin")
     target = _add_member(database_session, shared_workspace, name="Target")
-    promote_path = (
-        f"/api/v1/workspaces/{shared_workspace.id}/members/{admin.id}/role"
-    )
+    promote_path = f"/api/v1/workspaces/{shared_workspace.id}/members/{admin.id}/role"
     owner_headers = {"X-User-Id": str(active_member.id)}
     admin_headers = {"X-User-Id": str(admin.id)}
-    assert api_client.patch(
-        promote_path,
-        headers=owner_headers,
-        json={"role": "admin"},
-    ).status_code == 200
+    assert (
+        api_client.patch(
+            promote_path,
+            headers=owner_headers,
+            json={"role": "admin"},
+        ).status_code
+        == 200
+    )
 
     remove = api_client.delete(
         f"/api/v1/workspaces/{shared_workspace.id}/members/{target.id}",

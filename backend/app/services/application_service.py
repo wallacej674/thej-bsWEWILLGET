@@ -336,11 +336,10 @@ class ApplicationService:
         membership: WorkspaceMembership,
     ) -> None:
         application = self._require_application(session, workspace_id, application_id)
-        if (
-            application.owner_id != current_user.id
-            and membership.role
-            not in {MembershipRole.OWNER, MembershipRole.ADMIN}
-        ):
+        if application.owner_id != current_user.id and membership.role not in {
+            MembershipRole.OWNER,
+            MembershipRole.ADMIN,
+        }:
             raise AppError(
                 403,
                 "application_delete_forbidden",

@@ -54,7 +54,11 @@ class WorkspaceInvitationCreate(BaseModel):
     @classmethod
     def normalize_email(cls, value: str) -> str:
         normalized = value.strip().lower()
-        if "@" not in normalized or normalized.startswith("@") or normalized.endswith("@"):
+        if (
+            "@" not in normalized
+            or normalized.startswith("@")
+            or normalized.endswith("@")
+        ):
             raise ValueError("Enter a valid email address")
         return normalized
 

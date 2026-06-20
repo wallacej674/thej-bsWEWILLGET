@@ -35,16 +35,13 @@ class WorkspaceService:
     ) -> WorkspaceListResponse:
         user = session.get(User, user_id)
         if user is not None:
-            pending_invitations = (
-                self._repository.list_pending_invitations_for_email(
-                    session, user.email
-                )
+            pending_invitations = self._repository.list_pending_invitations_for_email(
+                session, user.email
             )
             for invitation in pending_invitations:
                 membership = session.scalar(
                     select(WorkspaceMembership).where(
-                        WorkspaceMembership.workspace_id
-                        == invitation.workspace_id,
+                        WorkspaceMembership.workspace_id == invitation.workspace_id,
                         WorkspaceMembership.user_id == user_id,
                     )
                 )

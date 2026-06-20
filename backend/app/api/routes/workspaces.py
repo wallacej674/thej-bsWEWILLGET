@@ -101,9 +101,7 @@ def list_workspace_invitations(
     membership: WorkspaceAccess,
     session: DatabaseSession,
 ) -> WorkspaceInvitationListResponse:
-    return workspace_service.list_pending_invitations(
-        session, workspace_id, membership
-    )
+    return workspace_service.list_pending_invitations(session, workspace_id, membership)
 
 
 @router.delete(

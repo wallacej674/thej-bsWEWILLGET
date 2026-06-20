@@ -244,17 +244,43 @@ class ApplicationSummaryResponse(BaseModel):
 
 class DeletedApplicationResponse(ApplicationResponse):
     deleted_at: datetime
+    deleted_by: ApplicationOwner
+    moderated: bool
 
     @classmethod
-    def from_application(
-        cls, application: JobApplication, owner: User
+    def from_deleted_application(
+        cls, application: JobApplication, owner: User, deleted_by: User
     ) -> "DeletedApplicationResponse":
         response = ApplicationResponse.from_application(application, owner).model_dump()
         if application.deleted_at is None:
             raise ValueError("Deleted application response requires deleted_at")
-        return cls(**response, deleted_at=application.deleted_at)
+        return cls(
+            **response,
+            deleted_at=application.deleted_at,
+            deleted_by=ApplicationOwner.from_user(deleted_by),
+            moderated=deleted_by.id != owner.id,
+        )
 
 
 class DeletedApplicationListResponse(BaseModel):
     items: list[DeletedApplicationResponse]
     pagination: Pagination
+
+
+class PermanentDeleteRequest(BaseModel):
+    application_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    delete_all: bool = False
+
+    @model_validator(mode="after")
+    def validate_selection(self) -> Self:
+        if self.delete_all and self.application_ids:
+            raise ValueError("application_ids must be empty when delete_all is true")
+        if not self.delete_all and not self.application_ids:
+            raise ValueError("Select at least one application")
+        if len(set(self.application_ids)) != len(self.application_ids):
+            raise ValueError("application_ids must be unique")
+        return self
+
+
+class PermanentDeleteResponse(BaseModel):
+    deleted_count: int

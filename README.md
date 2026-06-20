@@ -1,90 +1,102 @@
 # ApplyTogether
 
-ApplyTogether is a shared job-application accountability workspace. Milestone 1
-provides a FastAPI and PostgreSQL backend for Jonathan and Kareem; it includes
-shared visibility, owner-only application changes, soft deletion, restoration,
-and searchable paginated application records. It does not include a frontend,
-OAuth, newsletters, invitations, goals, analytics, or deployment.
+ApplyTogether is a shared job-application accountability workspace for Jonathan
+and Kareem. Milestone 1, the FastAPI/PostgreSQL foundation, is complete.
+Milestone 2 integrates the React/Vite frontend with that API for shared
+visibility, owner-only changes, soft deletion, restoration, filtering, and
+pagination. Milestone 3 will replace the local development identity flow with
+Google OAuth.
 
 ## Prerequisites
 
 - Docker Desktop with Docker Compose
 - Python 3.12
 - [uv](https://docs.astral.sh/uv/)
+- Node.js 22
+- npm (the frontend package manager)
 
-## Local setup
+## Run the integrated application
 
-Start a development PostgreSQL instance (the separate `db-test` service is
-used by the test suite):
+Start PostgreSQL from the repository root. The project database uses host port
+5434 to avoid colliding with locally installed PostgreSQL services:
 
 ```powershell
 docker compose up -d db
 ```
 
-Configure and install the backend:
+Configure, migrate, and seed the backend:
 
 ```powershell
 cd backend
 Copy-Item .env.example .env
 uv sync --locked
 uv run alembic upgrade head
-```
-
-Seed the two owner accounts and shared workspace. This command is available
-only when `ENVIRONMENT` is `development` or `test`; startup never seeds data.
-
-```powershell
-uv run python -m app.db.seed
 uv run python -m app.db.seed --with-sample-applications
-```
-
-Start the API:
-
-```powershell
 uv run uvicorn app.main:app --reload
 ```
 
-OpenAPI documentation is available at `http://127.0.0.1:8000/docs`.
+The seed command prints the Jonathan and Kareem UUIDs. In a second terminal,
+configure and start the frontend:
+
+```powershell
+cd frontend
+Copy-Item .env.example .env.local
+```
+
+Set the seeded UUID values in `frontend/.env.local`:
+
+```dotenv
+VITE_API_BASE_URL=http://localhost:8000
+VITE_JONATHAN_USER_ID=<Jonathan UUID printed by the seed command>
+VITE_KAREEM_USER_ID=<Kareem UUID printed by the seed command>
+```
+
+Then install locked npm dependencies and run Vite:
+
+```powershell
+npm ci
+npm run dev
+```
+
+Open `http://localhost:5173`. The backend permits that origin through
+`CORS_ORIGINS` in `backend/.env`; the example also permits
+`http://127.0.0.1:5173`. API documentation is at
+`http://127.0.0.1:8000/docs`.
 
 ## Development identity
 
-Milestone 1 uses a development-only `X-User-Id` header. Copy a seeded UUID
-from the seed command output and pass it on authenticated requests:
+The Milestone 2 frontend is not production authentication. It lets the user
+choose one of the configured seeded identities, stores that selection in local
+storage, and sends its UUID as `X-User-Id` on API requests. The backend resolves
+the user and workspace; request bodies never choose application ownership.
+`DEV_IDENTITY_HEADER_ENABLED=true` is valid only in development or test.
+
+## Validation
+
+Frontend, from `frontend/`:
 
 ```powershell
-$headers = @{ "X-User-Id" = "<seeded-user-uuid>" }
-Invoke-RestMethod http://127.0.0.1:8000/api/v1/users/me -Headers $headers
-Invoke-RestMethod http://127.0.0.1:8000/api/v1/workspaces -Headers $headers
+npm run lint
+npm run typecheck
+npm test
+npm run build
 ```
 
-The app fails startup if `DEV_IDENTITY_HEADER_ENABLED=true` outside
-development or test. Production authentication is deliberately not part of
-this milestone.
-
-## Database and quality commands
-
-From `backend/`:
+Backend, from `backend/`:
 
 ```powershell
-uv run alembic upgrade head
-uv run alembic downgrade -1
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy app
-uv run pytest
+uv run python -m pytest
 ```
 
-Tests require PostgreSQL, not SQLite. Start the isolated test database first:
+Backend tests require the isolated PostgreSQL service:
 
 ```powershell
 docker compose up -d db-test
 ```
 
-Install pre-commit hooks from the repository root:
-
-```powershell
-uv tool run pre-commit install
-```
-
-The GitHub Actions workflow runs the locked dependency install, Ruff, MyPy,
-Alembic migrations, and the complete PostgreSQL-backed test suite.
+See [frontend/README.md](frontend/README.md) for frontend details and
+[docs/frontend-backend-integration.md](docs/frontend-backend-integration.md)
+for the integration contract and manual smoke checklist.

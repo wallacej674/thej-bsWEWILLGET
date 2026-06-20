@@ -25,6 +25,9 @@ ENV/
 coverage.xml
 htmlcov/
 
+# Frontend dependencies
+node_modules/
+
 # Environment files
 .env
 .env.*

@@ -1,3 +1,4 @@
+from datetime import timedelta
 from uuid import UUID
 
 from pydantic import ValidationError
@@ -14,11 +15,16 @@ from app.repositories.application_repository import ApplicationRepository
 from app.schemas.application import (
     ApplicationCreate,
     ApplicationListResponse,
+    ApplicationOwner,
+    ApplicationOwnerSummary,
     ApplicationResponse,
+    ApplicationsOverTimePoint,
+    ApplicationSummaryResponse,
     ApplicationUpdate,
     DeletedApplicationListResponse,
     DeletedApplicationResponse,
     Pagination,
+    RecentApplicationActivity,
 )
 
 
@@ -130,6 +136,100 @@ class ApplicationService:
                 total_items=total,
                 total_pages=(total + page_size - 1) // page_size if total else 0,
             ),
+        )
+
+    def summarize(
+        self, session: Session, workspace_id: UUID
+    ) -> ApplicationSummaryResponse:
+        today = application_today()
+        month_start = today.replace(day=1)
+        next_month_start = (
+            month_start.replace(year=month_start.year + 1, month=1)
+            if month_start.month == 12
+            else month_start.replace(month=month_start.month + 1)
+        )
+        rows, current_month = self._repository.summarize_active(
+            session, workspace_id, month_start, next_month_start
+        )
+        by_owner = [
+            ApplicationOwnerSummary(
+                owner=ApplicationOwner.from_user(owner),
+                count=count,
+            )
+            for owner, count in rows
+        ]
+        dashboard_rows = self._repository.list_active_for_dashboard(
+            session, workspace_id
+        )
+        status_counts = {status: 0 for status in ApplicationStatus}
+        work_arrangement_counts = {arrangement: 0 for arrangement in WorkArrangement}
+        for application, _owner in dashboard_rows:
+            status_counts[application.status] += 1
+            work_arrangement_counts[application.work_arrangement] += 1
+
+        current_week_start = today - timedelta(days=today.weekday())
+        week_starts = [
+            current_week_start - timedelta(weeks=offset)
+            for offset in reversed(range(8))
+        ]
+        applications_over_time = []
+        for week_start in week_starts:
+            next_week_start = week_start + timedelta(days=7)
+            owner_counts = {owner_summary.owner.id: 0 for owner_summary in by_owner}
+            for application, _owner in dashboard_rows:
+                if week_start <= application.application_date < next_week_start:
+                    owner_counts[application.owner_id] = (
+                        owner_counts.get(application.owner_id, 0) + 1
+                    )
+            applications_over_time.append(
+                ApplicationsOverTimePoint(
+                    week_start=week_start,
+                    by_owner=[
+                        ApplicationOwnerSummary(
+                            owner=owner_summary.owner,
+                            count=owner_counts.get(owner_summary.owner.id, 0),
+                        )
+                        for owner_summary in by_owner
+                    ],
+                )
+            )
+
+        recent_activity = [
+            RecentApplicationActivity(
+                application_id=application.id,
+                company_name=application.company_name,
+                job_title=application.job_title,
+                owner=ApplicationOwner.from_user(owner),
+                action=(
+                    "added"
+                    if abs(
+                        (
+                            application.updated_at - application.created_at
+                        ).total_seconds()
+                    )
+                    < 1
+                    else "updated"
+                ),
+                occurred_at=application.updated_at,
+                status=application.status,
+            )
+            for application, owner in dashboard_rows[:5]
+        ]
+        recently_updated = sum(
+            1
+            for application, _owner in dashboard_rows
+            if abs((application.updated_at - application.created_at).total_seconds())
+            >= 1
+        )
+        return ApplicationSummaryResponse(
+            total_active=sum(owner.count for owner in by_owner),
+            current_month=current_month,
+            recently_updated=recently_updated,
+            by_owner=by_owner,
+            status_counts=status_counts,
+            work_arrangement_counts=work_arrangement_counts,
+            applications_over_time=applications_over_time,
+            recent_activity=recent_activity,
         )
 
     def get_active(

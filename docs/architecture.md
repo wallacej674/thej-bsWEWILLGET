@@ -1,112 +1,91 @@
 # ApplyTogether architecture
 
-## Scope and design goal
+## Current scope
 
-Milestone 1 is a stateless, backend-only FastAPI service with PostgreSQL. The
-design is deliberately small enough for a beginner-readable codebase while
-keeping authentication, business rules, and persistence independently
-replaceable.
+Milestone 1, the FastAPI/PostgreSQL backend foundation, is complete. Milestone
+2 integrates a React/TypeScript/Vite browser client with the existing API.
+Milestone 3 remains Google OAuth. The application is still a local-development
+system with no production deployment or identity provider.
 
-The API is versioned under the configured prefix, normally `/api/v1`. Public
-health endpoints live at `/health` and `/health/db`. PostgreSQL is the only
-supported database; SQLite is not a compatibility target because the product
-relies on PostgreSQL constraints, `ILIKE`, migrations, and transaction
-semantics.
+## System boundary
 
-## Layer boundaries
+The frontend runs on `http://localhost:5173` and calls the stateless backend at
+`http://localhost:8000`. The backend exposes versioned routes under `/api/v1`
+and health routes at `/health` and `/health/db`. PostgreSQL is the only
+supported database.
+
+Backend CORS configuration explicitly allows the Vite localhost and loopback
+origins. The frontend API base URL is supplied through `VITE_API_BASE_URL`;
+neither component depends on a development proxy.
+
+## Backend layers
 
 | Layer | Responsibility |
 | --- | --- |
-| Routes | Parse HTTP input, call dependencies and services, choose HTTP status codes, and return explicit Pydantic schemas. |
-| Dependencies | Provide synchronous database sessions, resolve the development current user, and verify active workspace membership. |
-| Services | Enforce business validation, ownership, duplicate and state rules; control transactions and map expected failures. |
-| Repositories | Build SQLAlchemy queries and persistence operations scoped to known identifiers; they may flush but do not authorize or commit. |
-| Schemas | Validate requests, serialize responses, and express field-level and cross-field contracts. |
-| Models | Define SQLAlchemy mappings, foreign keys, indexes, unique constraints, and check constraints. |
-| Core | Hold typed settings, enums, shared errors and handlers, timezone and URL utilities, and logging configuration. |
-| DB | Configure the engine/session lifecycle and contain the explicit development/test seed command. |
+| Routes | Parse HTTP input, call dependencies and services, select statuses, and return Pydantic schemas. |
+| Dependencies | Provide database sessions, resolve the development user, and enforce active workspace membership. |
+| Services | Enforce validation, ownership, duplicate, and lifecycle rules; control transactions. |
+| Repositories | Perform workspace-scoped SQLAlchemy queries and persistence without authorization decisions. |
+| Schemas/models | Define API contracts and PostgreSQL-backed data integrity. |
+| Core/DB | Hold settings, errors, utilities, session setup, migrations, and explicit development seed behavior. |
 
-Routes neither parse `X-User-Id` nor hold substantial ORM queries. Repositories
-do not decide whether an actor may access or change a record. Services, not
-routes or repositories, commit a successful unit of work and roll back failed
-ones.
+Services remain the mutation authority. Every application query is scoped to a
+workspace, active lists exclude soft-deleted records, and deleted records are
+listed only for the requesting owner.
 
-## Request flow
+## Frontend boundaries
 
-1. A request receives one synchronous SQLAlchemy session from a dependency.
-2. Except for health checks, `get_current_user` resolves `X-User-Id` only in
-   `development` or `test`, and requires a known active user.
-3. Workspace routes verify active membership for the path workspace UUID. A
-   valid user without an active membership receives a 403 response.
-4. The route gives the service the resolved user and workspace context.
-5. The service uses workspace-scoped repository operations, applies ownership,
-   validation, duplicate, and lifecycle rules, then commits atomically.
-6. The route returns an explicit response model. Expected failures use the
-   shared `{ "error": { "code", "message", "details" } }` envelope.
+The frontend has a generic typed API client, feature API functions and response
+types, a development identity store, React Router page composition, and
+presentation components. `VITE_JONATHAN_USER_ID` and
+`VITE_KAREEM_USER_ID` populate the identity gate. The selected UUID is stored
+in local storage and read by the API client for the `X-User-Id` header.
 
-Every application query includes the requested workspace identifier. Active
-lists and retrieval exclude soft-deleted applications. The deleted list is also
-scoped to the requesting owner.
+The API client:
 
-## Data integrity and transactions
+- normalizes `VITE_API_BASE_URL` and appends `/api/v1`;
+- serializes request bodies and query parameters;
+- sends the selected development identity;
+- handles JSON and 204 responses;
+- preserves backend `{ "error": { "code", "message", "details" } }`
+  failures as typed `ApiError` instances; and
+- reports unreachable-backend and unexpected-response failures consistently.
 
-SQLAlchemy uses synchronous PostgreSQL connections. UUID primary keys,
-restrictive foreign keys, unique constraints, controlled-value checks, salary
-checks, and targeted composite indexes are enforced in the database through
-Alembic schema migrations. Migrations contain schema only; they never seed
-personal or sample records.
+Feature functions expose typed operations for session discovery, workspaces,
+application summaries, listing, creation, detail, update, deletion, deleted
+listing, and restoration.
 
-Services may perform multi-step work such as duplicate detection followed by
-record creation. That work is atomic: repositories can flush for generated
-values, while the service commits only after all rules succeed. Database
-uniqueness failures are translated into stable duplicate errors rather than
-leaking SQL details.
+## Routing and authorization
 
-## Configuration and operations
+Browser routes cover `/`, `/applications`, `/applications/new`,
+`/applications/:applicationId`, `/applications/:applicationId/edit`,
+`/deleted`, `/workspace`, `/profile`, and a not-found route.
 
-Central Pydantic Settings reads all configuration from environment variables.
-The configuration includes the PostgreSQL URL, environment, API prefix,
-application timezone, CORS origins, log level, development-identity switch,
-and development seed identities. `DATABASE_URL` is required, and the service
-does not rely on persistent local files.
+The UI compares the backend-returned application owner with the current user to
+show edit/delete controls and to guard edit pages. This is a usability layer,
+not the security boundary. The backend independently enforces active membership
+for visibility and immutable application ownership for create/update/delete/
+restore. A workspace role never grants permission to mutate another user's
+application.
 
-System timestamps are UTC. The configured `APP_TIMEZONE` determines the
-default application calendar date. Startup rejects an enabled development
-identity header outside `development` or `test`.
+## Validation and errors
 
-The seed command is explicit and only allowed in development/test. It is
-idempotent and creates or updates Jonathan, Kareem, their workspace, and active
-owner memberships. Startup never seeds data. Docker Compose starts PostgreSQL
-only; FastAPI runs directly on the host and may also connect to externally
-managed PostgreSQL.
+Backend Pydantic schemas and service rules are canonical. The frontend maps
+structured validation details to field messages when possible, handles known
+duplicate/deleted-record errors in the form, and displays page or toast errors
+for access, network, and unexpected failures. Client-side owner checks improve
+feedback but cannot replace backend enforcement.
 
-## Authentication replacement boundary
+## Data and startup
 
-Milestone 1 uses a development-only dependency that turns `X-User-Id` into an
-active `User`. The route and service receive a resolved current user rather
-than an authentication header. A future Google OAuth dependency can therefore
-replace this dependency without requiring route or service rewrites. The header
-is not an accepted production authentication mechanism.
+Alembic migrations contain schema only. The explicit, idempotent seed command
+creates or updates Jonathan, Kareem, their shared workspace, memberships, and
+optional sample applications. Startup never seeds data. See
+[frontend-backend-integration.md](frontend-backend-integration.md) for the
+exact local sequence.
 
-## Testing and quality approach
+## Quality gates
 
-Implementation follows TDD vertical slices against PostgreSQL: one observable
-behavior is made red, the minimum end-to-end implementation makes it green,
-then the next behavior is added. Tests exercise public contracts rather than
-mocked persistence internals.
-
-The test harness migrates a PostgreSQL test database and gives every test an
-outer transaction. Sessions use savepoints so service-level commits are visible
-within a test but the outer transaction can roll all state back afterward.
-Tests cover deterministic utilities, core business rules, API contracts, and a
-clean-migration smoke path. The quality gate is Pytest, Ruff linting, Ruff
-format checking, and MyPy; the backend CI workflow runs those checks against
-PostgreSQL with locked `uv` dependencies.
-
-## Cloud-readiness principles
-
-The service remains provider-neutral: stateless request handling,
-environment-based configuration, clean session lifecycle, UTC timestamps,
-structured logging, unauthenticated health checks, and an externally
-configurable PostgreSQL connection. Milestone 1 intentionally contains no
-cloud infrastructure, deployment workflow, provider SDK, or production image.
+Backend CI uses locked `uv` dependencies, Ruff, MyPy, Alembic, Pytest, and
+PostgreSQL. Frontend CI uses Node.js 22, `npm ci`, ESLint, TypeScript, Vitest,
+and a Vite production build, filtered to frontend and workflow changes.

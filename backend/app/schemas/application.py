@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Self
+from typing import Literal, Self
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -38,8 +38,12 @@ class ApplicationCreate(BaseModel):
     employment_type: EmploymentType
     application_date: date | None = None
     status: ApplicationStatus = ApplicationStatus.APPLIED
-    salary_min: Decimal | None = Field(default=None, ge=0, decimal_places=2)
-    salary_max: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    salary_min: Decimal | None = Field(
+        default=None, ge=0, max_digits=12, decimal_places=2
+    )
+    salary_max: Decimal | None = Field(
+        default=None, ge=0, max_digits=12, decimal_places=2
+    )
     salary_currency: str | None = Field(default="USD", min_length=3, max_length=3)
     salary_period: SalaryPeriod | None = None
     job_description: str | None = Field(default=None, max_length=20_000)
@@ -89,8 +93,12 @@ class ApplicationUpdate(BaseModel):
     employment_type: EmploymentType | None = None
     application_date: date | None = None
     status: ApplicationStatus | None = None
-    salary_min: Decimal | None = Field(default=None, ge=0, decimal_places=2)
-    salary_max: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    salary_min: Decimal | None = Field(
+        default=None, ge=0, max_digits=12, decimal_places=2
+    )
+    salary_max: Decimal | None = Field(
+        default=None, ge=0, max_digits=12, decimal_places=2
+    )
     salary_currency: str | None = Field(default=None, min_length=3, max_length=3)
     salary_period: SalaryPeriod | None = None
     job_description: str | None = Field(default=None, max_length=20_000)
@@ -201,6 +209,37 @@ class Pagination(BaseModel):
 class ApplicationListResponse(BaseModel):
     items: list[ApplicationResponse]
     pagination: Pagination
+
+
+class ApplicationOwnerSummary(BaseModel):
+    owner: ApplicationOwner
+    count: int
+
+
+class ApplicationsOverTimePoint(BaseModel):
+    week_start: date
+    by_owner: list[ApplicationOwnerSummary]
+
+
+class RecentApplicationActivity(BaseModel):
+    application_id: UUID
+    company_name: str
+    job_title: str
+    owner: ApplicationOwner
+    action: Literal["added", "updated"]
+    occurred_at: datetime
+    status: ApplicationStatus
+
+
+class ApplicationSummaryResponse(BaseModel):
+    total_active: int
+    current_month: int
+    recently_updated: int
+    by_owner: list[ApplicationOwnerSummary]
+    status_counts: dict[ApplicationStatus, int]
+    work_arrangement_counts: dict[WorkArrangement, int]
+    applications_over_time: list[ApplicationsOverTimePoint]
+    recent_activity: list[RecentApplicationActivity]
 
 
 class DeletedApplicationResponse(ApplicationResponse):

@@ -10,6 +10,7 @@ from app.schemas.application import (
     ApplicationCreate,
     ApplicationListResponse,
     ApplicationResponse,
+    ApplicationSummaryResponse,
     ApplicationUpdate,
     DeletedApplicationListResponse,
 )
@@ -19,6 +20,15 @@ router = APIRouter(
     prefix="/workspaces/{workspace_id}/applications", tags=["applications"]
 )
 application_service = ApplicationService()
+
+
+@router.get("/summary", response_model=ApplicationSummaryResponse)
+def summarize_applications(
+    workspace_id: UUID,
+    _membership: WorkspaceAccess,
+    session: DatabaseSession,
+) -> ApplicationSummaryResponse:
+    return application_service.summarize(session, workspace_id)
 
 
 @router.get("", response_model=ApplicationListResponse)

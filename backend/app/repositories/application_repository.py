@@ -1,14 +1,78 @@
+from datetime import date
 from uuid import UUID
 
-from sqlalchemy import Select, asc, desc, func, or_, select
+from sqlalchemy import Select, and_, asc, desc, func, or_, select, union
 from sqlalchemy.orm import Session
 
 from app.core.enums import ApplicationStatus, EmploymentType, WorkArrangement
 from app.models.application import JobApplication
+from app.models.membership import WorkspaceMembership
 from app.models.user import User
 
 
 class ApplicationRepository:
+    def list_active_for_dashboard(
+        self, session: Session, workspace_id: UUID
+    ) -> list[tuple[JobApplication, User]]:
+        statement: Select[tuple[JobApplication, User]] = (
+            select(JobApplication, User)
+            .join(User, User.id == JobApplication.owner_id)
+            .where(
+                JobApplication.workspace_id == workspace_id,
+                JobApplication.deleted_at.is_(None),
+            )
+            .order_by(
+                desc(JobApplication.updated_at),
+                desc(JobApplication.created_at),
+                JobApplication.id,
+            )
+        )
+        return list(session.execute(statement).tuples())
+
+    def summarize_active(
+        self,
+        session: Session,
+        workspace_id: UUID,
+        month_start: date,
+        next_month_start: date,
+    ) -> tuple[list[tuple[User, int]], int]:
+        summary_owner_ids = union(
+            select(WorkspaceMembership.user_id.label("user_id")).where(
+                WorkspaceMembership.workspace_id == workspace_id,
+                WorkspaceMembership.removed_at.is_(None),
+            ),
+            select(JobApplication.owner_id.label("user_id")).where(
+                JobApplication.workspace_id == workspace_id,
+                JobApplication.deleted_at.is_(None),
+            ),
+        ).subquery()
+        active_application_join = and_(
+            JobApplication.owner_id == User.id,
+            JobApplication.workspace_id == workspace_id,
+            JobApplication.deleted_at.is_(None),
+        )
+        owner_statement = (
+            select(User, func.count(JobApplication.id))
+            .select_from(summary_owner_ids)
+            .join(User, User.id == summary_owner_ids.c.user_id)
+            .outerjoin(JobApplication, active_application_join)
+            .group_by(User.id)
+            .order_by(User.display_name, User.id)
+        )
+        owner_rows = [
+            (owner, int(owner_total))
+            for owner, owner_total in session.execute(owner_statement).tuples()
+        ]
+        current_month = session.scalar(
+            select(func.count(JobApplication.id)).where(
+                JobApplication.workspace_id == workspace_id,
+                JobApplication.deleted_at.is_(None),
+                JobApplication.application_date >= month_start,
+                JobApplication.application_date < next_month_start,
+            )
+        )
+        return owner_rows, current_month or 0
+
     def find_by_normalized_url(
         self,
         session: Session,

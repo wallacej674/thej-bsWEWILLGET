@@ -46,3 +46,25 @@ def test_application_creation_rejects_an_invalid_salary_currency_code(
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "validation_error"
+
+
+def test_application_creation_rejects_salary_outside_database_precision(
+    api_client, active_member, shared_workspace
+) -> None:
+    response = api_client.post(
+        f"/api/v1/workspaces/{shared_workspace.id}/applications",
+        headers={"X-User-Id": str(active_member.id)},
+        json={
+            "company_name": "Example Company",
+            "job_title": "Backend Engineer",
+            "job_posting_url": "https://jobs.example.test/openings/oversized-salary",
+            "location": "Remote",
+            "work_arrangement": "remote",
+            "employment_type": "full_time",
+            "salary_max": "60000000000.03",
+            "salary_period": "yearly",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"

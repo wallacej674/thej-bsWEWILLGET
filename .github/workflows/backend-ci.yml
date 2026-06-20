@@ -42,6 +42,7 @@ jobs:
     env:
       ENVIRONMENT: test
       DEV_IDENTITY_HEADER_ENABLED: "true"
+      AUTH_JWT_SECRET_KEY: test-only-authx-signing-secret-change-me
       DATABASE_URL: postgresql+psycopg://applytogether_test:applytogether_test@127.0.0.1:5432/applytogether_test
 
     steps:

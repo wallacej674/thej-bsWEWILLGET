@@ -19,7 +19,7 @@ UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 
 def _session_id(payload: TokenPayload) -> UUID:
-    value = payload.extra_dict.get("sid")
+    value = payload.sid
     if not isinstance(value, str):
         raise AppError(401, "invalid_access_token", "Authentication is required.")
     try:

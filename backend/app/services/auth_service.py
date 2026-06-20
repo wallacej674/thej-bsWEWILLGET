@@ -73,7 +73,7 @@ def _token_payload(token: str) -> TokenPayload:
 
 
 def _session_id(payload: TokenPayload) -> UUID:
-    value = payload.extra_dict.get("sid")
+    value = payload.sid
     if not isinstance(value, str):
         raise InvalidSessionError
     try:
@@ -83,7 +83,9 @@ def _session_id(payload: TokenPayload) -> UUID:
 
 
 class AuthenticationService:
-    def login(self, session: Session, *, email: str, password: str) -> AuthenticationResult:
+    def login(
+        self, session: Session, *, email: str, password: str
+    ) -> AuthenticationResult:
         normalized_email = normalize_email(email)
         user = session.scalar(
             select(User).where(func.lower(User.email) == normalized_email)
@@ -108,7 +110,9 @@ class AuthenticationService:
         user.locked_until = None
         user.last_login_at = now
         authentication_session = self._create_session(session, user, now)
-        access_token, refresh_token = self._issue_token_pair(user, authentication_session)
+        access_token, refresh_token = self._issue_token_pair(
+            user, authentication_session
+        )
         session.flush()
         return AuthenticationResult(
             user=user,
@@ -125,18 +129,27 @@ class AuthenticationService:
             session.flush()
             raise InvalidSessionError
 
-        access_token, refresh_token = self._issue_token_pair(user, authentication_session)
+        access_token, refresh_token = self._issue_token_pair(
+            user, authentication_session
+        )
         refresh_payload = _token_payload(refresh_token)
         if refresh_payload.jti is None:
             raise RuntimeError("AuthX refresh tokens must contain a jti claim.")
-        authentication_session.refresh_jti_hash = _digest_refresh_jti(refresh_payload.jti)
+        authentication_session.refresh_jti_hash = _digest_refresh_jti(
+            refresh_payload.jti
+        )
         authentication_session.last_refreshed_at = utc_now()
         session.flush()
         return TokenPair(access_token=access_token, refresh_token=refresh_token)
 
     def revoke_session(self, session: Session, payload: TokenPayload) -> None:
-        authentication_session = session.get(AuthenticationSession, _session_id(payload))
-        if authentication_session is not None and authentication_session.revoked_at is None:
+        authentication_session = session.get(
+            AuthenticationSession, _session_id(payload)
+        )
+        if (
+            authentication_session is not None
+            and authentication_session.revoked_at is None
+        ):
             authentication_session.revoked_at = utc_now()
             session.flush()
 
@@ -209,7 +222,9 @@ class AuthenticationService:
         refresh_payload = _token_payload(refresh_token)
         if refresh_payload.jti is None:
             raise RuntimeError("AuthX refresh tokens must contain a jti claim.")
-        authentication_session.refresh_jti_hash = _digest_refresh_jti(refresh_payload.jti)
+        authentication_session.refresh_jti_hash = _digest_refresh_jti(
+            refresh_payload.jti
+        )
         return access_token, refresh_token
 
     def _load_refresh_session(

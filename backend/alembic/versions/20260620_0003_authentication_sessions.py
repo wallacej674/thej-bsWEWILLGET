@@ -16,7 +16,9 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("users", sa.Column("password_hash", sa.String(length=512), nullable=True))
+    op.add_column(
+        "users", sa.Column("password_hash", sa.String(length=512), nullable=True)
+    )
     op.add_column(
         "users",
         sa.Column(
@@ -26,9 +28,12 @@ def upgrade() -> None:
             nullable=False,
         ),
     )
-    op.add_column("users", sa.Column("locked_until", sa.DateTime(timezone=True), nullable=True))
     op.add_column(
-        "users", sa.Column("password_changed_at", sa.DateTime(timezone=True), nullable=True)
+        "users", sa.Column("locked_until", sa.DateTime(timezone=True), nullable=True)
+    )
+    op.add_column(
+        "users",
+        sa.Column("password_changed_at", sa.DateTime(timezone=True), nullable=True),
     )
     op.create_check_constraint(
         "ck_users_failed_login_attempts_nonnegative",
@@ -51,12 +56,18 @@ def upgrade() -> None:
         ),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="RESTRICT"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("refresh_jti_hash", name="uq_auth_sessions_refresh_jti_hash"),
+        sa.UniqueConstraint(
+            "refresh_jti_hash", name="uq_auth_sessions_refresh_jti_hash"
+        ),
     )
     op.create_index(
-        "ix_auth_sessions_user_revoked", "authentication_sessions", ["user_id", "revoked_at"]
+        "ix_auth_sessions_user_revoked",
+        "authentication_sessions",
+        ["user_id", "revoked_at"],
     )
-    op.create_index("ix_auth_sessions_expires_at", "authentication_sessions", ["expires_at"])
+    op.create_index(
+        "ix_auth_sessions_expires_at", "authentication_sessions", ["expires_at"]
+    )
 
 
 def downgrade() -> None:

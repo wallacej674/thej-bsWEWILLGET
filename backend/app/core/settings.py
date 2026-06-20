@@ -36,7 +36,9 @@ class Settings(BaseSettings):
         if self.environment == "production" and not self.auth_cookie_secure:
             raise RuntimeError("AUTH_COOKIE_SECURE must be enabled in production.")
         if "*" in self.cors_origins:
-            raise RuntimeError("CORS_ORIGINS must not include a wildcard with credentials.")
+            raise RuntimeError(
+                "CORS_ORIGINS must not include a wildcard with credentials."
+            )
 
 
 @lru_cache

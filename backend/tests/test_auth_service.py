@@ -26,4 +26,4 @@ def test_successful_login_creates_a_server_side_session(
     assert result.user.id == active_member.id
     assert result.session.user_id == active_member.id
     assert result.session.revoked_at is None
-    assert refresh_payload.extra_dict["sid"] == str(result.session.id)
+    assert refresh_payload.sid == str(result.session.id)

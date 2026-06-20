@@ -19,7 +19,9 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 authentication_service = AuthenticationService()
 
 
-def _set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
+def _set_auth_cookies(
+    response: Response, access_token: str, refresh_token: str
+) -> None:
     authx = get_authx()
     authx.set_access_cookies(access_token, response)
     authx.set_refresh_cookies(refresh_token, response)

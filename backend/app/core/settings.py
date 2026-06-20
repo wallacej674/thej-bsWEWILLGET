@@ -12,8 +12,13 @@ class Settings(BaseSettings):
     app_name: str = "ApplyTogether API"
     api_v1_prefix: str = "/api/v1"
     database_url: PostgresDsn
-    dev_identity_header_enabled: bool = True
+    dev_identity_header_enabled: bool = False
     cors_origins: list[str] = Field(default_factory=list)
+    auth_jwt_secret_key: str
+    auth_access_token_minutes: int = 15
+    auth_refresh_token_days: int = 20
+    auth_cookie_secure: bool = True
+    auth_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
     log_level: str = "INFO"
     app_timezone: str = "America/Chicago"
     seed_jonathan_email: str = "jonathan@example.test"
@@ -28,6 +33,10 @@ class Settings(BaseSettings):
         }:
             message = "DEV_IDENTITY_HEADER_ENABLED may only be enabled in development or test."
             raise RuntimeError(message)
+        if self.environment == "production" and not self.auth_cookie_secure:
+            raise RuntimeError("AUTH_COOKIE_SECURE must be enabled in production.")
+        if "*" in self.cors_origins:
+            raise RuntimeError("CORS_ORIGINS must not include a wildcard with credentials.")
 
 
 @lru_cache

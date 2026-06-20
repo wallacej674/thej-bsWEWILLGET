@@ -28,12 +28,12 @@ This milestone is integrated for local development. It does not claim
 production authentication, deployment, workspace administration, or automated
 browser end-to-end coverage.
 
-## Milestone 3 — planned: Google OAuth
+## Milestone 3 — Secure Email/Password Authentication and Session Management
 
-Milestone 3 replaces the development-only seeded UUID selector and
-`X-User-Id` header with Google OAuth and production session handling. The
-backend's resolved-current-user dependency remains the replacement boundary so
-route and service ownership rules do not need redesign.
+Milestone 3 replaces the normal development-only seeded UUID selector and
+`X-User-Id` header flow with email/password login, Argon2id password hashes,
+AuthX access and rotating refresh cookies, CSRF protection, and persisted
+session revocation. Google account linking remains a future enhancement.
 
 ## Later roadmap
 

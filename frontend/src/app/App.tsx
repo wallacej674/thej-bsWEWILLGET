@@ -59,7 +59,6 @@ import { ApplicationActions } from "../features/applications/ApplicationActions"
 import {
   applicationsApi,
   type ApiClient,
-  sessionApi,
 } from "../features/applications/api";
 import {
   MAX_SALARY_AMOUNT,
@@ -81,6 +80,11 @@ import type {
   Workspace,
 } from "../features/applications/types";
 import {
+  AuthProvider,
+  useAuth,
+} from "../features/auth/AuthProvider";
+import { LoginPage } from "../features/auth/LoginPage";
+import {
   configuredDevelopmentIdentities,
   createIdentityStore,
   type DevelopmentIdentity,
@@ -91,12 +95,21 @@ interface SessionState {
   workspace: Workspace;
 }
 
-interface AppContext {
-  client: ApiClient;
+interface DevelopmentIdentityControls {
   identities: DevelopmentIdentity[];
   selectedUserId: string;
+  switchIdentity(userId: string): void;
+}
+
+interface AppContext {
+  client: ApiClient;
   session: SessionState;
-  switchIdentity: (userId: string) => void;
+  developmentIdentity?: DevelopmentIdentityControls;
+  logout(): Promise<void>;
+  changePassword(input: { currentPassword: string; newPassword: string }): Promise<void>;
+  identities?: DevelopmentIdentity[];
+  selectedUserId?: string;
+  switchIdentity?: (userId: string) => void;
 }
 
 const statusLabels: Record<ApplicationStatus, string> = {
@@ -462,21 +475,40 @@ function AppShell({ context }: { context: AppContext }) {
           >
             <Plus size={13} /> Add application
           </Link>
-          <label className="sr-only" htmlFor="active-development-user">
-            Active development user
-          </label>
-          <select
-            id="active-development-user"
-            value={context.selectedUserId}
-            onChange={(event) => context.switchIdentity(event.target.value)}
-            className="max-w-28 rounded-lg border border-amber-500/20 bg-amber-500/5 px-2 py-1.5 text-xs text-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
-          >
-            {context.identities.map((identity) => (
-              <option key={identity.id} value={identity.id}>
-                {identity.label}
-              </option>
-            ))}
-          </select>
+          {context.developmentIdentity ? (
+            <label className="hidden text-xs text-amber-300 lg:block">
+              <span className="sr-only">Active developer identity</span>
+              <select
+                value={context.developmentIdentity.selectedUserId}
+                onChange={(event) =>
+                  context.developmentIdentity?.switchIdentity(event.target.value)
+                }
+                className="max-w-28 rounded-lg border border-amber-500/20 bg-amber-500/5 px-2 py-1.5 text-xs text-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
+              >
+                {context.developmentIdentity.identities.map((identity) => (
+                  <option key={identity.id} value={identity.id}>
+                    Dev: {identity.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <div className="hidden items-center gap-2 md:flex">
+            <Avatar
+              id={context.session.user.id}
+              name={context.session.user.display_name}
+            />
+            <span className="max-w-28 truncate text-xs text-slate-300">
+              {context.session.user.display_name}
+            </span>
+            <button
+              type="button"
+              onClick={() => void context.logout()}
+              className="rounded-lg px-2 py-1.5 text-xs font-medium text-slate-400 transition hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+            >
+              Log out
+            </button>
+          </div>
           <button
             className="rounded p-1.5 text-slate-400 hover:bg-white/5 md:hidden"
             onClick={() => setMobileOpen((open) => !open)}
@@ -2453,11 +2485,38 @@ function WorkspacePage({ context }: { context: AppContext }) {
 }
 
 function ProfilePage({ context }: { context: AppContext }) {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string>();
+
+  const submitPasswordChange = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (submitting) return;
+
+    setSubmitting(true);
+    setError(undefined);
+    try {
+      await context.changePassword({ currentPassword, newPassword });
+      toast.success("Password changed. Please sign in again.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The password could not be changed.",
+      );
+    } finally {
+      setCurrentPassword("");
+      setNewPassword("");
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
       <PageHeader
         title="Profile"
-        description="The current backend-resolved development identity."
+        description="Your account and authentication settings."
       />
       <div className="rounded-xl border border-white/[0.08] bg-[#111827] p-6">
         <div className="flex items-center gap-4 border-b border-white/[0.06] pb-6">
@@ -2471,30 +2530,68 @@ function ProfilePage({ context }: { context: AppContext }) {
               {context.session.user.display_name}
             </h2>
             <div className="mt-2 flex items-center gap-2 text-xs font-medium text-emerald-400">
-              <CheckCircle size={13} /> Active backend user
+              <CheckCircle size={13} /> Signed in
             </div>
           </div>
         </div>
-        <div className="mt-6 rounded-xl border border-amber-500/15 bg-amber-500/[0.04] p-4">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-amber-400">
-            <Shield size={13} /> Development identity
+        <form className="mt-6 max-w-md space-y-4" onSubmit={submitPasswordChange}>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-100">Change password</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              Changing your password signs this account out on every device.
+            </p>
           </div>
-          <p className="mt-2 text-xs leading-relaxed text-slate-500">
-            Requests send this seeded UUID through the development-only
-            X-User-Id header. Display names never authenticate requests.
-          </p>
-          <select
-            className="mt-4 w-full rounded-lg border border-white/10 bg-[#171f30] px-3 py-2 text-sm text-slate-300"
-            value={context.selectedUserId}
-            onChange={(event) => context.switchIdentity(event.target.value)}
-          >
-            {context.identities.map((identity) => (
-              <option key={identity.id} value={identity.id}>
-                Switch to {identity.label}
-              </option>
-            ))}
-          </select>
-        </div>
+          {error ? <p role="alert" className="text-sm text-rose-300">{error}</p> : null}
+          <label className="block text-sm text-slate-300">
+            Current password
+            <input
+              type="password"
+              autoComplete="current-password"
+              required
+              value={currentPassword}
+              onChange={(event) => setCurrentPassword(event.target.value)}
+              className="mt-1.5 w-full rounded-lg border border-white/10 bg-[#0c1120] px-3 py-2 text-sm text-white outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20"
+            />
+          </label>
+          <label className="block text-sm text-slate-300">
+            New password
+            <input
+              type="password"
+              autoComplete="new-password"
+              required
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              className="mt-1.5 w-full rounded-lg border border-white/10 bg-[#0c1120] px-3 py-2 text-sm text-white outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20"
+            />
+          </label>
+          <PrimaryButton type="submit" disabled={submitting}>
+            {submitting ? "Updating password…" : "Update password"}
+          </PrimaryButton>
+        </form>
+        {context.developmentIdentity ? (
+          <div className="mt-6 rounded-xl border border-amber-500/15 bg-amber-500/[0.04] p-4">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-amber-400">
+              <Shield size={13} /> Developer-only identity adapter
+            </div>
+            <p className="mt-2 text-xs leading-relaxed text-slate-500">
+              This build explicitly enables the development identity header.
+              Cookie sessions take precedence in normal builds.
+            </p>
+            <select
+              className="mt-4 w-full rounded-lg border border-white/10 bg-[#171f30] px-3 py-2 text-sm text-slate-300"
+              value={context.developmentIdentity.selectedUserId}
+              onChange={(event) =>
+                context.developmentIdentity?.switchIdentity(event.target.value)
+              }
+            >
+              {context.developmentIdentity.identities.map((identity) => (
+                <option key={identity.id} value={identity.id}>
+                  Switch to {identity.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -2516,7 +2613,7 @@ function NotFoundPage() {
   );
 }
 
-function IntegratedApp() {
+export function LegacyDevelopmentIdentityApp() {
   const identities = useMemo(configuredDevelopmentIdentities, []);
   const identityStore = useMemo(
     () => createIdentityStore({ identities, storage: window.localStorage }),
@@ -2531,7 +2628,7 @@ function IntegratedApp() {
     () =>
       createApiClient({
         baseUrl: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000",
-        getUserId: () => selectedUserId,
+        developmentIdentity: { enabled: true, getUserId: () => selectedUserId },
       }),
     [selectedUserId],
   );
@@ -2609,8 +2706,145 @@ function IntegratedApp() {
         selectedUserId,
         session,
         switchIdentity,
+        logout: async () => undefined,
+        changePassword: async () => undefined,
       }}
     />
+  );
+}
+
+function readCookie(name: string): string | null {
+  const encodedName = `${encodeURIComponent(name)}=`;
+  const value = document.cookie
+    .split("; ")
+    .find((entry) => entry.startsWith(encodedName))
+    ?.slice(encodedName.length);
+  return value ? decodeURIComponent(value) : null;
+}
+
+function AuthenticatedApp({
+  client,
+  developmentIdentity,
+}: {
+  client: ApiClient;
+  developmentIdentity?: DevelopmentIdentityControls;
+}) {
+  const auth = useAuth();
+
+  if (auth.status === "initializing") {
+    return (
+      <div className="dark min-h-screen bg-[#0c1120] text-slate-200">
+        <LoadingState label="Restoring your secure session…" />
+      </div>
+    );
+  }
+
+  if (auth.status === "recoverable-error") {
+    return (
+      <div className="dark flex min-h-screen items-center justify-center bg-[#0c1120] p-6 text-slate-200">
+        <div className="w-full max-w-lg">
+          <ErrorState
+            error={auth.error ?? new Error("Session could not be restored.")}
+            onRetry={() => void auth.retry()}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (auth.status === "unauthenticated") {
+    return <LoginPage onLogin={auth.login} />;
+  }
+
+  if (!auth.user || !auth.workspace) {
+    return (
+      <div className="dark min-h-screen bg-[#0c1120] text-slate-200">
+        <LoadingState label="Loading your workspace…" />
+      </div>
+    );
+  }
+
+  return (
+    <AppShell
+      context={{
+        client,
+        session: { user: auth.user, workspace: auth.workspace },
+        developmentIdentity,
+        logout: async () => {
+          try {
+            await auth.logout();
+          } catch {
+            // Clearing the local authenticated state remains intentional when
+            // a best-effort server logout cannot complete.
+          }
+        },
+        changePassword: auth.changePassword,
+      }}
+    />
+  );
+}
+
+function SecureIntegratedApp() {
+  const developmentIdentityEnabled =
+    import.meta.env.DEV &&
+    import.meta.env.VITE_ENABLE_DEV_IDENTITY_SWITCHER === "true";
+  const identities = useMemo(
+    () => (developmentIdentityEnabled ? configuredDevelopmentIdentities() : []),
+    [developmentIdentityEnabled],
+  );
+  const identityStore = useMemo(
+    () =>
+      developmentIdentityEnabled
+        ? createIdentityStore({ identities, storage: window.localStorage })
+        : null,
+    [developmentIdentityEnabled, identities],
+  );
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(
+    () => identityStore?.current() ?? null,
+  );
+
+  const client = useMemo(
+    () =>
+      createApiClient({
+        baseUrl: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000",
+        csrf: {
+          cookieName: import.meta.env.VITE_CSRF_COOKIE_NAME ?? "applytogether_csrf",
+          headerName: import.meta.env.VITE_CSRF_HEADER_NAME ?? "X-CSRF-Token",
+          readCookie,
+        },
+        refreshCsrf: {
+          cookieName:
+            import.meta.env.VITE_REFRESH_CSRF_COOKIE_NAME ??
+            "applytogether_refresh_csrf",
+          headerName:
+            import.meta.env.VITE_REFRESH_CSRF_HEADER_NAME ??
+            "X-Refresh-CSRF-Token",
+          readCookie,
+        },
+        developmentIdentity:
+          developmentIdentityEnabled && selectedUserId
+            ? { enabled: true, getUserId: () => selectedUserId }
+            : undefined,
+      }),
+    [developmentIdentityEnabled, selectedUserId],
+  );
+
+  const switchIdentity = (userId: string) => {
+    identityStore?.select(userId);
+    setSelectedUserId(userId);
+    toast.success(
+      `Switched developer identity to ${identities.find((identity) => identity.id === userId)?.label ?? "user"}.`,
+    );
+  };
+  const developmentIdentity =
+    developmentIdentityEnabled && selectedUserId
+      ? { identities, selectedUserId, switchIdentity }
+      : undefined;
+
+  return (
+    <AuthProvider client={client}>
+      <AuthenticatedApp client={client} developmentIdentity={developmentIdentity} />
+    </AuthProvider>
   );
 }
 
@@ -2628,7 +2862,7 @@ export default function App() {
           },
         }}
       />
-      <IntegratedApp />
+      <SecureIntegratedApp />
     </BrowserRouter>
   );
 }

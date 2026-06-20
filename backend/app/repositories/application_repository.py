@@ -2,7 +2,7 @@ from datetime import date
 from uuid import UUID
 
 from sqlalchemy import Select, and_, asc, desc, func, or_, select, union
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.core.enums import ApplicationStatus, EmploymentType, WorkArrangement
 from app.models.application import JobApplication
@@ -100,21 +100,25 @@ class ApplicationRepository:
             )
         )
 
-    def list_deleted_for_owner(
+    def list_deleted(
         self,
         session: Session,
         workspace_id: UUID,
-        owner_id: UUID,
+        user_id: UUID,
         page: int,
         page_size: int,
-    ) -> tuple[list[JobApplication], int]:
+    ) -> tuple[list[tuple[JobApplication, User, User]], int]:
         filters = [
             JobApplication.workspace_id == workspace_id,
-            JobApplication.owner_id == owner_id,
             JobApplication.deleted_at.is_not(None),
+            JobApplication.deleted_by_user_id == user_id,
         ]
-        statement = (
-            select(JobApplication)
+        owner = aliased(User)
+        deleter = aliased(User)
+        statement: Select[tuple[JobApplication, User, User]] = (
+            select(JobApplication, owner, deleter)
+            .join(owner, owner.id == JobApplication.owner_id)
+            .join(deleter, deleter.id == JobApplication.deleted_by_user_id)
             .where(*filters)
             .order_by(desc(JobApplication.deleted_at), JobApplication.id)
             .offset((page - 1) * page_size)
@@ -123,7 +127,30 @@ class ApplicationRepository:
         total = session.scalar(
             select(func.count()).select_from(JobApplication).where(*filters)
         )
-        return list(session.scalars(statement)), total or 0
+        return list(session.execute(statement).tuples()), total or 0
+
+    def list_deleted_for_permanent_deletion(
+        self,
+        session: Session,
+        workspace_id: UUID,
+        *,
+        application_ids: list[UUID] | None = None,
+        eligible_user_id: UUID | None = None,
+    ) -> list[JobApplication]:
+        filters = [
+            JobApplication.workspace_id == workspace_id,
+            JobApplication.deleted_at.is_not(None),
+        ]
+        if application_ids is not None:
+            filters.append(JobApplication.id.in_(application_ids))
+        if eligible_user_id is not None:
+            filters.extend(
+                [
+                    JobApplication.owner_id == eligible_user_id,
+                    JobApplication.deleted_by_user_id == eligible_user_id,
+                ]
+            )
+        return list(session.scalars(select(JobApplication).where(*filters)))
 
     def list_active(
         self,

@@ -16,7 +16,7 @@ def require_active_workspace_membership(
     session: DatabaseSession,
 ) -> WorkspaceMembership:
     workspace = session.get(Workspace, workspace_id)
-    if workspace is None:
+    if workspace is None or workspace.deleted_at is not None:
         raise AppError(404, "workspace_not_found", "Workspace was not found.")
     membership = session.scalar(
         select(WorkspaceMembership).where(

@@ -75,6 +75,9 @@ class JobApplication(Base):
     owner_id: Mapped[UUID] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
+    deleted_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT")
+    )
     company_name: Mapped[str] = mapped_column(String(200), nullable=False)
     job_title: Mapped[str] = mapped_column(String(200), nullable=False)
     job_posting_url: Mapped[str] = mapped_column(String(2048), nullable=False)

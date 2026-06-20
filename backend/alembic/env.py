@@ -5,7 +5,12 @@ from sqlalchemy import engine_from_config, pool
 from alembic import context
 from app.db.alembic import configure_database_url
 from app.db.base import Base
-from app.models import User, Workspace, WorkspaceMembership  # noqa: F401
+from app.models import (  # noqa: F401
+    User,
+    Workspace,
+    WorkspaceInvitation,
+    WorkspaceMembership,
+)
 
 config = context.config
 configure_database_url(config)

@@ -30,7 +30,21 @@ export interface OwnerSummary {
 export interface Workspace {
   id: string;
   name: string;
-  role: "owner" | "member";
+  role: "owner" | "admin" | "member";
+}
+
+export interface WorkspaceMember {
+  user: CurrentUser & { email: string };
+  role: "owner" | "admin" | "member";
+  joined_at: string;
+}
+
+export interface WorkspaceInvitation {
+  id: string;
+  email: string;
+  role: "member";
+  status: "pending" | "joined";
+  invited_at: string;
 }
 
 export interface JobApplication {
@@ -57,6 +71,8 @@ export interface JobApplication {
 
 export interface DeletedApplication extends JobApplication {
   deleted_at: string;
+  deleted_by: OwnerSummary;
+  moderated: boolean;
 }
 
 export interface Pagination {

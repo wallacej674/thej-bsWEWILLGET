@@ -38,10 +38,11 @@ Open `http://localhost:5173`.
 
 ## Integrated behavior
 
-- The identity gate lists only seeded UUIDs configured through Vite variables.
-- The selected identity is persisted in local storage and sent as
-  `X-User-Id`; the backend remains the authority for user, workspace, and
-  application ownership.
+- The normal application flow uses cookie-based email/password authentication.
+  JWTs remain in HTTP-only cookies and are never stored in browser storage.
+- The developer identity switcher is disabled by default. It is available only
+  in development when `VITE_ENABLE_DEV_IDENTITY_SWITCHER=true`; the backend
+  remains the authority for user, workspace, and application ownership.
 - The typed API client targets `/api/v1`, serializes JSON, handles 204
   responses, and converts backend error envelopes into `ApiError`.
 - Browser routes cover the dashboard, applications list, create, detail, edit,

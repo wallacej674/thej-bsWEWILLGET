@@ -83,6 +83,7 @@ import {
   AuthProvider,
   useAuth,
 } from "../features/auth/AuthProvider";
+import { authApi } from "../features/auth/authApi";
 import { LoginPage } from "../features/auth/LoginPage";
 import {
   configuredDevelopmentIdentities,
@@ -2647,7 +2648,7 @@ export function LegacyDevelopmentIdentityApp() {
     if (!selectedUserId) return;
     let active = true;
     setLoading(true);
-    Promise.all([sessionApi.currentUser(client), sessionApi.workspaces(client)])
+    Promise.all([authApi.currentUser(client), authApi.workspaces(client)])
       .then(([user, workspaceResponse]) => {
         if (!active) return;
         const workspace = workspaceResponse.items[0];

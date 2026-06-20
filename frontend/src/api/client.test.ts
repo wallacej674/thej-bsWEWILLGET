@@ -12,7 +12,6 @@ describe("API client", () => {
     );
     const client = createApiClient({
       baseUrl: "http://localhost:8000",
-      getUserId: () => null,
       fetcher,
     });
 
@@ -244,7 +243,6 @@ describe("API client", () => {
     );
     const client = createApiClient({
       baseUrl: "http://localhost:8000/",
-      getUserId: () => "user-1",
       fetcher,
     });
 
@@ -268,7 +266,6 @@ describe("API client", () => {
     );
     const client = createApiClient({
       baseUrl: "http://localhost:8000",
-      getUserId: () => "user-1",
       fetcher,
     });
 

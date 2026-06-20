@@ -73,7 +73,7 @@ def _token_payload(token: str) -> TokenPayload:
 
 
 def _session_id(payload: TokenPayload) -> UUID:
-    value = payload.sid
+    value = (payload.model_extra or {}).get("sid")
     if not isinstance(value, str):
         raise InvalidSessionError
     try:

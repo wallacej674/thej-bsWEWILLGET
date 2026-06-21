@@ -5,11 +5,17 @@ from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.enums import ApplicationStatus, EmploymentType, WorkArrangement
+from app.core.enums import (
+    ApplicationStatus,
+    EmploymentType,
+    MembershipRole,
+    WorkArrangement,
+)
 from app.core.errors import AppError
 from app.core.time import application_today, utc_now
 from app.core.url_normalization import normalize_job_posting_url
 from app.models.application import JobApplication
+from app.models.membership import WorkspaceMembership
 from app.models.user import User
 from app.repositories.application_repository import ApplicationRepository
 from app.schemas.application import (
@@ -24,6 +30,8 @@ from app.schemas.application import (
     DeletedApplicationListResponse,
     DeletedApplicationResponse,
     Pagination,
+    PermanentDeleteRequest,
+    PermanentDeleteResponse,
     RecentApplicationActivity,
 )
 
@@ -325,14 +333,24 @@ class ApplicationService:
         workspace_id: UUID,
         application_id: UUID,
         current_user: User,
+        membership: WorkspaceMembership,
     ) -> None:
         application = self._require_application(session, workspace_id, application_id)
-        self._require_owner(application, current_user)
+        if application.owner_id != current_user.id and membership.role not in {
+            MembershipRole.OWNER,
+            MembershipRole.ADMIN,
+        }:
+            raise AppError(
+                403,
+                "application_delete_forbidden",
+                "Only the application author, a workspace admin, or the owner may delete it.",
+            )
         if application.deleted_at is not None:
             raise AppError(
                 409, "application_already_deleted", "Application is already deleted."
             )
         application.deleted_at = utc_now()
+        application.deleted_by_user_id = current_user.id
         application.updated_at = utc_now()
         self._commit(session)
 
@@ -344,13 +362,19 @@ class ApplicationService:
         page: int,
         page_size: int,
     ) -> DeletedApplicationListResponse:
-        applications, total = self._repository.list_deleted_for_owner(
-            session, workspace_id, current_user.id, page, page_size
+        applications, total = self._repository.list_deleted(
+            session,
+            workspace_id,
+            current_user.id,
+            page,
+            page_size,
         )
         return DeletedApplicationListResponse(
             items=[
-                DeletedApplicationResponse.from_application(application, current_user)
-                for application in applications
+                DeletedApplicationResponse.from_deleted_application(
+                    application, owner, deleted_by
+                )
+                for application, owner, deleted_by in applications
             ],
             pagination=Pagination(
                 page=page,
@@ -368,15 +392,58 @@ class ApplicationService:
         current_user: User,
     ) -> ApplicationResponse:
         application = self._require_application(session, workspace_id, application_id)
-        self._require_owner(application, current_user)
         if application.deleted_at is None:
             raise AppError(
                 409, "application_not_deleted", "Application is not deleted."
             )
+        if application.deleted_by_user_id != current_user.id:
+            raise AppError(
+                403,
+                "application_restore_forbidden",
+                "Only the person who deleted this application may restore it.",
+            )
         application.deleted_at = None
+        application.deleted_by_user_id = None
         application.updated_at = utc_now()
         self._commit(session)
-        return ApplicationResponse.from_application(application, current_user)
+        owner = session.get(User, application.owner_id)
+        if owner is None:
+            raise AppError(404, "application_not_found", "Application was not found.")
+        return ApplicationResponse.from_application(application, owner)
+
+    def permanently_delete(
+        self,
+        session: Session,
+        workspace_id: UUID,
+        current_user: User,
+        payload: PermanentDeleteRequest,
+    ) -> PermanentDeleteResponse:
+        applications = self._repository.list_deleted_for_permanent_deletion(
+            session,
+            workspace_id,
+            application_ids=None if payload.delete_all else payload.application_ids,
+            eligible_user_id=current_user.id if payload.delete_all else None,
+        )
+        if not payload.delete_all and len(applications) != len(payload.application_ids):
+            raise AppError(
+                404,
+                "deleted_application_not_found",
+                "One or more selected applications were not found.",
+            )
+        unauthorized = any(
+            application.deleted_by_user_id != current_user.id
+            for application in applications
+        )
+        if unauthorized:
+            raise AppError(
+                403,
+                "permanent_delete_forbidden",
+                "You may permanently delete only applications you deleted.",
+            )
+        for application in applications:
+            session.delete(application)
+        session.commit()
+        return PermanentDeleteResponse(deleted_count=len(applications))
 
     def _require_application(
         self, session: Session, workspace_id: UUID, application_id: UUID

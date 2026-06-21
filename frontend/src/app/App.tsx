@@ -3,7 +3,10 @@ import {
   ArrowLeft,
   ArrowUpDown,
   Briefcase,
+  Building2,
   CheckCircle,
+  Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock3,
@@ -12,6 +15,7 @@ import {
   LayoutDashboard,
   LoaderCircle,
   Menu,
+  Mail,
   Plus,
   RotateCcw,
   Search,
@@ -19,9 +23,12 @@ import {
   Trash,
   TrendingUp,
   User,
+  UserPlus,
+  UserMinus,
   Users,
   X,
 } from "lucide-react";
+import * as RadixSelect from "@radix-ui/react-select";
 import {
   type FormEvent,
   type ReactNode,
@@ -58,8 +65,9 @@ import { ApiError, createApiClient } from "../api/client";
 import { ApplicationActions } from "../features/applications/ApplicationActions";
 import {
   applicationsApi,
-  type ApiClient,
   sessionApi,
+  type ApiClient,
+  workspaceApi,
 } from "../features/applications/api";
 import {
   MAX_SALARY_AMOUNT,
@@ -79,7 +87,15 @@ import type {
   SortField,
   WorkArrangement,
   Workspace,
+  WorkspaceInvitation,
+  WorkspaceMember,
 } from "../features/applications/types";
+import {
+  AuthProvider,
+  useAuth,
+} from "../features/auth/AuthProvider";
+import { authApi } from "../features/auth/authApi";
+import { LoginPage } from "../features/auth/LoginPage";
 import {
   configuredDevelopmentIdentities,
   createIdentityStore,
@@ -91,12 +107,24 @@ interface SessionState {
   workspace: Workspace;
 }
 
-interface AppContext {
-  client: ApiClient;
+interface DevelopmentIdentityControls {
   identities: DevelopmentIdentity[];
   selectedUserId: string;
+  switchIdentity(userId: string): void;
+}
+
+interface AppContext {
+  client: ApiClient;
   session: SessionState;
-  switchIdentity: (userId: string) => void;
+  workspaces: Workspace[];
+  switchWorkspace(workspace: Workspace): void;
+  refreshWorkspaces(): Promise<Workspace[]>;
+  developmentIdentity?: DevelopmentIdentityControls;
+  logout(): Promise<void>;
+  changePassword(input: { currentPassword: string; newPassword: string }): Promise<void>;
+  identities?: DevelopmentIdentity[];
+  selectedUserId?: string;
+  switchIdentity?: (userId: string) => void;
 }
 
 const statusLabels: Record<ApplicationStatus, string> = {
@@ -260,6 +288,70 @@ function PageHeader({
       </div>
       {action}
     </div>
+  );
+}
+
+const emptySelectValue = "__applytogether_empty__";
+
+function DarkSelect({
+  value,
+  onChange,
+  options,
+  ariaLabel,
+  className = "",
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  ariaLabel: string;
+  className?: string;
+}) {
+  const normalizedValue = value === "" ? emptySelectValue : value;
+
+  return (
+    <RadixSelect.Root
+      value={normalizedValue}
+      onValueChange={(nextValue) =>
+        onChange(nextValue === emptySelectValue ? "" : nextValue)
+      }
+    >
+      <RadixSelect.Trigger
+        aria-label={ariaLabel}
+        className={`inline-flex min-h-8 w-full items-center justify-between gap-2 rounded-lg border border-white/[0.09] bg-[#151e2f] px-3 py-2 text-left text-xs text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] transition-colors hover:border-white/[0.15] hover:bg-[#182235] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/45 data-[state=open]:border-indigo-500/35 data-[state=open]:bg-[#182235] ${className}`}
+      >
+        <RadixSelect.Value />
+        <RadixSelect.Icon className="shrink-0 text-slate-500">
+          <ChevronDown size={14} />
+        </RadixSelect.Icon>
+      </RadixSelect.Trigger>
+      <RadixSelect.Portal>
+        <RadixSelect.Content
+          position="popper"
+          sideOffset={6}
+          collisionPadding={12}
+          className="z-[100] min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-xl border border-white/[0.1] bg-[#111827] p-1.5 text-slate-300 shadow-[0_18px_50px_rgba(0,0,0,0.55)]"
+        >
+          <RadixSelect.Viewport>
+            {options.map((option) => {
+              const optionValue =
+                option.value === "" ? emptySelectValue : option.value;
+              return (
+                <RadixSelect.Item
+                  key={optionValue}
+                  value={optionValue}
+                  className="relative flex cursor-pointer select-none items-center rounded-lg py-2 pl-3 pr-8 text-xs outline-none transition-colors data-[highlighted]:bg-indigo-500/15 data-[highlighted]:text-indigo-200 data-[state=checked]:text-white"
+                >
+                  <RadixSelect.ItemText>{option.label}</RadixSelect.ItemText>
+                  <RadixSelect.ItemIndicator className="absolute right-2.5 text-indigo-400">
+                    <Check size={13} />
+                  </RadixSelect.ItemIndicator>
+                </RadixSelect.Item>
+              );
+            })}
+          </RadixSelect.Viewport>
+        </RadixSelect.Content>
+      </RadixSelect.Portal>
+    </RadixSelect.Root>
   );
 }
 
@@ -434,9 +526,23 @@ function AppShell({ context }: { context: AppContext }) {
             </span>
           </Link>
           <span className="hidden text-xs text-slate-600 sm:block">/</span>
-          <span className="hidden text-xs text-slate-400 sm:block">
-            {context.session.workspace.name}
-          </span>
+          <div className="hidden max-w-44 sm:block">
+            <DarkSelect
+              ariaLabel="Active workspace"
+            value={context.session.workspace.id}
+              onChange={(workspaceId) => {
+              const workspace = context.workspaces.find(
+                  (item) => item.id === workspaceId,
+              );
+              if (workspace) context.switchWorkspace(workspace);
+            }}
+              options={context.workspaces.map((workspace) => ({
+                value: workspace.id,
+                label: workspace.name,
+              }))}
+              className="min-h-7 py-1.5"
+            />
+          </div>
           <div className="hidden flex-1 items-center justify-center gap-0.5 md:flex">
             {nav.map(({ to, label, icon: Icon, end }) => (
               <NavLink
@@ -462,21 +568,40 @@ function AppShell({ context }: { context: AppContext }) {
           >
             <Plus size={13} /> Add application
           </Link>
-          <label className="sr-only" htmlFor="active-development-user">
-            Active development user
-          </label>
-          <select
-            id="active-development-user"
-            value={context.selectedUserId}
-            onChange={(event) => context.switchIdentity(event.target.value)}
-            className="max-w-28 rounded-lg border border-amber-500/20 bg-amber-500/5 px-2 py-1.5 text-xs text-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
-          >
-            {context.identities.map((identity) => (
-              <option key={identity.id} value={identity.id}>
-                {identity.label}
-              </option>
-            ))}
-          </select>
+          {context.developmentIdentity ? (
+            <label className="hidden text-xs text-amber-300 lg:block">
+              <span className="sr-only">Active developer identity</span>
+              <select
+                value={context.developmentIdentity.selectedUserId}
+                onChange={(event) =>
+                  context.developmentIdentity?.switchIdentity(event.target.value)
+                }
+                className="max-w-28 rounded-lg border border-amber-500/20 bg-amber-500/5 px-2 py-1.5 text-xs text-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
+              >
+                {context.developmentIdentity.identities.map((identity) => (
+                  <option key={identity.id} value={identity.id}>
+                    Dev: {identity.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <div className="hidden items-center gap-2 md:flex">
+            <Avatar
+              id={context.session.user.id}
+              name={context.session.user.display_name}
+            />
+            <span className="max-w-28 truncate text-xs text-slate-300">
+              {context.session.user.display_name}
+            </span>
+            <button
+              type="button"
+              onClick={() => void context.logout()}
+              className="rounded-lg px-2 py-1.5 text-xs font-medium text-slate-400 transition hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+            >
+              Log out
+            </button>
+          </div>
           <button
             className="rounded p-1.5 text-slate-400 hover:bg-white/5 md:hidden"
             onClick={() => setMobileOpen((open) => !open)}
@@ -878,6 +1003,7 @@ function DashboardPage({ context }: { context: AppContext }) {
                 contentStyle={chartTooltipStyle}
                 itemStyle={{ color: "#e2e8f0" }}
                 labelStyle={{ color: "#9fb6d4" }}
+                cursor={{ fill: "rgba(99,102,241,0.06)" }}
               />
               {ownerKeys.map((key, index) => (
                 <Bar
@@ -1118,8 +1244,8 @@ function DashboardDonutCard({
               nameKey="name"
               innerRadius={46}
               outerRadius={70}
-              stroke="#e2e8f0"
-              strokeWidth={1}
+              stroke="none"
+              strokeWidth={0}
             >
               {data.map((item) => (
                 <Cell key={item.name} fill={item.color} />
@@ -1393,6 +1519,9 @@ function ApplicationsPage({ context }: { context: AppContext }) {
             <ApplicationTable
               applications={result.items}
               currentUserId={context.session.user.id}
+              canModerate={["owner", "admin"].includes(
+                context.session.workspace.role,
+              )}
               context={context}
               onDelete={load}
             />
@@ -1432,33 +1561,33 @@ function FilterSelect({
   options: { value: string; label: string }[];
   includeAll?: boolean;
 }) {
+  const selectOptions = [
+    ...(includeAll
+      ? [{ value: "", label: `All ${label.toLowerCase()}` }]
+      : []),
+    ...options,
+  ];
+
   return (
-    <label>
-      <span className="sr-only">{label}</span>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-lg border border-white/10 bg-[#171f30] px-3 py-2 text-xs text-slate-300 focus:border-indigo-500/50 focus:outline-none"
-      >
-        {includeAll && <option value="">All {label.toLowerCase()}</option>}
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
+    <DarkSelect
+      ariaLabel={label}
+      value={value}
+      onChange={onChange}
+      options={selectOptions}
+    />
   );
 }
 
 function ApplicationTable({
   applications,
   currentUserId,
+  canModerate,
   context,
   onDelete,
 }: {
   applications: JobApplication[];
   currentUserId: string;
+  canModerate: boolean;
   context: AppContext;
   onDelete: () => void;
 }) {
@@ -1556,6 +1685,7 @@ function ApplicationTable({
                 <td className="px-5 py-4">
                   <ApplicationActions
                     applicationOwnerId={application.owner.id}
+                    canModerate={canModerate}
                     currentUserId={currentUserId}
                     onView={() => navigate(`/applications/${application.id}`)}
                     onEdit={() =>
@@ -1596,6 +1726,7 @@ function ApplicationTable({
               </div>
               <ApplicationActions
                 applicationOwnerId={application.owner.id}
+                canModerate={canModerate}
                 currentUserId={currentUserId}
                 onView={() => navigate(`/applications/${application.id}`)}
                 onEdit={() => navigate(`/applications/${application.id}/edit`)}
@@ -1628,18 +1759,22 @@ function PaginationBar({
       </p>
       <div className="flex items-center gap-2">
         {onPageSize && (
-          <label className="text-xs text-slate-600">
-            Per page{" "}
-            <select
-              value={pageSize}
-              onChange={(event) => onPageSize(Number(event.target.value))}
-              className="ml-1 rounded border border-white/10 bg-[#171f30] px-2 py-1 text-slate-400"
-            >
-              <option value="10">10</option>
-              <option value="20">20</option>
-              <option value="50">50</option>
-            </select>
-          </label>
+          <div className="flex items-center gap-2 text-xs text-slate-600">
+            <span>Per page</span>
+            <div className="w-20">
+              <DarkSelect
+                ariaLabel="Applications per page"
+                value={String(pageSize)}
+                onChange={(value) => onPageSize(Number(value))}
+                options={[
+                  { value: "10", label: "10" },
+                  { value: "20", label: "20" },
+                  { value: "50", label: "50" },
+                ]}
+                className="min-h-7 py-1.5"
+              />
+            </div>
+          </div>
         )}
         <button
           aria-label="Previous page"
@@ -1702,6 +1837,9 @@ function ApplicationDetailPage({ context }: { context: AppContext }) {
   }
 
   const owned = application.owner.id === context.session.user.id;
+  const canModerate = ["owner", "admin"].includes(
+    context.session.workspace.role,
+  );
   const remove = async () => {
     if (!window.confirm("Move this application to Deleted?")) return;
     try {
@@ -1735,11 +1873,13 @@ function ApplicationDetailPage({ context }: { context: AppContext }) {
           </div>
           <p className="mt-1 text-slate-500">{application.job_title}</p>
         </div>
-        {owned && (
+        {(owned || canModerate) && (
           <div className="flex gap-2">
-            <Link to={`/applications/${application.id}/edit`}>
-              <PrimaryButton>Edit application</PrimaryButton>
-            </Link>
+            {owned && (
+              <Link to={`/applications/${application.id}/edit`}>
+                <PrimaryButton>Edit application</PrimaryButton>
+              </Link>
+            )}
             <button
               className="rounded-lg border border-red-500/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-500/10"
               onClick={() => void remove()}
@@ -1752,8 +1892,12 @@ function ApplicationDetailPage({ context }: { context: AppContext }) {
       {!owned && (
         <div className="mb-5 flex items-start gap-3 rounded-xl border border-indigo-500/15 bg-indigo-500/5 p-4 text-sm text-slate-400">
           <Shield size={15} className="mt-0.5 flex-shrink-0 text-indigo-400" />
-          This record belongs to {application.owner.display_name}. Shared
-          workspace access is read-only for another person’s application.
+          <span>
+            This record belongs to {application.owner.display_name}. You can
+            view it but cannot edit it.
+            {canModerate &&
+              " As a workspace owner, you may remove it if it does not belong in this workspace."}
+          </span>
         </div>
       )}
       <div className="space-y-4">
@@ -2279,19 +2423,16 @@ function FormSelect({
       <span className="mb-1.5 block text-xs font-medium text-slate-400">
         {label}
       </span>
-      <select
-        id={name}
+      <DarkSelect
+        ariaLabel={label}
         value={value}
-        aria-invalid={Boolean(error)}
-        onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-lg border border-white/10 bg-[#171f30] px-3 py-2 text-sm text-slate-300 focus:border-indigo-500/50 focus:outline-none"
-      >
-        {options.map(([optionValue, optionLabel]) => (
-          <option key={optionValue || "empty"} value={optionValue}>
-            {optionLabel}
-          </option>
-        ))}
-      </select>
+        onChange={onChange}
+        options={options.map(([optionValue, optionLabel]) => ({
+          value: optionValue,
+          label: optionLabel,
+        }))}
+        className={error ? "border-red-500/40" : ""}
+      />
       {error && <span className="mt-1 block text-xs text-red-400">{error}</span>}
     </label>
   );
@@ -2330,6 +2471,10 @@ function DeletedPage({ context }: { context: AppContext }) {
     useState<PaginatedApplications<DeletedApplication> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>();
+  const [selecting, setSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectAll, setSelectAll] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -2366,12 +2511,132 @@ function DeletedPage({ context }: { context: AppContext }) {
     }
   };
 
+  const leaveSelectionMode = () => {
+    setSelecting(false);
+    setSelectedIds(new Set());
+    setSelectAll(false);
+  };
+
+  const toggleApplication = (applicationId: string) => {
+    setSelectAll(false);
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(applicationId)) {
+        next.delete(applicationId);
+      } else {
+        next.add(applicationId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectAll) {
+      setSelectAll(false);
+      setSelectedIds(new Set());
+      return;
+    }
+    setSelectAll(true);
+    setSelectedIds(new Set(result?.items.map((application) => application.id)));
+  };
+
+  const permanentlyDelete = async () => {
+    const count = selectAll
+      ? (result?.pagination.total_items ?? 0)
+      : selectedIds.size;
+    if (count === 0) return;
+    const noun = count === 1 ? "application" : "applications";
+    if (
+      !window.confirm(
+        `Permanently delete ${count} ${noun}? This cannot be undone or restored.`,
+      )
+    ) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      const response = await applicationsApi.permanentlyDelete(
+        context.client,
+        context.session.workspace.id,
+        selectAll ? [] : [...selectedIds],
+        selectAll,
+      );
+      toast.success(
+        `${response.deleted_count} ${
+          response.deleted_count === 1 ? "application" : "applications"
+        } permanently deleted.`,
+      );
+      leaveSelectionMode();
+      if (page !== 1) {
+        setPage(1);
+      } else {
+        await load();
+      }
+    } catch (caught) {
+      toast.error(
+        caught instanceof Error ? caught.message : "Permanent deletion failed.",
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       <PageHeader
         title="Deleted applications"
-        description="Only your deleted records appear here. Restore one to return it to the shared workspace."
+        description="Review, restore, or permanently erase applications you deleted."
+        action={
+          result && result.pagination.total_items > 0 && !selecting ? (
+            <button
+              onClick={() => setSelecting(true)}
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-red-500/20 bg-red-500/[0.06] px-3.5 py-2 text-xs font-semibold text-red-400 transition-colors hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50"
+            >
+              <Trash size={14} /> Permanently delete
+            </button>
+          ) : undefined
+        }
       />
+      {selecting && result && (
+        <div className="mb-4 flex flex-col justify-between gap-3 rounded-xl border border-red-500/20 bg-gradient-to-r from-red-500/[0.08] to-transparent p-4 sm:flex-row sm:items-center">
+          <div>
+            <p className="text-sm font-semibold text-slate-200">
+              Select applications to delete forever
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              {selectAll
+                ? `All ${result.pagination.total_items} applications in your Deleted tab are selected.`
+                : `${selectedIds.size} selected. You can still cancel or restore applications later.`}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={toggleSelectAll}
+              className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-medium text-slate-300 transition-colors hover:bg-white/[0.08]"
+            >
+              {selectAll ? "Clear all" : "Select all"}
+            </button>
+            <button
+              onClick={leaveSelectionMode}
+              className="rounded-lg px-3 py-2 text-xs font-medium text-slate-500 transition-colors hover:text-slate-200"
+            >
+              Cancel
+            </button>
+            <button
+              disabled={deleting || (!selectAll && selectedIds.size === 0)}
+              onClick={() => void permanentlyDelete()}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-red-500 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-red-400 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {deleting ? (
+                <LoaderCircle size={13} className="animate-spin" />
+              ) : (
+                <Trash size={13} />
+              )}
+              Delete permanently
+            </button>
+          </div>
+        </div>
+      )}
       {loading ? (
         <LoadingState label="Loading deleted applications…" />
       ) : error ? (
@@ -2382,9 +2647,24 @@ function DeletedPage({ context }: { context: AppContext }) {
             {result.items.map((application) => (
               <div
                 key={application.id}
-                className="flex flex-col justify-between gap-4 p-5 sm:flex-row sm:items-center"
+                className={`flex flex-col justify-between gap-4 p-5 transition-colors sm:flex-row sm:items-center ${
+                  selecting &&
+                  (selectAll || selectedIds.has(application.id))
+                    ? "bg-red-500/[0.045]"
+                    : ""
+                }`}
               >
-                <div>
+                <div className="flex min-w-0 items-start gap-3">
+                  {selecting && (
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${application.company_name} ${application.job_title}`}
+                      checked={selectAll || selectedIds.has(application.id)}
+                      onChange={() => toggleApplication(application.id)}
+                      className="mt-1 h-4 w-4 shrink-0 cursor-pointer rounded border-white/15 bg-[#0b1220] accent-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50"
+                    />
+                  )}
+                  <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-sm font-semibold text-slate-300">
                       {application.company_name}
@@ -2393,15 +2673,20 @@ function DeletedPage({ context }: { context: AppContext }) {
                   </div>
                   <p className="mt-1 text-xs text-slate-500">
                     {application.job_title} · Deleted{" "}
-                    {formatDate(application.deleted_at)}
+                    {formatDate(application.deleted_at)} by{" "}
+                    {application.deleted_by.display_name}
+                    {application.moderated ? " · Moderated" : ""}
                   </p>
+                  </div>
                 </div>
-                <button
-                  onClick={() => void restore(application)}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-400 hover:bg-emerald-500/20"
-                >
-                  <RotateCcw size={13} /> Restore application
-                </button>
+                {!selecting && (
+                  <button
+                    onClick={() => void restore(application)}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-400 hover:bg-emerald-500/20"
+                  >
+                    <RotateCcw size={13} /> Restore application
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -2422,42 +2707,446 @@ function DeletedPage({ context }: { context: AppContext }) {
 }
 
 function WorkspacePage({ context }: { context: AppContext }) {
+  const [members, setMembers] = useState<WorkspaceMember[]>([]);
+  const [invitations, setInvitations] = useState<WorkspaceInvitation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<unknown>();
+  const [showCreate, setShowCreate] = useState(false);
+  const [workspaceName, setWorkspaceName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviting, setInviting] = useState(false);
+  const isOwner = context.session.workspace.role === "owner";
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [memberResponse, invitationResponse] = await Promise.all([
+        workspaceApi.members(
+          context.client,
+          context.session.workspace.id,
+        ),
+        isOwner
+          ? workspaceApi.invitations(
+              context.client,
+              context.session.workspace.id,
+            )
+          : Promise.resolve({ items: [] }),
+      ]);
+      setMembers(memberResponse.items);
+      setInvitations(invitationResponse.items);
+      setError(undefined);
+    } catch (caught) {
+      setError(caught);
+    } finally {
+      setLoading(false);
+    }
+  }, [context.client, context.session.workspace.id, isOwner]);
+
+  useEffect(() => void load(), [load]);
+
+  const createWorkspace = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!workspaceName.trim()) return;
+    setCreating(true);
+    try {
+      const workspace = await workspaceApi.create(
+        context.client,
+        workspaceName,
+      );
+      await context.refreshWorkspaces();
+      context.switchWorkspace(workspace);
+      setWorkspaceName("");
+      setShowCreate(false);
+      toast.success(`${workspace.name} created.`);
+    } catch (caught) {
+      toast.error(
+        caught instanceof Error ? caught.message : "Workspace creation failed.",
+      );
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const inviteGuest = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!inviteEmail.trim()) return;
+    setInviting(true);
+    try {
+      const invitation = await workspaceApi.invite(
+        context.client,
+        context.session.workspace.id,
+        inviteEmail,
+      );
+      setInviteEmail("");
+      await load();
+      toast.success(
+        invitation.status === "joined"
+          ? `${invitation.email} joined the workspace.`
+          : `Invitation saved for ${invitation.email}.`,
+      );
+    } catch (caught) {
+      toast.error(
+        caught instanceof Error ? caught.message : "Invitation failed.",
+      );
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const removeMember = async (member: WorkspaceMember) => {
+    if (
+      !window.confirm(
+        `Remove ${member.user.display_name} from ${context.session.workspace.name}? They will immediately lose access to this workspace.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      await workspaceApi.removeMember(
+        context.client,
+        context.session.workspace.id,
+        member.user.id,
+      );
+      toast.success(`${member.user.display_name} removed from the workspace.`);
+      await load();
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : "Removal failed.");
+    }
+  };
+
+  const updateMemberRole = async (
+    member: WorkspaceMember,
+    role: "admin" | "member",
+  ) => {
+    try {
+      await workspaceApi.updateMemberRole(
+        context.client,
+        context.session.workspace.id,
+        member.user.id,
+        role,
+      );
+      toast.success(
+        role === "admin"
+          ? `${member.user.display_name} can now moderate applications.`
+          : `${member.user.display_name} is now a general member.`,
+      );
+      await load();
+    } catch (caught) {
+      toast.error(
+        caught instanceof Error ? caught.message : "Role update failed.",
+      );
+    }
+  };
+
+  const deleteWorkspace = async () => {
+    if (
+      !window.confirm(
+        `Delete ${context.session.workspace.name}? Everyone will lose access. Existing records will be retained for administrative recovery.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      await workspaceApi.delete(
+        context.client,
+        context.session.workspace.id,
+      );
+      const remaining = await context.refreshWorkspaces();
+      const nextWorkspace = remaining[0];
+      if (nextWorkspace) context.switchWorkspace(nextWorkspace);
+      toast.success("Workspace deleted.");
+    } catch (caught) {
+      toast.error(
+        caught instanceof Error ? caught.message : "Workspace deletion failed.",
+      );
+    }
+  };
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
       <PageHeader
         title="Workspace"
-        description="Your current shared workspace and access role."
+        description="Your shared workspace settings and members."
+        action={
+          <button
+            onClick={() => setShowCreate((visible) => !visible)}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-500"
+          >
+            <Plus size={14} /> Create workspace
+          </button>
+        }
       />
-      <div className="rounded-xl border border-white/[0.08] bg-[#111827] p-6">
+      {showCreate && (
+        <form
+          onSubmit={(event) => void createWorkspace(event)}
+          className="mb-4 grid gap-4 rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-500/[0.09] to-[#111827] p-5 sm:grid-cols-[auto_1fr_auto] sm:items-center"
+        >
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-indigo-400/20 bg-indigo-500/15 text-indigo-300">
+            <Building2 size={19} />
+          </div>
+          <label className="min-w-0">
+            <span className="mb-1.5 block text-xs font-semibold text-slate-200">
+              Name your new workspace
+            </span>
+            <input
+              autoFocus
+              value={workspaceName}
+              onChange={(event) => setWorkspaceName(event.target.value)}
+              maxLength={200}
+              placeholder="Example: Product search"
+              className="w-full rounded-lg border border-white/10 bg-[#0d1424] px-3 py-2 text-sm text-slate-200 placeholder:text-slate-700 focus:border-indigo-500/50 focus:outline-none"
+            />
+          </label>
+          <div className="flex items-center gap-2 sm:self-end">
+            <button
+              type="button"
+              onClick={() => setShowCreate(false)}
+              className="px-3 py-2 text-xs font-medium text-slate-500 hover:text-slate-200"
+            >
+              Cancel
+            </button>
+            <button
+              disabled={creating || !workspaceName.trim()}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-40"
+            >
+              {creating && <LoaderCircle size={13} className="animate-spin" />}
+              Create
+            </button>
+          </div>
+        </form>
+      )}
+      <section className="rounded-2xl border border-white/[0.09] bg-[#111827] p-6 shadow-[0_18px_50px_rgba(0,0,0,0.18)]">
         <div className="flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-950/30">
             <Briefcase size={20} />
           </div>
           <div>
             <h2 className="text-lg font-semibold text-slate-100">
               {context.session.workspace.name}
             </h2>
-            <span className="mt-1.5 inline-flex rounded border border-indigo-500/20 bg-indigo-500/15 px-2 py-0.5 text-xs font-medium capitalize text-indigo-400">
-              {context.session.workspace.role}
-            </span>
+            <div className="mt-1.5 flex items-center gap-2">
+              <span className="inline-flex rounded border border-indigo-500/25 bg-indigo-500/15 px-2 py-0.5 text-[11px] font-medium capitalize text-indigo-300">
+                {context.session.workspace.role}
+              </span>
+              <span className="text-xs text-slate-600">
+                Your role in this workspace
+              </span>
+            </div>
           </div>
         </div>
-        <div className="mt-6 flex items-start gap-3 border-t border-white/[0.06] pt-5 text-sm leading-relaxed text-slate-500">
-          <Shield size={15} className="mt-0.5 flex-shrink-0" />
-          Workspace roles control access to the shared view. Application
-          ownership separately controls editing, deletion, and restoration.
+
+        <div className="mt-6 border-t border-white/[0.07] pt-5">
+          <div className="mb-3 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+            <div>
+              <h3 className="text-[11px] font-semibold uppercase tracking-[0.09em] text-[#6f8db4]">
+                Members
+              </h3>
+              <p className="mt-1 text-xs text-slate-600">
+                {members.length} active{" "}
+                {members.length === 1 ? "member" : "members"}
+              </p>
+            </div>
+            {isOwner && (
+              <form
+                onSubmit={(event) => void inviteGuest(event)}
+                className="flex w-full gap-2 sm:w-auto"
+              >
+                <label className="relative min-w-0 flex-1 sm:w-64">
+                  <Mail
+                    size={13}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600"
+                  />
+                  <span className="sr-only">Guest email</span>
+                  <input
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(event) => setInviteEmail(event.target.value)}
+                    placeholder="guest@example.com"
+                    className="w-full rounded-lg border border-white/10 bg-[#0d1424] py-2 pl-8 pr-3 text-xs text-slate-200 placeholder:text-slate-700 focus:border-indigo-500/50 focus:outline-none"
+                  />
+                </label>
+                <button
+                  disabled={inviting || !inviteEmail.trim()}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-indigo-500/20 bg-indigo-500/10 px-3 py-2 text-xs font-semibold text-indigo-300 hover:bg-indigo-500/15 disabled:opacity-40"
+                >
+                  {inviting ? (
+                    <LoaderCircle size={13} className="animate-spin" />
+                  ) : (
+                    <UserPlus size={13} />
+                  )}
+                  Invite
+                </button>
+              </form>
+            )}
+          </div>
+          {loading ? (
+            <LoadingState label="Loading workspace members..." />
+          ) : error ? (
+            <ErrorState error={error} onRetry={load} />
+          ) : (
+            <div className="space-y-2">
+              {members.map((member) => {
+                const isCurrentUser =
+                  member.user.id === context.session.user.id;
+                const canManage = isOwner && member.role !== "owner";
+                return (
+                  <div
+                    key={member.user.id}
+                    className="flex items-center justify-between gap-4 rounded-xl border border-white/[0.07] bg-white/[0.018] px-4 py-3 transition-colors hover:border-white/[0.11] hover:bg-white/[0.028]"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Avatar
+                        id={member.user.id}
+                        name={member.user.display_name}
+                      />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="truncate text-sm font-semibold text-slate-200">
+                            {member.user.display_name}
+                          </span>
+                          {isCurrentUser && (
+                            <span className="text-[11px] font-medium text-indigo-400">
+                              (You)
+                            </span>
+                          )}
+                        </div>
+                        <p className="truncate text-xs text-[#405b7d]">
+                          {member.user.email}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {canManage ? (
+                        <div className="w-28">
+                          <DarkSelect
+                            ariaLabel={`${member.user.display_name} workspace role`}
+                            value={member.role}
+                            onChange={(role) =>
+                              void updateMemberRole(
+                                member,
+                                role as "admin" | "member",
+                              )
+                            }
+                            options={[
+                              { value: "member", label: "Member" },
+                              { value: "admin", label: "Admin" },
+                            ]}
+                            className="min-h-7 py-1.5"
+                          />
+                        </div>
+                      ) : (
+                        <span className="rounded-md border border-white/[0.09] bg-[#1a2436] px-2 py-1 text-[11px] font-medium capitalize text-[#8da7c8]">
+                          {member.role}
+                        </span>
+                      )}
+                      {canManage && (
+                        <button
+                          onClick={() => void removeMember(member)}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-red-500/15 px-2.5 py-1 text-[11px] font-medium text-red-400 transition-colors hover:bg-red-500/10"
+                        >
+                          <UserMinus size={12} /> Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {invitations.map((invitation) => (
+                <div
+                  key={invitation.id}
+                  className="flex items-center justify-between gap-4 rounded-xl border border-dashed border-amber-500/15 bg-amber-500/[0.025] px-4 py-3"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-500/10 text-amber-400">
+                      <Mail size={14} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-slate-300">
+                        {invitation.email}
+                      </p>
+                      <p className="text-xs text-slate-600">
+                        Waiting for account onboarding
+                      </p>
+                    </div>
+                  </div>
+                  <span className="rounded-md border border-amber-500/15 bg-amber-500/[0.06] px-2 py-1 text-[11px] font-medium text-amber-400">
+                    Pending
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      </div>
+
+        <div className="mt-6 flex items-start gap-3 border-t border-white/[0.06] pt-5 text-sm leading-relaxed text-[#587392]">
+          <Shield size={15} className="mt-0.5 flex-shrink-0" />
+          <p>
+            {isOwner
+              ? "Owners manage workspace access, assign admins, moderate applications, and can delete the workspace. Admins may remove unrelated applications, but cannot manage members or delete the workspace."
+              : context.session.workspace.role === "admin"
+                ? "Admins may remove applications that do not belong in the workspace. Workspace membership, invitations, and workspace deletion remain owner-only."
+                : "Members may add applications, view everyone’s applications, and edit or delete only applications they authored."}
+          </p>
+        </div>
+      </section>
+
+      {isOwner && (
+        <section className="mt-4 flex flex-col justify-between gap-4 rounded-2xl border border-red-500/15 bg-red-500/[0.025] p-5 sm:flex-row sm:items-center">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-200">
+              Delete workspace
+            </h2>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500">
+              Removes access for every member. Application records are retained
+              for administrative recovery.
+            </p>
+          </div>
+          <button
+            onClick={() => void deleteWorkspace()}
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-red-500/25 bg-red-500/10 px-4 py-2 text-xs font-semibold text-red-400 transition-colors hover:bg-red-500/15"
+          >
+            <Trash size={14} /> Delete workspace
+          </button>
+        </section>
+      )}
     </div>
   );
 }
 
 function ProfilePage({ context }: { context: AppContext }) {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string>();
+
+  const submitPasswordChange = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (submitting) return;
+
+    setSubmitting(true);
+    setError(undefined);
+    try {
+      await context.changePassword({ currentPassword, newPassword });
+      toast.success("Password changed. Please sign in again.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "The password could not be changed.",
+      );
+    } finally {
+      setCurrentPassword("");
+      setNewPassword("");
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
       <PageHeader
         title="Profile"
-        description="The current backend-resolved development identity."
+        description="Your account and authentication settings."
       />
       <div className="rounded-xl border border-white/[0.08] bg-[#111827] p-6">
         <div className="flex items-center gap-4 border-b border-white/[0.06] pb-6">
@@ -2471,30 +3160,68 @@ function ProfilePage({ context }: { context: AppContext }) {
               {context.session.user.display_name}
             </h2>
             <div className="mt-2 flex items-center gap-2 text-xs font-medium text-emerald-400">
-              <CheckCircle size={13} /> Active backend user
+              <CheckCircle size={13} /> Signed in
             </div>
           </div>
         </div>
-        <div className="mt-6 rounded-xl border border-amber-500/15 bg-amber-500/[0.04] p-4">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-amber-400">
-            <Shield size={13} /> Development identity
+        <form className="mt-6 max-w-md space-y-4" onSubmit={submitPasswordChange}>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-100">Change password</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              Changing your password signs this account out on every device.
+            </p>
           </div>
-          <p className="mt-2 text-xs leading-relaxed text-slate-500">
-            Requests send this seeded UUID through the development-only
-            X-User-Id header. Display names never authenticate requests.
-          </p>
-          <select
-            className="mt-4 w-full rounded-lg border border-white/10 bg-[#171f30] px-3 py-2 text-sm text-slate-300"
-            value={context.selectedUserId}
-            onChange={(event) => context.switchIdentity(event.target.value)}
-          >
-            {context.identities.map((identity) => (
-              <option key={identity.id} value={identity.id}>
-                Switch to {identity.label}
-              </option>
-            ))}
-          </select>
-        </div>
+          {error ? <p role="alert" className="text-sm text-rose-300">{error}</p> : null}
+          <label className="block text-sm text-slate-300">
+            Current password
+            <input
+              type="password"
+              autoComplete="current-password"
+              required
+              value={currentPassword}
+              onChange={(event) => setCurrentPassword(event.target.value)}
+              className="mt-1.5 w-full rounded-lg border border-white/10 bg-[#0c1120] px-3 py-2 text-sm text-white outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20"
+            />
+          </label>
+          <label className="block text-sm text-slate-300">
+            New password
+            <input
+              type="password"
+              autoComplete="new-password"
+              required
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              className="mt-1.5 w-full rounded-lg border border-white/10 bg-[#0c1120] px-3 py-2 text-sm text-white outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20"
+            />
+          </label>
+          <PrimaryButton type="submit" disabled={submitting}>
+            {submitting ? "Updating password…" : "Update password"}
+          </PrimaryButton>
+        </form>
+        {context.developmentIdentity ? (
+          <div className="mt-6 rounded-xl border border-amber-500/15 bg-amber-500/[0.04] p-4">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-amber-400">
+              <Shield size={13} /> Developer-only identity adapter
+            </div>
+            <p className="mt-2 text-xs leading-relaxed text-slate-500">
+              This build explicitly enables the development identity header.
+              Cookie sessions take precedence in normal builds.
+            </p>
+            <select
+              className="mt-4 w-full rounded-lg border border-white/10 bg-[#171f30] px-3 py-2 text-sm text-slate-300"
+              value={context.developmentIdentity.selectedUserId}
+              onChange={(event) =>
+                context.developmentIdentity?.switchIdentity(event.target.value)
+              }
+            >
+              {context.developmentIdentity.identities.map((identity) => (
+                <option key={identity.id} value={identity.id}>
+                  Switch to {identity.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -2516,7 +3243,7 @@ function NotFoundPage() {
   );
 }
 
-function IntegratedApp() {
+export function LegacyDevelopmentIdentityApp() {
   const identities = useMemo(configuredDevelopmentIdentities, []);
   const identityStore = useMemo(
     () => createIdentityStore({ identities, storage: window.localStorage }),
@@ -2524,6 +3251,7 @@ function IntegratedApp() {
   );
   const [selectedUserId, setSelectedUserId] = useState(identityStore.current());
   const [session, setSession] = useState<SessionState | null>(null);
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(Boolean(selectedUserId));
   const [error, setError] = useState<unknown>();
 
@@ -2531,7 +3259,7 @@ function IntegratedApp() {
     () =>
       createApiClient({
         baseUrl: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000",
-        getUserId: () => selectedUserId,
+        developmentIdentity: { enabled: true, getUserId: () => selectedUserId },
       }),
     [selectedUserId],
   );
@@ -2541,19 +3269,43 @@ function IntegratedApp() {
     setLoading(true);
     setSelectedUserId(userId);
     setSession(null);
+    setWorkspaces([]);
     toast.success(
       `Switched to ${identities.find((identity) => identity.id === userId)?.label ?? "user"}.`,
     );
+  };
+
+  const refreshWorkspaces = useCallback(async () => {
+    const response = await sessionApi.workspaces(client);
+    setWorkspaces(response.items);
+    return response.items;
+  }, [client]);
+
+  const switchWorkspace = (workspace: Workspace) => {
+    if (!session) return;
+    window.localStorage.setItem(
+      `applytogether.workspace.${selectedUserId}`,
+      workspace.id,
+    );
+    setSession({ ...session, workspace });
+    toast.success(`Switched to ${workspace.name}.`);
   };
 
   useEffect(() => {
     if (!selectedUserId) return;
     let active = true;
     setLoading(true);
-    Promise.all([sessionApi.currentUser(client), sessionApi.workspaces(client)])
+    Promise.all([authApi.currentUser(client), authApi.workspaces(client)])
       .then(([user, workspaceResponse]) => {
         if (!active) return;
-        const workspace = workspaceResponse.items[0];
+        setWorkspaces(workspaceResponse.items);
+        const preferredWorkspaceId = window.localStorage.getItem(
+          `applytogether.workspace.${selectedUserId}`,
+        );
+        const workspace =
+          workspaceResponse.items.find(
+            (item) => item.id === preferredWorkspaceId,
+          ) ?? workspaceResponse.items[0];
         if (!workspace) {
           throw new Error("This user does not have an active workspace.");
         }
@@ -2608,9 +3360,184 @@ function IntegratedApp() {
         identities,
         selectedUserId,
         session,
+        workspaces,
         switchIdentity,
+        switchWorkspace,
+        refreshWorkspaces,
+        logout: async () => undefined,
+        changePassword: async () => undefined,
       }}
     />
+  );
+}
+
+function readCookie(name: string): string | null {
+  const encodedName = `${encodeURIComponent(name)}=`;
+  const value = document.cookie
+    .split("; ")
+    .find((entry) => entry.startsWith(encodedName))
+    ?.slice(encodedName.length);
+  return value ? decodeURIComponent(value) : null;
+}
+
+function AuthenticatedApp({
+  client,
+  developmentIdentity,
+}: {
+  client: ApiClient;
+  developmentIdentity?: DevelopmentIdentityControls;
+}) {
+  const auth = useAuth();
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>();
+
+  const refreshWorkspaces = useCallback(async () => {
+    const response = await authApi.workspaces(client);
+    setWorkspaces(response.items);
+    return response.items;
+  }, [client]);
+
+  const switchWorkspace = useCallback((workspace: Workspace) => {
+    setActiveWorkspaceId(workspace.id);
+  }, []);
+
+  useEffect(() => {
+    if (auth.status !== "authenticated" || !auth.workspace) {
+      setWorkspaces([]);
+      setActiveWorkspaceId(undefined);
+      return;
+    }
+
+    void refreshWorkspaces().then((items) => {
+      setActiveWorkspaceId((current) =>
+        current && items.some((workspace) => workspace.id === current)
+          ? current
+          : auth.workspace?.id,
+      );
+    });
+  }, [auth.status, auth.workspace, refreshWorkspaces]);
+
+  if (auth.status === "initializing") {
+    return (
+      <div className="dark min-h-screen bg-[#0c1120] text-slate-200">
+        <LoadingState label="Restoring your secure session…" />
+      </div>
+    );
+  }
+
+  if (auth.status === "recoverable-error") {
+    return (
+      <div className="dark flex min-h-screen items-center justify-center bg-[#0c1120] p-6 text-slate-200">
+        <div className="w-full max-w-lg">
+          <ErrorState
+            error={auth.error ?? new Error("Session could not be restored.")}
+            onRetry={() => void auth.retry()}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (auth.status === "unauthenticated") {
+    return <LoginPage onLogin={auth.login} />;
+  }
+
+  if (!auth.user || !auth.workspace) {
+  return (
+      <div className="dark min-h-screen bg-[#0c1120] text-slate-200">
+        <LoadingState label="Loading your workspace…" />
+      </div>
+    );
+  }
+
+  const workspace =
+    workspaces.find((item) => item.id === activeWorkspaceId) ?? auth.workspace;
+  const availableWorkspaces = workspaces.length > 0 ? workspaces : [auth.workspace];
+
+  return (
+    <AppShell
+      context={{
+        client,
+        session: { user: auth.user, workspace },
+        workspaces: availableWorkspaces,
+        switchWorkspace,
+        refreshWorkspaces,
+        developmentIdentity,
+        logout: async () => {
+          try {
+            await auth.logout();
+          } catch {
+            // Clearing the local authenticated state remains intentional when
+            // a best-effort server logout cannot complete.
+          }
+        },
+        changePassword: auth.changePassword,
+      }}
+    />
+  );
+}
+
+function SecureIntegratedApp() {
+  const developmentIdentityEnabled =
+    import.meta.env.DEV &&
+    import.meta.env.VITE_ENABLE_DEV_IDENTITY_SWITCHER === "true";
+  const identities = useMemo(
+    () => (developmentIdentityEnabled ? configuredDevelopmentIdentities() : []),
+    [developmentIdentityEnabled],
+  );
+  const identityStore = useMemo(
+    () =>
+      developmentIdentityEnabled
+        ? createIdentityStore({ identities, storage: window.localStorage })
+        : null,
+    [developmentIdentityEnabled, identities],
+  );
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(
+    () => identityStore?.current() ?? null,
+  );
+
+  const client = useMemo(
+    () =>
+      createApiClient({
+        baseUrl: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000",
+        csrf: {
+          cookieName: import.meta.env.VITE_CSRF_COOKIE_NAME ?? "applytogether_csrf",
+          headerName: import.meta.env.VITE_CSRF_HEADER_NAME ?? "X-CSRF-Token",
+          readCookie,
+        },
+        refreshCsrf: {
+          cookieName:
+            import.meta.env.VITE_REFRESH_CSRF_COOKIE_NAME ??
+            "applytogether_refresh_csrf",
+          headerName:
+            import.meta.env.VITE_REFRESH_CSRF_HEADER_NAME ??
+            "X-Refresh-CSRF-Token",
+          readCookie,
+        },
+        developmentIdentity:
+          developmentIdentityEnabled && selectedUserId
+            ? { enabled: true, getUserId: () => selectedUserId }
+            : undefined,
+      }),
+    [developmentIdentityEnabled, selectedUserId],
+  );
+
+  const switchIdentity = (userId: string) => {
+    identityStore?.select(userId);
+    setSelectedUserId(userId);
+    toast.success(
+      `Switched developer identity to ${identities.find((identity) => identity.id === userId)?.label ?? "user"}.`,
+    );
+  };
+  const developmentIdentity =
+    developmentIdentityEnabled && selectedUserId
+      ? { identities, selectedUserId, switchIdentity }
+      : undefined;
+
+  return (
+    <AuthProvider client={client}>
+      <AuthenticatedApp client={client} developmentIdentity={developmentIdentity} />
+    </AuthProvider>
   );
 }
 
@@ -2628,7 +3555,7 @@ export default function App() {
           },
         }}
       />
-      <IntegratedApp />
+      <SecureIntegratedApp />
     </BrowserRouter>
   );
 }

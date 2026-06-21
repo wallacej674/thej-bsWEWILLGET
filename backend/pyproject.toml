@@ -5,7 +5,9 @@ description = "ApplyTogether Milestone 1 backend"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.15,<2",
+    "authx>=1,<2",
     "fastapi>=0.115,<1",
+    "pwdlib[argon2]>=0.3,<1",
     "psycopg[binary]>=3.2,<4",
     "pydantic-settings>=2.7,<3",
     "sqlalchemy>=2.0,<3",

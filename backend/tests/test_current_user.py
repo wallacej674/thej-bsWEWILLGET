@@ -22,4 +22,4 @@ def test_inactive_user_is_rejected(api_client, active_member, database_session) 
     )
 
     assert response.status_code == 401
-    assert response.json()["error"]["code"] == "inactive_user"
+    assert response.json()["error"]["code"] == "authentication_required"

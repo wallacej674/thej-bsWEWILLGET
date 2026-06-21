@@ -4,8 +4,33 @@ ApplyTogether is a shared job-application accountability workspace for Jonathan
 and Kareem. Milestone 1, the FastAPI/PostgreSQL foundation, is complete.
 Milestone 2 integrates the React/Vite frontend with that API for shared
 visibility, owner-only changes, soft deletion, restoration, filtering, and
-pagination. Milestone 3 will replace the local development identity flow with
-Google OAuth.
+pagination. Milestone 3 replaces the normal development identity flow with
+secure email/password authentication. Google login remains a future enhancement
+that can link to the existing `users` records.
+
+## Authentication
+
+The backend uses AuthX 1.7 for short-lived access JWTs, longer-lived rotating
+refresh JWTs, HTTP-only cookies, and CSRF claims. pwdlib 0.3 with Argon2id
+hashes local passwords; plaintext passwords are never stored. Server-side
+`authentication_sessions` records hold the active-session, expiration,
+revocation, and hashed refresh-token identifier state needed for logout,
+rotation, and password-change revocation.
+
+Set `AUTH_JWT_SECRET_KEY` to a long random value in `backend/.env`; do not add
+it to Git or frontend configuration. Assign an initial password only through
+the interactive administrative command (the password is never accepted as a
+command-line argument):
+
+```powershell
+cd backend
+python -m app.commands.set_password --email jonathan@example.test
+```
+
+The frontend sends credentialed requests and never reads JWTs. Unsafe access
+requests use `X-CSRF-Token`; refresh uses `X-Refresh-CSRF-Token`. The
+development `X-User-Id` fallback is disabled by default and can only be enabled
+in development or test with an explicit backend setting and frontend flag.
 
 ## Prerequisites
 

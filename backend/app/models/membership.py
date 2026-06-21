@@ -20,7 +20,10 @@ from app.db.base import Base
 class WorkspaceMembership(Base):
     __tablename__ = "workspace_memberships"
     __table_args__ = (
-        CheckConstraint("role IN ('owner', 'member')", name="ck_membership_role"),
+        CheckConstraint(
+            "role IN ('owner', 'admin', 'member')",
+            name="ck_membership_role",
+        ),
         UniqueConstraint(
             "user_id", "workspace_id", name="uq_membership_user_workspace"
         ),

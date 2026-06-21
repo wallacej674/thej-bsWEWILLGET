@@ -13,6 +13,8 @@ from app.schemas.application import (
     ApplicationSummaryResponse,
     ApplicationUpdate,
     DeletedApplicationListResponse,
+    PermanentDeleteRequest,
+    PermanentDeleteResponse,
 )
 from app.services.application_service import ApplicationService
 
@@ -77,6 +79,22 @@ def list_deleted_applications(
     )
 
 
+@router.post(
+    "/deleted/permanent-delete",
+    response_model=PermanentDeleteResponse,
+)
+def permanently_delete_applications(
+    workspace_id: UUID,
+    payload: PermanentDeleteRequest,
+    current_user: CurrentUser,
+    _membership: WorkspaceAccess,
+    session: DatabaseSession,
+) -> PermanentDeleteResponse:
+    return application_service.permanently_delete(
+        session, workspace_id, current_user, payload
+    )
+
+
 @router.get("/{application_id}", response_model=ApplicationResponse)
 def get_application(
     workspace_id: UUID,
@@ -106,10 +124,12 @@ def delete_application(
     workspace_id: UUID,
     application_id: UUID,
     current_user: CurrentUser,
-    _membership: WorkspaceAccess,
+    membership: WorkspaceAccess,
     session: DatabaseSession,
 ) -> Response:
-    application_service.soft_delete(session, workspace_id, application_id, current_user)
+    application_service.soft_delete(
+        session, workspace_id, application_id, current_user, membership
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

@@ -101,19 +101,56 @@ class WorkspaceRepository:
                 .where(
                     WorkspaceInvitation.workspace_id == workspace_id,
                     WorkspaceInvitation.accepted_at.is_(None),
+                    WorkspaceInvitation.declined_at.is_(None),
                 )
                 .order_by(WorkspaceInvitation.created_at, WorkspaceInvitation.id)
             )
         )
 
-    def list_pending_invitations_for_email(
+    def list_inbox_invitations(
         self, session: Session, email: str
-    ) -> list[WorkspaceInvitation]:
-        return list(
-            session.scalars(
-                select(WorkspaceInvitation).where(
-                    WorkspaceInvitation.email == email,
-                    WorkspaceInvitation.accepted_at.is_(None),
-                )
+    ) -> list[tuple[WorkspaceInvitation, Workspace, User]]:
+        statement: Select[tuple[WorkspaceInvitation, Workspace, User]] = (
+            select(WorkspaceInvitation, Workspace, User)
+            .join(Workspace, Workspace.id == WorkspaceInvitation.workspace_id)
+            .join(User, User.id == WorkspaceInvitation.invited_by_user_id)
+            .where(
+                WorkspaceInvitation.email == email,
+                WorkspaceInvitation.accepted_at.is_(None),
+                WorkspaceInvitation.declined_at.is_(None),
+                Workspace.deleted_at.is_(None),
             )
+            .order_by(
+                WorkspaceInvitation.created_at.desc(),
+                WorkspaceInvitation.id.desc(),
+            )
+        )
+        return list(session.execute(statement).tuples())
+
+    def get_pending_invitation_for_email(
+        self, session: Session, invitation_id: UUID, email: str
+    ) -> WorkspaceInvitation | None:
+        return session.scalar(
+            select(WorkspaceInvitation)
+            .where(
+                WorkspaceInvitation.id == invitation_id,
+                WorkspaceInvitation.email == email,
+                WorkspaceInvitation.accepted_at.is_(None),
+                WorkspaceInvitation.declined_at.is_(None),
+            )
+            .with_for_update()
+        )
+
+    def get_pending_invitation(
+        self, session: Session, workspace_id: UUID, invitation_id: UUID
+    ) -> WorkspaceInvitation | None:
+        return session.scalar(
+            select(WorkspaceInvitation)
+            .where(
+                WorkspaceInvitation.id == invitation_id,
+                WorkspaceInvitation.workspace_id == workspace_id,
+                WorkspaceInvitation.accepted_at.is_(None),
+                WorkspaceInvitation.declined_at.is_(None),
+            )
+            .with_for_update()
         )

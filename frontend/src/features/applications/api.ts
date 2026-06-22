@@ -8,6 +8,7 @@ import type {
   CurrentUser,
   DeletedApplication,
   JobApplication,
+  InvitationInboxItem,
   PaginatedApplications,
   Workspace,
   WorkspaceInvitation,
@@ -52,6 +53,23 @@ export const workspaceApi = {
       `/workspaces/${workspaceId}/invitations`,
       { email },
     ),
+  revokeInvitation: (
+    client: ApiClient,
+    workspaceId: string,
+    invitationId: string,
+  ) =>
+    client.delete(
+      `/workspaces/${workspaceId}/invitations/${invitationId}`,
+    ),
+};
+
+export const invitationApi = {
+  list: (client: ApiClient) =>
+    client.get<{ items: InvitationInboxItem[] }>("/invitations"),
+  accept: (client: ApiClient, invitationId: string) =>
+    client.post<Workspace>(`/invitations/${invitationId}/accept`),
+  decline: (client: ApiClient, invitationId: string) =>
+    client.post<void>(`/invitations/${invitationId}/decline`),
 };
 
 export const applicationsApi = {

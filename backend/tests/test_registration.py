@@ -114,7 +114,7 @@ def test_verification_creates_user_and_fallback_owner_workspace(api_client) -> N
     ]
 
 
-def test_verification_claims_invitation_instead_of_creating_fallback_workspace(
+def test_verification_preserves_invitation_and_creates_fallback_workspace(
     api_client, active_member, shared_workspace
 ) -> None:
     invited_email = "invited@example.test"
@@ -147,15 +147,21 @@ def test_verification_claims_invitation_instead_of_creating_fallback_workspace(
     )
 
     workspaces = api_client.get("/api/v1/workspaces")
+    inbox = api_client.get("/api/v1/invitations")
 
     assert workspaces.status_code == 200
     assert workspaces.json()["items"] == [
         {
-            "id": str(shared_workspace.id),
-            "name": "ApplyTogether",
-            "role": "member",
+            "id": workspaces.json()["items"][0]["id"],
+            "name": "Should not be created",
+            "role": "owner",
         }
     ]
+    assert inbox.status_code == 200
+    assert inbox.json()["items"][0]["workspace"] == {
+        "id": str(shared_workspace.id),
+        "name": "ApplyTogether",
+    }
 
 
 def test_failed_signup_delivery_is_saved_and_can_be_resent_immediately(

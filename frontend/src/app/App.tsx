@@ -40,9 +40,11 @@ import {
 import {
   BrowserRouter,
   Link,
+  Navigate,
   NavLink,
   Route,
   Routes,
+  useLocation,
   useNavigate,
   useParams,
   useSearchParams,
@@ -96,6 +98,8 @@ import {
 } from "../features/auth/AuthProvider";
 import { authApi } from "../features/auth/authApi";
 import { LoginPage } from "../features/auth/LoginPage";
+import { SignupPage } from "../features/auth/SignupPage";
+import { VerifyEmailPage } from "../features/auth/VerifyEmailPage";
 import {
   configuredDevelopmentIdentities,
   createIdentityStore,
@@ -3388,6 +3392,7 @@ function AuthenticatedApp({
   developmentIdentity?: DevelopmentIdentityControls;
 }) {
   const auth = useAuth();
+  const location = useLocation();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>();
 
@@ -3417,6 +3422,15 @@ function AuthenticatedApp({
     });
   }, [auth.status, auth.workspace, refreshWorkspaces]);
 
+  if (location.pathname === "/verify-email") {
+    return (
+      <VerifyEmailPage
+        onVerify={auth.verifyEmail}
+        onResend={auth.resendVerification}
+      />
+    );
+  }
+
   if (auth.status === "initializing") {
     return (
       <div className="dark min-h-screen bg-[#0c1120] text-slate-200">
@@ -3439,15 +3453,34 @@ function AuthenticatedApp({
   }
 
   if (auth.status === "unauthenticated") {
-    return <LoginPage onLogin={auth.login} />;
+    return (
+      <Routes>
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/login" element={<LoginPage onLogin={auth.login} />} />
+        <Route
+          path="/signup"
+          element={
+            <SignupPage
+              onSignup={auth.signup}
+              onResend={auth.resendVerification}
+            />
+          }
+        />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
   }
 
   if (!auth.user || !auth.workspace) {
-  return (
+    return (
       <div className="dark min-h-screen bg-[#0c1120] text-slate-200">
         <LoadingState label="Loading your workspace…" />
       </div>
     );
+  }
+
+  if (location.pathname === "/login" || location.pathname === "/signup") {
+    return <Navigate to="/" replace />;
   }
 
   const workspace =

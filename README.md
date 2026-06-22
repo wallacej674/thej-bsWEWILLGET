@@ -17,6 +17,19 @@ hashes local passwords; plaintext passwords are never stored. Server-side
 revocation, and hashed refresh-token identifier state needed for logout,
 rotation, and password-change revocation.
 
+New accounts are created through `/signup` and remain in
+`pending_registrations` until the email owner follows a one-time verification
+link. Only the token digest is stored. Verification creates the user, claims
+matching workspace invitations, or creates the requested fallback workspace.
+
+Verification email is sent by the backend through Google SMTP. Configure
+`SMTP_USERNAME`, `SMTP_APP_PASSWORD`, `SMTP_FROM_EMAIL`, and
+`FRONTEND_BASE_URL` in `backend/.env`. Use the Google app password generated
+for the sending account, not its normal account password. Keep these values
+server-side and never expose them through a `VITE_` variable or other frontend
+configuration. A missing development email configuration produces a retryable
+delivery error while preserving the pending registration.
+
 Set `AUTH_JWT_SECRET_KEY` to a long random value in `backend/.env`; do not add
 it to Git or frontend configuration. Assign an initial password only through
 the interactive administrative command (the password is never accepted as a

@@ -15,6 +15,9 @@ import {
   type AuthenticatedSession,
   type ChangePasswordInput,
   type LoginCredentials,
+  type MessageResponse,
+  type SignupInput,
+  type VerificationResponse,
 } from "./authApi";
 
 export type AuthStatus =
@@ -33,6 +36,9 @@ export interface AuthState {
 export interface AuthContextValue extends AuthState {
   client: AuthClient;
   login(credentials: LoginCredentials): Promise<void>;
+  signup(input: SignupInput): Promise<MessageResponse>;
+  verifyEmail(token: string): Promise<VerificationResponse>;
+  resendVerification(email: string): Promise<MessageResponse>;
   logout(): Promise<void>;
   changePassword(input: ChangePasswordInput): Promise<void>;
   retry(): Promise<void>;
@@ -122,6 +128,21 @@ export function AuthProvider({ client, children }: AuthProviderProps) {
     }
   }, [client, clearAuthenticatedState]);
 
+  const signup = useCallback(
+    (input: SignupInput) => authApi.signup(client, input),
+    [client],
+  );
+
+  const verifyEmail = useCallback(
+    (token: string) => authApi.verifyEmail(client, token),
+    [client],
+  );
+
+  const resendVerification = useCallback(
+    (email: string) => authApi.resendVerification(client, email),
+    [client],
+  );
+
   const changePassword = useCallback(
     async (input: ChangePasswordInput): Promise<void> => {
       await authApi.changePassword(client, input);
@@ -149,16 +170,32 @@ export function AuthProvider({ client, children }: AuthProviderProps) {
       ...state,
       client,
       login,
+      signup,
+      verifyEmail,
+      resendVerification,
       logout,
       changePassword,
       retry: restoreSession,
     }),
-    [changePassword, client, login, logout, restoreSession, state],
+    [
+      changePassword,
+      client,
+      login,
+      logout,
+      resendVerification,
+      restoreSession,
+      signup,
+      state,
+      verifyEmail,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+// This hook intentionally shares the provider module so the authentication
+// boundary keeps one public import surface.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);
   if (!context) {

@@ -19,6 +19,17 @@ class Settings(BaseSettings):
     auth_refresh_token_days: int = 20
     auth_cookie_secure: bool = True
     auth_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_app_password: str | None = None
+    smtp_from_email: str | None = None
+    smtp_from_name: str = "ApplyTogether"
+    smtp_starttls: bool = True
+    smtp_timeout_seconds: int = 15
+    frontend_base_url: str = "http://localhost:5173"
+    email_verification_hours: int = 24
+    email_resend_cooldown_seconds: int = 60
     log_level: str = "INFO"
     app_timezone: str = "America/Chicago"
     seed_jonathan_email: str = "jonathan@example.test"
@@ -38,6 +49,15 @@ class Settings(BaseSettings):
         if "*" in self.cors_origins:
             raise RuntimeError(
                 "CORS_ORIGINS must not include a wildcard with credentials."
+            )
+        if self.environment == "production" and (
+            not self.smtp_username
+            or not self.smtp_app_password
+            or not self.smtp_from_email
+        ):
+            raise RuntimeError(
+                "SMTP_USERNAME, SMTP_APP_PASSWORD, and SMTP_FROM_EMAIL "
+                "are required in production."
             )
 
 

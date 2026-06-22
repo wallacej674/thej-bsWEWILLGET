@@ -67,9 +67,29 @@ class WorkspaceInvitationResponse(BaseModel):
     id: UUID
     email: str
     role: Literal["member"] = "member"
-    status: Literal["pending", "joined"]
+    status: Literal["pending"]
     invited_at: datetime
 
 
 class WorkspaceInvitationListResponse(BaseModel):
     items: list[WorkspaceInvitationResponse]
+
+
+class InvitationWorkspace(BaseModel):
+    id: UUID
+    name: str
+
+
+class InvitationSender(BaseModel):
+    display_name: str
+
+
+class InvitationInboxItem(BaseModel):
+    id: UUID
+    workspace: InvitationWorkspace
+    invited_by: InvitationSender
+    invited_at: datetime
+
+
+class InvitationInboxResponse(BaseModel):
+    items: list[InvitationInboxItem]

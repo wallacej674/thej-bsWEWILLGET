@@ -18,7 +18,6 @@ from app.models.user import User
 from app.models.workspace import Workspace
 from app.schemas.auth import SignupRequest
 from app.services.email_delivery import EmailDeliveryError, EmailSender
-from app.services.workspace_service import WorkspaceService
 
 
 def _token_digest(token: str) -> str:
@@ -26,9 +25,6 @@ def _token_digest(token: str) -> str:
 
 
 class RegistrationService:
-    def __init__(self, workspace_service: WorkspaceService | None = None) -> None:
-        self._workspace_service = workspace_service or WorkspaceService()
-
     def signup(
         self, session: Session, payload: SignupRequest, email_sender: EmailSender
     ) -> None:
@@ -159,18 +155,16 @@ class RegistrationService:
                 if user is None:
                     raise
 
-        claimed = self._workspace_service.claim_pending_invitations(session, user)
-        if claimed == 0:
-            workspace = Workspace(name=registration.workspace_name)
-            session.add(workspace)
-            session.flush()
-            session.add(
-                WorkspaceMembership(
-                    workspace_id=workspace.id,
-                    user_id=user.id,
-                    role=MembershipRole.OWNER,
-                )
+        workspace = Workspace(name=registration.workspace_name)
+        session.add(workspace)
+        session.flush()
+        session.add(
+            WorkspaceMembership(
+                workspace_id=workspace.id,
+                user_id=user.id,
+                role=MembershipRole.OWNER,
             )
+        )
         registration.consumed_at = now
         session.commit()
 

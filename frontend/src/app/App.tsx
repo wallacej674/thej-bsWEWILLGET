@@ -100,6 +100,7 @@ import { authApi } from "../features/auth/authApi";
 import { LoginPage } from "../features/auth/LoginPage";
 import { SignupPage } from "../features/auth/SignupPage";
 import { VerifyEmailPage } from "../features/auth/VerifyEmailPage";
+import { InvitationInbox } from "../features/invitations/InvitationInbox";
 import {
   configuredDevelopmentIdentities,
   createIdentityStore,
@@ -572,6 +573,14 @@ function AppShell({ context }: { context: AppContext }) {
           >
             <Plus size={13} /> Add application
           </Link>
+          <div className="ml-auto md:ml-0">
+            <InvitationInbox
+              client={context.client}
+              onAccepted={async () => {
+                await context.refreshWorkspaces();
+              }}
+            />
+          </div>
           {context.developmentIdentity ? (
             <label className="hidden text-xs text-amber-300 lg:block">
               <span className="sr-only">Active developer identity</span>
@@ -2784,11 +2793,7 @@ function WorkspacePage({ context }: { context: AppContext }) {
       );
       setInviteEmail("");
       await load();
-      toast.success(
-        invitation.status === "joined"
-          ? `${invitation.email} joined the workspace.`
-          : `Invitation saved for ${invitation.email}.`,
-      );
+      toast.success(`Invitation sent to ${invitation.email}.`);
     } catch (caught) {
       toast.error(
         caught instanceof Error ? caught.message : "Invitation failed.",
@@ -2816,6 +2821,26 @@ function WorkspacePage({ context }: { context: AppContext }) {
       await load();
     } catch (caught) {
       toast.error(caught instanceof Error ? caught.message : "Removal failed.");
+    }
+  };
+
+  const revokeInvitation = async (invitation: WorkspaceInvitation) => {
+    try {
+      await workspaceApi.revokeInvitation(
+        context.client,
+        context.session.workspace.id,
+        invitation.id,
+      );
+      setInvitations((current) =>
+        current.filter((item) => item.id !== invitation.id),
+      );
+      toast.success(`Invitation to ${invitation.email} revoked.`);
+    } catch (caught) {
+      toast.error(
+        caught instanceof Error
+          ? caught.message
+          : "The invitation could not be revoked.",
+      );
     }
   };
 
@@ -3070,13 +3095,24 @@ function WorkspacePage({ context }: { context: AppContext }) {
                         {invitation.email}
                       </p>
                       <p className="text-xs text-slate-600">
-                        Waiting for account onboarding
+                        Waiting for acceptance
                       </p>
                     </div>
                   </div>
-                  <span className="rounded-md border border-amber-500/15 bg-amber-500/[0.06] px-2 py-1 text-[11px] font-medium text-amber-400">
-                    Pending
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="rounded-md border border-amber-500/15 bg-amber-500/[0.06] px-2 py-1 text-[11px] font-medium text-amber-400">
+                      Awaiting acceptance
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={`Revoke invitation to ${invitation.email}`}
+                      title="Revoke invitation"
+                      onClick={() => void revokeInvitation(invitation)}
+                      className="flex h-7 w-7 items-center justify-center rounded-md border border-white/[0.08] text-slate-500 transition hover:border-red-500/25 hover:bg-red-500/10 hover:text-red-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50"
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

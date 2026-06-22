@@ -105,6 +105,25 @@ def list_workspace_invitations(
 
 
 @router.delete(
+    "/{workspace_id}/invitations/{invitation_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def revoke_workspace_invitation(
+    workspace_id: UUID,
+    invitation_id: UUID,
+    membership: WorkspaceAccess,
+    session: DatabaseSession,
+) -> Response:
+    workspace_service.revoke_invitation(
+        session,
+        workspace_id,
+        membership,
+        invitation_id,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete(
     "/{workspace_id}/members/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )

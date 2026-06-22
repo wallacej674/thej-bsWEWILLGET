@@ -1,4 +1,3 @@
-from typing import Literal
 from uuid import UUID
 
 from sqlalchemy import select
@@ -13,6 +12,10 @@ from app.models.user import User
 from app.models.workspace import Workspace
 from app.repositories.workspace_repository import WorkspaceRepository
 from app.schemas.workspace import (
+    InvitationInboxItem,
+    InvitationInboxResponse,
+    InvitationSender,
+    InvitationWorkspace,
     WorkspaceCreate,
     WorkspaceInvitationCreate,
     WorkspaceInvitationListResponse,
@@ -33,9 +36,6 @@ class WorkspaceService:
     def list_accessible_workspaces(
         self, session: Session, user_id: UUID
     ) -> WorkspaceListResponse:
-        user = session.get(User, user_id)
-        if user is not None and self.claim_pending_invitations(session, user):
-            session.commit()
         memberships = self._repository.list_active_for_user(session, user_id)
         return WorkspaceListResponse(
             items=[
@@ -47,32 +47,6 @@ class WorkspaceService:
                 for workspace, membership in memberships
             ]
         )
-
-    def claim_pending_invitations(self, session: Session, user: User) -> int:
-        pending_invitations = self._repository.list_pending_invitations_for_email(
-            session, user.email
-        )
-        for invitation in pending_invitations:
-            membership = session.scalar(
-                select(WorkspaceMembership).where(
-                    WorkspaceMembership.workspace_id == invitation.workspace_id,
-                    WorkspaceMembership.user_id == user.id,
-                )
-            )
-            if membership is None:
-                session.add(
-                    WorkspaceMembership(
-                        workspace_id=invitation.workspace_id,
-                        user_id=user.id,
-                        role=MembershipRole.MEMBER,
-                    )
-                )
-            else:
-                membership.role = MembershipRole.MEMBER
-                membership.removed_at = None
-                membership.updated_at = utc_now()
-            invitation.accepted_at = utc_now()
-        return len(pending_invitations)
 
     def get_accessible_workspace(
         self, session: Session, workspace_id: UUID, user_id: UUID
@@ -139,15 +113,6 @@ class WorkspaceService:
         payload: WorkspaceInvitationCreate,
     ) -> WorkspaceInvitationResponse:
         self._require_owner(actor_membership)
-        existing_invitation = self._repository.get_invitation(
-            session, workspace_id, payload.email
-        )
-        if existing_invitation is not None:
-            raise AppError(
-                409,
-                "workspace_invitation_exists",
-                "This email has already been invited.",
-            )
         user = self._repository.get_user_by_email(session, payload.email)
         if user is not None:
             existing_membership = self._repository.get_active_membership(
@@ -159,42 +124,123 @@ class WorkspaceService:
                     "workspace_member_exists",
                     "This user is already a workspace member.",
                 )
-        invitation = WorkspaceInvitation(
-            workspace_id=workspace_id,
-            email=payload.email,
-            invited_by_user_id=invited_by_user_id,
+        existing_invitation = self._repository.get_invitation(
+            session, workspace_id, payload.email
         )
-        session.add(invitation)
-        session.flush()
-        invitation_status: Literal["pending", "joined"] = "pending"
-        if user is not None:
-            membership = session.scalar(
-                select(WorkspaceMembership).where(
-                    WorkspaceMembership.workspace_id == workspace_id,
-                    WorkspaceMembership.user_id == user.id,
-                )
+        if (
+            existing_invitation is not None
+            and existing_invitation.accepted_at is None
+            and existing_invitation.declined_at is None
+        ):
+            raise AppError(
+                409,
+                "workspace_invitation_exists",
+                "This email already has a pending invitation.",
             )
-            if membership is None:
-                membership = WorkspaceMembership(
-                    workspace_id=workspace_id,
-                    user_id=user.id,
-                    role=MembershipRole.MEMBER,
-                )
-                session.add(membership)
-            else:
-                membership.role = MembershipRole.MEMBER
-                membership.removed_at = None
-                membership.updated_at = utc_now()
-            invitation.accepted_at = utc_now()
-            invitation_status = "joined"
+        if existing_invitation is None:
+            invitation = WorkspaceInvitation(
+                workspace_id=workspace_id,
+                email=payload.email,
+                invited_by_user_id=invited_by_user_id,
+            )
+            session.add(invitation)
+        else:
+            invitation = existing_invitation
+            invitation.invited_by_user_id = invited_by_user_id
+            invitation.accepted_at = None
+            invitation.declined_at = None
+            invitation.created_at = utc_now()
+        session.flush()
         session.commit()
         session.refresh(invitation)
         return WorkspaceInvitationResponse(
             id=invitation.id,
             email=invitation.email,
-            status=invitation_status,
+            status="pending",
             invited_at=invitation.created_at,
         )
+
+    def list_invitation_inbox(
+        self, session: Session, user: User
+    ) -> InvitationInboxResponse:
+        return InvitationInboxResponse(
+            items=[
+                InvitationInboxItem(
+                    id=invitation.id,
+                    workspace=InvitationWorkspace(
+                        id=workspace.id,
+                        name=workspace.name,
+                    ),
+                    invited_by=InvitationSender(
+                        display_name=inviter.display_name,
+                    ),
+                    invited_at=invitation.created_at,
+                )
+                for invitation, workspace, inviter in (
+                    self._repository.list_inbox_invitations(session, user.email)
+                )
+            ]
+        )
+
+    def accept_invitation(
+        self, session: Session, invitation_id: UUID, user: User
+    ) -> WorkspaceSummary:
+        invitation = self._repository.get_pending_invitation_for_email(
+            session, invitation_id, user.email
+        )
+        if invitation is None:
+            raise AppError(
+                404,
+                "workspace_invitation_not_found",
+                "Workspace invitation was not found.",
+            )
+        workspace = self._repository.get_workspace(session, invitation.workspace_id)
+        if workspace is None:
+            raise AppError(
+                404,
+                "workspace_invitation_not_found",
+                "Workspace invitation was not found.",
+            )
+        membership = session.scalar(
+            select(WorkspaceMembership).where(
+                WorkspaceMembership.workspace_id == workspace.id,
+                WorkspaceMembership.user_id == user.id,
+            )
+        )
+        if membership is None:
+            session.add(
+                WorkspaceMembership(
+                    workspace_id=workspace.id,
+                    user_id=user.id,
+                    role=MembershipRole.MEMBER,
+                )
+            )
+        else:
+            membership.role = MembershipRole.MEMBER
+            membership.removed_at = None
+            membership.updated_at = utc_now()
+        invitation.accepted_at = utc_now()
+        session.commit()
+        return WorkspaceSummary(
+            id=workspace.id,
+            name=workspace.name,
+            role=MembershipRole.MEMBER,
+        )
+
+    def decline_invitation(
+        self, session: Session, invitation_id: UUID, user: User
+    ) -> None:
+        invitation = self._repository.get_pending_invitation_for_email(
+            session, invitation_id, user.email
+        )
+        if invitation is None:
+            raise AppError(
+                404,
+                "workspace_invitation_not_found",
+                "Workspace invitation was not found.",
+            )
+        invitation.declined_at = utc_now()
+        session.commit()
 
     def list_pending_invitations(
         self,
@@ -216,6 +262,26 @@ class WorkspaceService:
                 )
             ]
         )
+
+    def revoke_invitation(
+        self,
+        session: Session,
+        workspace_id: UUID,
+        actor_membership: WorkspaceMembership,
+        invitation_id: UUID,
+    ) -> None:
+        self._require_owner(actor_membership)
+        invitation = self._repository.get_pending_invitation(
+            session, workspace_id, invitation_id
+        )
+        if invitation is None:
+            raise AppError(
+                404,
+                "workspace_invitation_not_found",
+                "Workspace invitation was not found.",
+            )
+        session.delete(invitation)
+        session.commit()
 
     def remove_member(
         self,

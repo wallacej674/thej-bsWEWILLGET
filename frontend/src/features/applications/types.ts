@@ -43,7 +43,19 @@ export interface WorkspaceInvitation {
   id: string;
   email: string;
   role: "member";
-  status: "pending" | "joined";
+  status: "pending";
+  invited_at: string;
+}
+
+export interface InvitationInboxItem {
+  id: string;
+  workspace: {
+    id: string;
+    name: string;
+  };
+  invited_by: {
+    display_name: string;
+  };
   invited_at: string;
 }
 

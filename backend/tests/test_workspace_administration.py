@@ -162,7 +162,7 @@ def test_user_can_create_a_workspace_and_becomes_its_owner(
     }
 
 
-def test_owner_can_invite_an_existing_user_as_a_member(
+def test_owner_can_invite_an_existing_user_for_later_acceptance(
     api_client, database_session, active_member, shared_workspace
 ) -> None:
     guest = User(email="guest@example.test", display_name="Guest")
@@ -177,15 +177,14 @@ def test_owner_can_invite_an_existing_user_as_a_member(
 
     assert response.status_code == 201
     assert response.json()["email"] == "guest@example.test"
-    assert response.json()["status"] == "joined"
+    assert response.json()["status"] == "pending"
     assert response.json()["role"] == "member"
 
     workspace = api_client.get(
         f"/api/v1/workspaces/{shared_workspace.id}",
         headers={"X-User-Id": str(guest.id)},
     )
-    assert workspace.status_code == 200
-    assert workspace.json()["role"] == "member"
+    assert workspace.status_code == 404
 
 
 def test_unknown_guest_email_remains_a_visible_pending_invitation(
@@ -223,7 +222,7 @@ def test_general_member_cannot_invite_workspace_guests(
     assert response.json()["error"]["code"] == "workspace_owner_required"
 
 
-def test_pending_invitation_is_claimed_when_the_guest_account_exists(
+def test_pending_invitation_waits_for_guest_acceptance(
     api_client, database_session, active_member, shared_workspace
 ) -> None:
     email = "onboarded.guest@example.test"
@@ -240,16 +239,15 @@ def test_pending_invitation_is_claimed_when_the_guest_account_exists(
         "/api/v1/workspaces",
         headers={"X-User-Id": str(guest.id)},
     )
+    inbox = api_client.get(
+        "/api/v1/invitations",
+        headers={"X-User-Id": str(guest.id)},
+    )
 
     assert invite.json()["status"] == "pending"
     assert workspaces.status_code == 200
-    assert workspaces.json()["items"] == [
-        {
-            "id": str(shared_workspace.id),
-            "name": "ApplyTogether",
-            "role": "member",
-        }
-    ]
+    assert workspaces.json()["items"] == []
+    assert inbox.json()["items"][0]["workspace"]["id"] == str(shared_workspace.id)
 
 
 def test_owner_can_promote_a_member_to_admin_and_return_them_to_member(

@@ -19,17 +19,18 @@ delivery are available.
 - Only workspace owners may invite guests.
 - Invitations target a normalized lowercase email and always grant the
   `member` role.
-- If the email already belongs to an active ApplyTogether user, membership is
-  created immediately and the invitation is marked accepted.
-- If no account exists, the invitation remains pending. Workspace discovery
-  automatically claims pending invitations when a user with the matching email
-  later exists.
+- Invitations remain pending whether or not the email already belongs to an
+  active ApplyTogether user.
+- A signed-in user sees pending invitations addressed to their normalized
+  signup email in the in-app invitation inbox and explicitly accepts or
+  declines each invitation.
+- Accepting creates or restores member access. Declining removes the
+  invitation from both the recipient inbox and the owner's pending list.
 - Pending invitations are visible to workspace owners. This milestone records
   invitations but does not send external email.
 
 ## Consequences
 
 Workspace creation and membership are no longer tied to the development seed.
-The invitation model is ready for a later email/token acceptance layer without
-changing the membership boundary. Invitation email uniqueness is scoped to one
-workspace to prevent repeated pending invitations.
+Invitation email uniqueness remains scoped to one workspace. The invitation
+inbox exposes the inviter's display name without exposing their email address.

@@ -34,32 +34,8 @@ class WorkspaceService:
         self, session: Session, user_id: UUID
     ) -> WorkspaceListResponse:
         user = session.get(User, user_id)
-        if user is not None:
-            pending_invitations = self._repository.list_pending_invitations_for_email(
-                session, user.email
-            )
-            for invitation in pending_invitations:
-                membership = session.scalar(
-                    select(WorkspaceMembership).where(
-                        WorkspaceMembership.workspace_id == invitation.workspace_id,
-                        WorkspaceMembership.user_id == user_id,
-                    )
-                )
-                if membership is None:
-                    session.add(
-                        WorkspaceMembership(
-                            workspace_id=invitation.workspace_id,
-                            user_id=user_id,
-                            role=MembershipRole.MEMBER,
-                        )
-                    )
-                else:
-                    membership.role = MembershipRole.MEMBER
-                    membership.removed_at = None
-                    membership.updated_at = utc_now()
-                invitation.accepted_at = utc_now()
-            if pending_invitations:
-                session.commit()
+        if user is not None and self.claim_pending_invitations(session, user):
+            session.commit()
         memberships = self._repository.list_active_for_user(session, user_id)
         return WorkspaceListResponse(
             items=[
@@ -71,6 +47,32 @@ class WorkspaceService:
                 for workspace, membership in memberships
             ]
         )
+
+    def claim_pending_invitations(self, session: Session, user: User) -> int:
+        pending_invitations = self._repository.list_pending_invitations_for_email(
+            session, user.email
+        )
+        for invitation in pending_invitations:
+            membership = session.scalar(
+                select(WorkspaceMembership).where(
+                    WorkspaceMembership.workspace_id == invitation.workspace_id,
+                    WorkspaceMembership.user_id == user.id,
+                )
+            )
+            if membership is None:
+                session.add(
+                    WorkspaceMembership(
+                        workspace_id=invitation.workspace_id,
+                        user_id=user.id,
+                        role=MembershipRole.MEMBER,
+                    )
+                )
+            else:
+                membership.role = MembershipRole.MEMBER
+                membership.removed_at = None
+                membership.updated_at = utc_now()
+            invitation.accepted_at = utc_now()
+        return len(pending_invitations)
 
     def get_accessible_workspace(
         self, session: Session, workspace_id: UUID, user_id: UUID

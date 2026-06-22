@@ -1,5 +1,16 @@
 @custom-variant dark (&:is(.dark *));
 
+@keyframes auth-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 :root {
   --font-size: 16px;
   --background: #ffffff;

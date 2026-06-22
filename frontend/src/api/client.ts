@@ -162,7 +162,14 @@ export function createApiClient({
   }
 
   function isAuthenticationEndpoint(path: string): boolean {
-    return ["/auth/login", "/auth/refresh", "/auth/logout"].includes(path);
+    return [
+      "/auth/login",
+      "/auth/refresh",
+      "/auth/logout",
+      "/auth/signup",
+      "/auth/verify-email",
+      "/auth/resend-verification",
+    ].includes(path);
   }
 
   async function refresh(): Promise<void> {

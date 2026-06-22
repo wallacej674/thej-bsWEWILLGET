@@ -3,10 +3,20 @@ from authx.schema import TokenPayload
 from fastapi import APIRouter, Request, Response, status
 
 from app.api.dependencies.current_user import CurrentUser, DatabaseSession
+from app.api.dependencies.email_delivery import EmailSenderDependency
 from app.core.auth import get_authx
 from app.core.errors import AppError
 from app.core.passwords import PasswordPolicyError
-from app.schemas.auth import ChangePasswordRequest, LoginRequest
+from app.schemas.auth import (
+    ChangePasswordRequest,
+    LoginRequest,
+    ResendVerificationRequest,
+    ResendVerificationResponse,
+    SignupRequest,
+    SignupResponse,
+    VerifyEmailRequest,
+    VerifyEmailResponse,
+)
 from app.services.auth_service import (
     AuthenticationService,
     CurrentPasswordInvalidError,
@@ -14,9 +24,15 @@ from app.services.auth_service import (
     InvalidSessionError,
     RefreshTokenReuseError,
 )
+from app.services.email_delivery import EmailDeliveryError
+from app.services.registration_service import (
+    InvalidVerificationTokenError,
+    RegistrationService,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 authentication_service = AuthenticationService()
+registration_service = RegistrationService()
 
 
 def _set_auth_cookies(
@@ -64,6 +80,65 @@ def login(payload: LoginRequest, session: DatabaseSession) -> Response:
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
     _set_auth_cookies(response, result.access_token, result.refresh_token)
     return response
+
+
+@router.post(
+    "/signup",
+    response_model=SignupResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def signup(
+    payload: SignupRequest,
+    session: DatabaseSession,
+    email_sender: EmailSenderDependency,
+) -> SignupResponse:
+    try:
+        registration_service.signup(session, payload, email_sender)
+    except EmailDeliveryError as error:
+        raise AppError(
+            503,
+            "email_delivery_unavailable",
+            "Your registration was saved, but the verification email could not be sent.",
+        ) from error
+    return SignupResponse()
+
+
+@router.post("/verify-email", response_model=VerifyEmailResponse)
+def verify_email(
+    payload: VerifyEmailRequest,
+    session: DatabaseSession,
+) -> VerifyEmailResponse:
+    try:
+        registration_service.verify(session, payload.token)
+    except InvalidVerificationTokenError as error:
+        session.rollback()
+        raise AppError(
+            400,
+            "verification_link_invalid",
+            "This verification link is invalid or has expired.",
+        ) from error
+    return VerifyEmailResponse()
+
+
+@router.post(
+    "/resend-verification",
+    response_model=ResendVerificationResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def resend_verification(
+    payload: ResendVerificationRequest,
+    session: DatabaseSession,
+    email_sender: EmailSenderDependency,
+) -> ResendVerificationResponse:
+    try:
+        registration_service.resend(session, payload.email, email_sender)
+    except EmailDeliveryError as error:
+        raise AppError(
+            503,
+            "email_delivery_unavailable",
+            "The verification email could not be sent. Try again.",
+        ) from error
+    return ResendVerificationResponse()
 
 
 @router.post("/refresh", status_code=status.HTTP_204_NO_CONTENT)

@@ -34,6 +34,21 @@ export interface ChangePasswordInput {
   newPassword: string;
 }
 
+export interface SignupInput {
+  displayName: string;
+  email: string;
+  password: string;
+  workspaceName: string;
+}
+
+export interface MessageResponse {
+  message: string;
+}
+
+export interface VerificationResponse {
+  status: "verified";
+}
+
 export interface AuthenticatedSession {
   user: CurrentUser;
   workspace: Workspace;
@@ -48,6 +63,38 @@ export const authApi = {
       includeCsrf: false,
       retryOnUnauthorized: false,
     }),
+  signup: (client: AuthClient, input: SignupInput) =>
+    client.post<MessageResponse>(
+      "/auth/signup",
+      {
+        display_name: input.displayName,
+        email: input.email,
+        password: input.password,
+        workspace_name: input.workspaceName,
+      },
+      {
+        includeCsrf: false,
+        retryOnUnauthorized: false,
+      },
+    ),
+  verifyEmail: (client: AuthClient, token: string) =>
+    client.post<VerificationResponse>(
+      "/auth/verify-email",
+      { token },
+      {
+        includeCsrf: false,
+        retryOnUnauthorized: false,
+      },
+    ),
+  resendVerification: (client: AuthClient, email: string) =>
+    client.post<MessageResponse>(
+      "/auth/resend-verification",
+      { email },
+      {
+        includeCsrf: false,
+        retryOnUnauthorized: false,
+      },
+    ),
   logout: (client: AuthClient) =>
     client.post<void>("/auth/logout", undefined, {
       retryOnUnauthorized: false,

@@ -53,7 +53,11 @@ function buildUrl(
 ): string {
   const normalizedBase = baseUrl.replace(/\/+$/, "");
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  const url = new URL(`${normalizedBase}/api/v1${normalizedPath}`);
+  const apiBase =
+    normalizedBase === "/api"
+      ? "/api/v1"
+      : `${normalizedBase}/api/v1`;
+  const url = new URL(`${apiBase}${normalizedPath}`, window.location.origin);
 
   Object.entries(query ?? {}).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
@@ -61,7 +65,9 @@ function buildUrl(
     }
   });
 
-  return url.toString();
+  return normalizedBase === "/api"
+    ? `${url.pathname}${url.search}`
+    : url.toString();
 }
 
 function isErrorEnvelope(value: unknown): value is ApiErrorEnvelope {

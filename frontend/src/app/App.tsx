@@ -312,6 +312,9 @@ function DarkSelect({
   className?: string;
 }) {
   const normalizedValue = value === "" ? emptySelectValue : value;
+  const selectedLabel =
+    options.find((option) => option.value === value)?.label ?? "";
+  const triggerLabel = selectedLabel ? `${ariaLabel}: ${selectedLabel}` : ariaLabel;
 
   return (
     <RadixSelect.Root
@@ -321,10 +324,26 @@ function DarkSelect({
       }
     >
       <RadixSelect.Trigger
-        aria-label={ariaLabel}
-        className={`inline-flex min-h-8 w-full items-center justify-between gap-2 rounded-lg border border-white/[0.09] bg-[#151e2f] px-3 py-2 text-left text-xs text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] transition-colors hover:border-white/[0.15] hover:bg-[#182235] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/45 data-[state=open]:border-indigo-500/35 data-[state=open]:bg-[#182235] ${className}`}
+        aria-label={triggerLabel}
+        className={`inline-flex min-h-8 w-full items-center justify-between gap-2 overflow-hidden rounded-lg border border-white/[0.09] bg-[#151e2f] px-3 py-2 text-left text-xs text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] transition-colors hover:border-white/[0.15] hover:bg-[#182235] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/45 data-[state=open]:border-indigo-500/35 data-[state=open]:bg-[#182235] ${className}`}
       >
-        <RadixSelect.Value />
+        <span
+          aria-hidden="true"
+          title={selectedLabel}
+          className="min-w-0 flex-1"
+          style={{
+            display: "block",
+            flexBasis: 0,
+            flexGrow: 1,
+            flexShrink: 1,
+            minWidth: 0,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {selectedLabel}
+        </span>
         <RadixSelect.Icon className="shrink-0 text-slate-500">
           <ChevronDown size={14} />
         </RadixSelect.Icon>
@@ -531,7 +550,7 @@ function AppShell({ context }: { context: AppContext }) {
             </span>
           </Link>
           <span className="hidden text-xs text-slate-600 sm:block">/</span>
-          <div className="hidden max-w-44 sm:block">
+          <div className="hidden w-40 shrink-0 sm:block">
             <DarkSelect
               ariaLabel="Active workspace"
             value={context.session.workspace.id}
@@ -853,14 +872,14 @@ function DashboardPage({ context }: { context: AppContext }) {
             keeping visibility across the search.
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
-            <Link to="/applications/new">
+            <Link to="/applications/new" className="inline-flex w-40 [&>button]:w-full">
               <PrimaryButton>
                 <Plus size={16} /> Add application
               </PrimaryButton>
             </Link>
             <Link
               to="/applications"
-              className="inline-flex items-center rounded-lg border border-white/10 bg-white/[0.045] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
+              className="inline-flex w-40 items-center justify-center rounded-lg border border-white/10 bg-white/[0.045] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
             >
               View applications
             </Link>

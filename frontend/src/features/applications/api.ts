@@ -10,6 +10,8 @@ import type {
   JobApplication,
   InvitationInboxItem,
   PaginatedApplications,
+  ResumeProfile,
+  ResumeTailorAnalysis,
   Workspace,
   WorkspaceInvitation,
   WorkspaceMember,
@@ -70,6 +72,16 @@ export const invitationApi = {
     client.post<Workspace>(`/invitations/${invitationId}/accept`),
   decline: (client: ApiClient, invitationId: string) =>
     client.post<void>(`/invitations/${invitationId}/decline`),
+};
+
+export const profileApi = {
+  resume: (client: ApiClient) => client.get<ResumeProfile | null>("/profile/resume"),
+  uploadResume: (client: ApiClient, file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return client.post<ResumeProfile>("/profile/resume", formData);
+  },
+  deleteResume: (client: ApiClient) => client.delete("/profile/resume"),
 };
 
 export const applicationsApi = {
@@ -135,5 +147,21 @@ export const applicationsApi = {
         application_ids: applicationIds,
         delete_all: deleteAll,
       },
+    ),
+  resumeTailorAnalysis: (
+    client: ApiClient,
+    workspaceId: string,
+    applicationId: string,
+  ) =>
+    client.get<ResumeTailorAnalysis>(
+      `/workspaces/${workspaceId}/applications/${applicationId}/ai/resume-tailor`,
+    ),
+  generateResumeTailorAnalysis: (
+    client: ApiClient,
+    workspaceId: string,
+    applicationId: string,
+  ) =>
+    client.post<ResumeTailorAnalysis>(
+      `/workspaces/${workspaceId}/applications/${applicationId}/ai/resume-tailor`,
     ),
 };

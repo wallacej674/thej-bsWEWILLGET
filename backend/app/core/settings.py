@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     frontend_base_url: str = "http://localhost:5173"
     email_verification_hours: int = 24
     email_resend_cooldown_seconds: int = 60
+    openai_api_key: str | None = None
+    openai_resume_tailor_model: str = "gpt-5.4-nano"
+    openai_resume_tailor_max_input_tokens: int = 30_000
+    openai_resume_tailor_max_output_tokens: int = 1_800
+    openai_resume_tailor_timeout_seconds: int = 30
     log_level: str = "INFO"
     app_timezone: str = "America/Chicago"
     seed_jonathan_email: str = "jonathan@example.test"

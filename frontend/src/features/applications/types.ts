@@ -81,6 +81,39 @@ export interface JobApplication {
   owner: OwnerSummary;
 }
 
+export interface ResumeProfile {
+  id: string;
+  original_filename: string;
+  parser_status: "ready" | "warning" | "unreadable";
+  parser_warnings: string[];
+  extracted_text_preview: string;
+  extracted_text_length: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ResumeTailorResult {
+  match_score: number;
+  matched_keywords: string[];
+  missing_keywords: string[];
+  suggested_summary: string;
+  suggested_bullets: string[];
+  interview_talking_points: string[];
+  caution_notes: string[];
+  ats_warnings: string[];
+}
+
+export interface ResumeTailorAnalysis {
+  id: string;
+  application_id: string;
+  prompt_version: string;
+  provider_name: string;
+  model_name: string;
+  result: ResumeTailorResult;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface DeletedApplication extends JobApplication {
   deleted_at: string;
   deleted_by: OwnerSummary;

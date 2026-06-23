@@ -101,6 +101,8 @@ import { LoginPage } from "../features/auth/LoginPage";
 import { SignupPage } from "../features/auth/SignupPage";
 import { VerifyEmailPage } from "../features/auth/VerifyEmailPage";
 import { InvitationInbox } from "../features/invitations/InvitationInbox";
+import { AiResumeTailorPanel } from "../features/resume/AiResumeTailorPanel";
+import { ResumeProfilePanel } from "../features/resume/ResumeProfilePanel";
 import {
   configuredDevelopmentIdentities,
   createIdentityStore,
@@ -1970,6 +1972,12 @@ function ApplicationDetailPage({ context }: { context: AppContext }) {
             ]}
           />
         )}
+        <AiResumeTailorPanel
+          client={context.client}
+          workspaceId={context.session.workspace.id}
+          application={application}
+          currentUserId={context.session.user.id}
+        />
       </div>
     </div>
   );
@@ -3282,6 +3290,7 @@ function ProfilePage({ context }: { context: AppContext }) {
           </div>
         ) : null}
       </div>
+      <ResumeProfilePanel client={context.client} />
     </div>
   );
 }

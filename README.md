@@ -55,6 +55,19 @@ in development or test with an explicit backend setting and frontend flag.
 
 ## Run the integrated application
 
+For the usual local development flow, run the helper script from the repository
+root:
+
+```powershell
+.\dev.ps1
+```
+
+Run `.\dev.ps1 -Install` after cloning or when locked dependencies change.
+That install mode runs `uv sync --locked` and `npm ci`. Use it after pulling
+changes that update `backend/pyproject.toml`, `backend/uv.lock`,
+`frontend/package.json`, or `frontend/package-lock.json`, or when your local
+virtualenv or `node_modules` install looks broken.
+
 Start PostgreSQL from the repository root. The project database uses host port
 5434 to avoid colliding with locally installed PostgreSQL services:
 

@@ -90,6 +90,48 @@
   color-scheme: dark;
 }
 
+/*
+ * Warm "gold" scheme, scoped to elements carrying BOTH `dark` and `theme-gold`.
+ * Higher specificity than `.dark`, so it overrides the indigo dark tokens only
+ * where opted in. Pages are migrated to this palette one at a time; once every
+ * page opts in, these values move into `.dark` and this block is removed.
+ * Palette source: the ApplyTogether login page.
+ */
+.dark.theme-gold {
+  --background: #14100a;
+  --foreground: #f4eee1;
+  --card: #1a130b;
+  --card-foreground: #f2ece0;
+  --popover: #1e1810;
+  --popover-foreground: #f4eee1;
+  --primary: #d6a844;
+  --primary-foreground: #14100a;
+  --secondary: #2e2113;
+  --secondary-foreground: #f4eee1;
+  --muted: #1e1810;
+  --muted-foreground: #8c8170;
+  --accent: #2e2113;
+  --accent-foreground: #f4eee1;
+  --destructive: #e0625a;
+  --destructive-foreground: #14100a;
+  --border: #352b1c;
+  --input: #1e1810;
+  --ring: #d6a844;
+  --chart-1: #d6a844;
+  --chart-2: #e0b850;
+  --chart-3: #a89a80;
+  --chart-4: #8c8170;
+  --chart-5: #e0625a;
+  --sidebar: #1a130b;
+  --sidebar-foreground: #f4eee1;
+  --sidebar-primary: #d6a844;
+  --sidebar-primary-foreground: #14100a;
+  --sidebar-accent: #2e2113;
+  --sidebar-accent-foreground: #f4eee1;
+  --sidebar-border: #352b1c;
+  --sidebar-ring: #d6a844;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -190,4 +232,38 @@
     font-weight: var(--font-weight-normal);
     line-height: 1.5;
   }
+}
+
+/* Animated gold hover underline for non-active nav tabs.
+   Two lines (top + bottom) wipe in from opposite sides on hover. */
+.nav-hover-underline {
+  position: relative;
+  display: inline-block;
+}
+
+.nav-hover-underline::before,
+.nav-hover-underline::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(to right, var(--primary), #e0b850);
+  transform: scaleX(0);
+  transition: transform 0.4s ease-out;
+}
+
+.nav-hover-underline::after {
+  bottom: -3px;
+  transform-origin: right;
+}
+
+.nav-hover-underline::before {
+  top: -3px;
+  transform-origin: left;
+}
+
+.nav-tab:hover .nav-hover-underline::before,
+.nav-tab:hover .nav-hover-underline::after {
+  transform: scaleX(1);
 }

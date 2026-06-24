@@ -19,7 +19,7 @@ export function ApplicationActions({
 }: ApplicationActionsProps) {
   const owned = applicationOwnerId === currentUserId;
   const buttonClass =
-    "rounded p-1.5 text-slate-500 transition-colors hover:bg-white/5 hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500";
+    "rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary";
 
   return (
     <div className="flex items-center justify-end gap-1">
@@ -37,7 +37,7 @@ export function ApplicationActions({
       )}
       {(owned || canModerate) && (
         <button
-          className={`${buttonClass} hover:text-red-400`}
+          className={`${buttonClass} hover:text-[#e0625a]`}
           onClick={onDelete}
           aria-label="Delete application"
         >

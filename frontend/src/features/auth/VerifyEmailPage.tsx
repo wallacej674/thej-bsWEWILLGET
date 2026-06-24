@@ -54,9 +54,9 @@ export function VerifyEmailPage({
     return (
       <AuthLayout eyebrow="Email verification">
         <div aria-live="polite" aria-busy="true">
-          <div className="h-9 w-52 animate-pulse rounded bg-white/[0.07]" />
-          <div className="mt-4 h-4 w-full max-w-sm animate-pulse rounded bg-white/[0.05]" />
-          <div className="mt-2 h-4 w-3/4 animate-pulse rounded bg-white/[0.05]" />
+          <div className="h-9 w-52 animate-pulse rounded bg-foreground/[0.07]" />
+          <div className="mt-4 h-4 w-full max-w-sm animate-pulse rounded bg-foreground/[0.05]" />
+          <div className="mt-2 h-4 w-3/4 animate-pulse rounded bg-foreground/[0.05]" />
         </div>
       </AuthLayout>
     );
@@ -68,7 +68,7 @@ export function VerifyEmailPage({
         <div aria-live="polite">
           <span
             aria-hidden="true"
-            className="mb-5 flex h-12 w-12 items-center justify-center rounded-full border border-emerald-400/25 bg-emerald-400/10 text-emerald-300"
+            className="mb-5 flex h-12 w-12 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none">
               <path
@@ -80,15 +80,15 @@ export function VerifyEmailPage({
               />
             </svg>
           </span>
-          <h1 className="text-3xl font-semibold tracking-[-0.03em] text-white">
+          <h1 className="text-3xl font-semibold tracking-[-0.03em] text-foreground">
             Email verified
           </h1>
-          <p className="mt-4 max-w-md text-sm leading-6 text-slate-400">
+          <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">
             Your account is ready. Sign in with the password you created.
           </p>
           <Link
             to="/login?verified=true"
-            className="mt-7 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+            className="mt-7 inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-primary/35 bg-secondary px-4 py-2.5 text-sm font-semibold text-foreground transition hover:border-primary/60 hover:bg-[#3a2a17] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
           >
             Sign in
           </Link>
@@ -99,15 +99,15 @@ export function VerifyEmailPage({
 
   return (
     <AuthLayout eyebrow="Email verification">
-      <h1 className="text-3xl font-semibold tracking-[-0.03em] text-white">
+      <h1 className="text-3xl font-semibold tracking-[-0.03em] text-foreground">
         Get a new link
       </h1>
-      <p className="mt-4 max-w-md text-sm leading-6 text-slate-400">
+      <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">
         This verification link is missing, invalid, or expired. Enter your email
         and we will send another if a registration is pending.
       </p>
       <form className="mt-7" onSubmit={resend}>
-        <label className="block text-sm font-medium text-slate-200">
+        <label className="block text-sm font-medium text-[#cfc4af]">
           Email address
           <input
             type="email"
@@ -115,30 +115,30 @@ export function VerifyEmailPage({
             autoComplete="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            className="mt-2 min-h-11 w-full rounded-lg border border-white/10 bg-[#151e2f] px-3.5 py-2.5 text-sm text-white outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20"
+            className="mt-2 min-h-11 w-full rounded-lg border border-border bg-input px-3.5 py-2.5 text-sm text-foreground outline-none transition placeholder:text-[#6b6253] focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
         </label>
         <button
           type="submit"
           disabled={resendPending}
-          className="mt-5 min-h-11 w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500 active:scale-[0.98] disabled:opacity-60"
+          className="mt-5 min-h-11 w-full rounded-lg border border-primary/35 bg-secondary px-4 py-2.5 text-sm font-semibold text-foreground transition hover:border-primary/60 hover:bg-[#3a2a17] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:opacity-60"
         >
           {resendPending ? "Sending new link…" : "Send a new link"}
         </button>
         {resendSent ? (
-          <p role="status" className="mt-4 text-sm leading-6 text-emerald-300">
+          <p role="status" className="mt-4 text-sm leading-6 text-primary">
             If a registration is pending, a new link is on its way.
           </p>
         ) : null}
         {resendFailed ? (
-          <p role="alert" className="mt-4 text-sm leading-6 text-rose-300">
+          <p role="alert" className="mt-4 text-sm leading-6 text-[#f0a9a3]">
             The link could not be sent. Check the connection and try again.
           </p>
         ) : null}
       </form>
       <Link
         to="/login"
-        className="mt-6 inline-flex text-sm font-medium text-slate-400 transition hover:text-white"
+        className="mt-6 inline-flex text-sm font-medium text-muted-foreground transition hover:text-foreground"
       >
         Return to sign in
       </Link>

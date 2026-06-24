@@ -27,7 +27,10 @@ type SignupFields = {
 type FieldErrors = Partial<Record<keyof SignupFields, string>>;
 
 const inputClass =
-  "min-h-11 w-full rounded-lg border border-white/10 bg-[#151e2f] px-3.5 py-2.5 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20";
+  "min-h-11 w-full rounded-lg border border-border bg-input px-3.5 py-2.5 text-sm text-foreground outline-none transition placeholder:text-[#6b6253] focus:border-primary focus:ring-2 focus:ring-primary/20";
+
+const primaryButtonClass =
+  "min-h-11 w-full rounded-lg border border-primary/35 bg-secondary px-4 py-2.5 text-sm font-semibold text-foreground transition hover:border-primary/60 hover:bg-[#3a2a17] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60";
 
 function errorCode(error: unknown): string | undefined {
   if (typeof error === "object" && error !== null && "code" in error) {
@@ -150,22 +153,22 @@ export function SignupPage({ onSignup, onResend }: SignupPageProps) {
     return (
       <AuthLayout eyebrow="Account setup">
         <div aria-live="polite">
-          <h1 className="text-3xl font-semibold tracking-[-0.03em] text-white">
+          <h1 className="text-3xl font-semibold tracking-[-0.03em] text-foreground">
             {deliveryFailed ? "Your account is saved" : "Check your email"}
           </h1>
-          <p className="mt-4 max-w-md text-sm leading-6 text-slate-400">
+          <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">
             {deliveryFailed
               ? "We saved your registration, but the email could not be delivered. Try sending a new link."
               : "Open the verification link we sent to finish creating your account."}
           </p>
-          <p className="mt-5 rounded-lg border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-sm font-medium text-slate-200">
+          <p className="mt-5 rounded-lg border border-border bg-card px-4 py-3 text-sm font-medium text-foreground">
             {submittedEmail}
           </p>
           <button
             type="button"
             onClick={() => void resend()}
             disabled={resendPending || resendSeconds > 0}
-            className="mt-5 min-h-11 w-full rounded-lg border border-indigo-400/30 bg-indigo-400/10 px-4 py-2.5 text-sm font-semibold text-indigo-100 transition hover:bg-indigo-400/15 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-5 min-h-11 w-full rounded-lg border border-primary/30 bg-primary/10 px-4 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary/15 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {resendPending
               ? "Sending new link…"
@@ -175,7 +178,7 @@ export function SignupPage({ onSignup, onResend }: SignupPageProps) {
           </button>
           <Link
             to="/login"
-            className="mt-5 inline-flex text-sm font-medium text-slate-400 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+            className="mt-5 inline-flex text-sm font-medium text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
           >
             Return to sign in
           </Link>
@@ -186,10 +189,10 @@ export function SignupPage({ onSignup, onResend }: SignupPageProps) {
 
   return (
     <AuthLayout eyebrow="Create account">
-      <h1 className="text-3xl font-semibold tracking-[-0.03em] text-white">
+      <h1 className="text-3xl font-semibold tracking-[-0.03em] text-foreground">
         Start a shared search
       </h1>
-      <p className="mt-3 max-w-md text-sm leading-6 text-slate-400">
+      <p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground">
         Create your account and verify your email before entering the workspace.
       </p>
 
@@ -247,20 +250,16 @@ export function SignupPage({ onSignup, onResend }: SignupPageProps) {
           onChange={update}
         />
 
-        <button
-          type="submit"
-          disabled={pending}
-          className="min-h-11 w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0c1120] disabled:cursor-not-allowed disabled:opacity-60"
-        >
+        <button type="submit" disabled={pending} className={primaryButtonClass}>
           {pending ? "Creating account…" : "Create account"}
         </button>
       </form>
 
-      <p className="mt-6 text-sm text-slate-500">
+      <p className="mt-6 text-sm text-muted-foreground">
         Already have an account?{" "}
         <Link
           to="/login"
-          className="font-semibold text-indigo-300 transition hover:text-indigo-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+          className="font-semibold text-primary transition hover:text-[#e8c976] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
         >
           Sign in
         </Link>
@@ -296,7 +295,7 @@ function Field({
     <div>
       <label
         htmlFor={inputId}
-        className="block text-sm font-medium text-slate-200"
+        className="block text-sm font-medium text-[#cfc4af]"
       >
         {label}
       </label>
@@ -310,13 +309,13 @@ function Field({
         aria-describedby={error || helper ? messageId : undefined}
         onChange={(event) => onChange(name, event.target.value)}
         className={`${inputClass} mt-2 ${
-          error ? "border-rose-400/60 focus:border-rose-400 focus:ring-rose-400/20" : ""
+          error ? "border-destructive/60 focus:border-destructive focus:ring-destructive/20" : ""
         }`}
       />
       {error || helper ? (
         <span
           id={messageId}
-          className={`mt-1.5 block text-xs ${error ? "text-rose-300" : "text-slate-500"}`}
+          className={`mt-1.5 block text-xs ${error ? "text-[#f0a9a3]" : "text-muted-foreground"}`}
         >
           {error ?? helper}
         </span>

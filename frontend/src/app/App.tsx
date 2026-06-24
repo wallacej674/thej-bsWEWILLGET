@@ -101,11 +101,14 @@ import { LoginPage } from "../features/auth/LoginPage";
 import { SignupPage } from "../features/auth/SignupPage";
 import { VerifyEmailPage } from "../features/auth/VerifyEmailPage";
 import { InvitationInbox } from "../features/invitations/InvitationInbox";
+import { AiResumeTailorPanel } from "../features/resume/AiResumeTailorPanel";
+import { ResumeProfilePanel } from "../features/resume/ResumeProfilePanel";
 import {
   configuredDevelopmentIdentities,
   createIdentityStore,
   type DevelopmentIdentity,
 } from "../features/session/identity";
+import logoUrl from "../assets/applytogether-logo.png";
 
 interface SessionState {
   user: CurrentUser;
@@ -208,8 +211,21 @@ function initials(name: string): string {
     .toUpperCase();
 }
 
+const avatarColors = [
+  "bg-[#d6a844]", // gold
+  "bg-[#c8743e]", // burnt orange
+  "bg-[#b08968]", // taupe
+  "bg-[#c2a25a]", // wheat
+  "bg-[#a9774a]", // bronze
+  "bg-[#cd8a5c]", // clay
+];
+
 function userColor(id: string): string {
-  return id.charCodeAt(0) % 2 === 0 ? "bg-indigo-600" : "bg-emerald-600";
+  let sum = 0;
+  for (let index = 0; index < id.length; index += 1) {
+    sum += id.charCodeAt(index);
+  }
+  return avatarColors[sum % avatarColors.length];
 }
 
 function Avatar({
@@ -228,7 +244,7 @@ function Avatar({
   };
   return (
     <span
-      className={`${sizes[size]} ${userColor(id)} inline-flex flex-shrink-0 items-center justify-center rounded-full font-semibold text-white`}
+      className={`${sizes[size]} ${userColor(id)} inline-flex flex-shrink-0 items-center justify-center rounded-full font-semibold text-[#1a130b]`}
       aria-hidden="true"
     >
       {initials(name)}
@@ -238,10 +254,10 @@ function Avatar({
 
 function StatusPill({ status }: { status: ApplicationStatus }) {
   const colors: Record<ApplicationStatus, string> = {
-    applied: "border-blue-500/25 bg-blue-500/15 text-blue-400",
-    rejected: "border-red-500/25 bg-red-500/15 text-red-400",
-    withdrawn: "border-slate-500/25 bg-slate-500/15 text-slate-400",
-    closed: "border-amber-500/25 bg-amber-500/15 text-amber-400",
+    applied: "border-primary/30 bg-primary/[0.12] text-[#e0b850]",
+    rejected: "border-[#e0625a]/30 bg-[#e0625a]/[0.12] text-[#e0625a]",
+    withdrawn: "border-border bg-secondary text-muted-foreground",
+    closed: "border-[#6f5f3e]/45 bg-[#6f5f3e]/20 text-[#b9a677]",
   };
   return (
     <span
@@ -253,16 +269,8 @@ function StatusPill({ status }: { status: ApplicationStatus }) {
 }
 
 function ArrangementPill({ value }: { value: WorkArrangement }) {
-  const styles: Record<WorkArrangement, string> = {
-    remote: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
-    hybrid: "border-indigo-500/30 bg-indigo-500/10 text-indigo-400",
-    onsite: "border-slate-500/30 bg-slate-500/10 text-slate-400",
-    unknown: "border-slate-600/30 bg-slate-600/10 text-slate-500",
-  };
   return (
-    <span
-      className={`inline-flex rounded border px-2 py-0.5 text-xs font-medium ${styles[value]}`}
-    >
+    <span className="inline-flex rounded border border-border bg-secondary px-2 py-0.5 text-xs font-medium text-[#bcae93]">
       {arrangementLabels[value]}
     </span>
   );
@@ -270,7 +278,7 @@ function ArrangementPill({ value }: { value: WorkArrangement }) {
 
 function EmploymentPill({ value }: { value: EmploymentType }) {
   return (
-    <span className="inline-flex max-w-20 rounded border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-xs font-medium leading-tight text-blue-400">
+    <span className="inline-flex max-w-20 rounded border border-border bg-secondary px-2 py-0.5 text-xs font-medium leading-tight text-[#bcae93]">
       {employmentLabels[value]}
     </span>
   );
@@ -288,8 +296,8 @@ function PageHeader({
   return (
     <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
       <div>
-        <h1 className="text-xl font-bold tracking-tight text-slate-100">{title}</h1>
-        <p className="mt-1 text-sm text-slate-500">{description}</p>
+        <h1 className="text-xl font-bold tracking-tight text-foreground">{title}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
       </div>
       {action}
     </div>
@@ -304,28 +312,56 @@ function DarkSelect({
   options,
   ariaLabel,
   className = "",
+  contentClassName = "",
+  header,
+  footer,
 }: {
   value: string;
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
   ariaLabel: string;
   className?: string;
+  contentClassName?: string;
+  header?: ReactNode;
+  footer?: (close: () => void) => ReactNode;
 }) {
+  const [open, setOpen] = useState(false);
   const normalizedValue = value === "" ? emptySelectValue : value;
+  const selectedLabel =
+    options.find((option) => option.value === value)?.label ?? "";
+  const triggerLabel = selectedLabel ? `${ariaLabel}: ${selectedLabel}` : ariaLabel;
 
   return (
     <RadixSelect.Root
+      open={open}
+      onOpenChange={setOpen}
       value={normalizedValue}
       onValueChange={(nextValue) =>
         onChange(nextValue === emptySelectValue ? "" : nextValue)
       }
     >
       <RadixSelect.Trigger
-        aria-label={ariaLabel}
-        className={`inline-flex min-h-8 w-full items-center justify-between gap-2 rounded-lg border border-white/[0.09] bg-[#151e2f] px-3 py-2 text-left text-xs text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] transition-colors hover:border-white/[0.15] hover:bg-[#182235] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/45 data-[state=open]:border-indigo-500/35 data-[state=open]:bg-[#182235] ${className}`}
+        aria-label={triggerLabel}
+        className={`inline-flex min-h-8 w-full items-center justify-between gap-2 overflow-hidden rounded-lg border border-border bg-input px-3 py-2 text-left text-xs text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] transition-colors hover:border-primary/40 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 data-[state=open]:border-primary/35 data-[state=open]:bg-secondary ${className}`}
       >
-        <RadixSelect.Value />
-        <RadixSelect.Icon className="shrink-0 text-slate-500">
+        <span
+          aria-hidden="true"
+          title={selectedLabel}
+          className="min-w-0 flex-1"
+          style={{
+            display: "block",
+            flexBasis: 0,
+            flexGrow: 1,
+            flexShrink: 1,
+            minWidth: 0,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {selectedLabel}
+        </span>
+        <RadixSelect.Icon className="shrink-0 text-muted-foreground">
           <ChevronDown size={14} />
         </RadixSelect.Icon>
       </RadixSelect.Trigger>
@@ -334,8 +370,13 @@ function DarkSelect({
           position="popper"
           sideOffset={6}
           collisionPadding={12}
-          className="z-[100] min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-xl border border-white/[0.1] bg-[#111827] p-1.5 text-slate-300 shadow-[0_18px_50px_rgba(0,0,0,0.55)]"
+          className={`dark theme-gold z-[100] min-w-[var(--radix-select-trigger-width)] max-w-[280px] overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-foreground shadow-[0_18px_50px_rgba(0,0,0,0.55)] ${contentClassName}`}
         >
+          {header ? (
+            <div className="px-3 pb-1 pt-1.5 text-[10px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+              {header}
+            </div>
+          ) : null}
           <RadixSelect.Viewport>
             {options.map((option) => {
               const optionValue =
@@ -344,16 +385,23 @@ function DarkSelect({
                 <RadixSelect.Item
                   key={optionValue}
                   value={optionValue}
-                  className="relative flex cursor-pointer select-none items-center rounded-lg py-2 pl-3 pr-8 text-xs outline-none transition-colors data-[highlighted]:bg-indigo-500/15 data-[highlighted]:text-indigo-200 data-[state=checked]:text-white"
+                  className="relative flex min-w-0 cursor-pointer select-none items-center rounded-lg py-2 pl-3 pr-8 text-xs outline-none transition-colors data-[highlighted]:bg-primary/15 data-[highlighted]:text-primary data-[state=checked]:text-foreground"
                 >
-                  <RadixSelect.ItemText>{option.label}</RadixSelect.ItemText>
-                  <RadixSelect.ItemIndicator className="absolute right-2.5 text-indigo-400">
+                  <RadixSelect.ItemText>
+                    <span className="block truncate">{option.label}</span>
+                  </RadixSelect.ItemText>
+                  <RadixSelect.ItemIndicator className="absolute right-2.5 text-primary">
                     <Check size={13} />
                   </RadixSelect.ItemIndicator>
                 </RadixSelect.Item>
               );
             })}
           </RadixSelect.Viewport>
+          {footer ? (
+            <div className="mt-1 border-t border-border pt-1">
+              {footer(() => setOpen(false))}
+            </div>
+          ) : null}
         </RadixSelect.Content>
       </RadixSelect.Portal>
     </RadixSelect.Root>
@@ -370,12 +418,12 @@ function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-white/[0.08] bg-[#111827] px-5 py-16 text-center">
-      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-white/5">
-        <FileText size={22} className="text-slate-600" />
+    <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card px-5 py-16 text-center">
+      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-secondary">
+        <FileText size={22} className="text-muted-foreground" />
       </div>
-      <h2 className="text-base font-semibold text-slate-300">{title}</h2>
-      <p className="mb-5 mt-2 max-w-md text-sm leading-relaxed text-slate-500">
+      <h2 className="text-base font-semibold text-foreground">{title}</h2>
+      <p className="mb-5 mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
         {description}
       </p>
       {action}
@@ -385,7 +433,7 @@ function EmptyState({
 
 function LoadingState({ label = "Loading…" }: { label?: string }) {
   return (
-    <div className="flex min-h-52 items-center justify-center gap-2 text-sm text-slate-500">
+    <div className="flex min-h-52 items-center justify-center gap-2 text-sm text-muted-foreground">
       <LoaderCircle className="animate-spin" size={17} />
       {label}
     </div>
@@ -412,7 +460,7 @@ function ErrorState({
           <h2 className="text-sm font-semibold text-red-300">
             Couldn’t load this view
           </h2>
-          <p className="mt-1 text-sm text-slate-400">{message}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{message}</p>
           {onRetry && (
             <button
               className="mt-3 rounded-lg border border-red-500/20 px-3 py-1.5 text-xs font-medium text-red-300 hover:bg-red-500/10"
@@ -443,7 +491,7 @@ function PrimaryButton({
       type={type}
       disabled={disabled}
       onClick={onClick}
-      className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 disabled:cursor-not-allowed disabled:opacity-50"
+      className="inline-flex items-center justify-center gap-2 rounded-lg border border-primary/35 bg-secondary px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/60 hover:bg-[#3a2a17] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-50"
     >
       {children}
     </button>
@@ -516,22 +564,22 @@ function AppShell({ context }: { context: AppContext }) {
   ];
 
   return (
-    <div className="dark min-h-screen bg-[#0c1120] text-slate-200">
-      <nav className="sticky top-0 z-50 border-b border-white/[0.07] bg-[#090e1d]">
-        <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4 sm:px-6">
+    <div className="dark theme-gold min-h-screen bg-background text-foreground">
+      <nav className="sticky top-0 z-50 border-b border-border bg-background">
+        <div className="mx-auto flex h-14 max-w-[1480px] items-center gap-5 px-4 sm:px-6 md:h-16">
           <Link
             to="/"
-            className="flex flex-shrink-0 items-center gap-2.5 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+            className="flex flex-shrink-0 items-center gap-2.5 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
-            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-indigo-600">
-              <Briefcase size={13} />
+            <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-md bg-[#060504]">
+              <img src={logoUrl} alt="" className="h-full w-full object-contain p-0.5" />
             </span>
-            <span className="hidden text-sm font-semibold tracking-tight text-slate-100 sm:block">
+            <span className="hidden text-base font-semibold tracking-tight text-foreground sm:block">
               ApplyTogether
             </span>
           </Link>
-          <span className="hidden text-xs text-slate-600 sm:block">/</span>
-          <div className="hidden max-w-44 sm:block">
+          <span className="hidden text-xs text-muted-foreground sm:block">/</span>
+          <div className="hidden w-40 shrink-0 sm:block">
             <DarkSelect
               ariaLabel="Active workspace"
             value={context.session.workspace.id}
@@ -546,30 +594,49 @@ function AppShell({ context }: { context: AppContext }) {
                 label: workspace.name,
               }))}
               className="min-h-7 py-1.5"
+              contentClassName="duration-300 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-top-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2"
+              header="Switch workspace"
+              footer={(close) => (
+                <Link
+                  to="/workspace?create=1"
+                  onClick={close}
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-[#e0b850] transition-colors hover:bg-primary/15"
+                >
+                  <Plus size={13} /> Create workspace
+                </Link>
+              )}
             />
           </div>
-          <div className="hidden flex-1 items-center justify-center gap-0.5 md:flex">
+          <div className="hidden h-full items-center gap-1 self-stretch md:flex">
             {nav.map(({ to, label, icon: Icon, end }) => (
               <NavLink
                 key={to}
                 to={to}
                 end={end}
                 className={({ isActive }) =>
-                  `flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition ${
+                  `nav-tab relative flex h-full items-center gap-2 border-b-2 px-4 text-sm font-medium transition ${
                     isActive
-                      ? "bg-indigo-600/20 text-indigo-400"
-                      : "text-slate-500 hover:bg-white/5 hover:text-slate-300"
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
                   }`
                 }
               >
-                <Icon size={14} />
-                {label}
+                {({ isActive }) => (
+                  <>
+                    <Icon size={16} />
+                    {isActive ? (
+                      label
+                    ) : (
+                      <span className="nav-hover-underline">{label}</span>
+                    )}
+                  </>
+                )}
               </NavLink>
             ))}
           </div>
           <Link
             to="/applications/new"
-            className="ml-auto hidden items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 md:flex"
+            className="ml-auto hidden items-center gap-1.5 rounded-lg border border-primary/35 bg-secondary px-3.5 py-2 text-sm font-medium text-foreground transition hover:border-primary/60 hover:bg-[#3a2a17] md:flex"
           >
             <Plus size={13} /> Add application
           </Link>
@@ -603,20 +670,21 @@ function AppShell({ context }: { context: AppContext }) {
             <Avatar
               id={context.session.user.id}
               name={context.session.user.display_name}
+              size="md"
             />
-            <span className="max-w-28 truncate text-xs text-slate-300">
+            <span className="max-w-28 truncate text-sm text-foreground">
               {context.session.user.display_name}
             </span>
             <button
               type="button"
               onClick={() => void context.logout()}
-              className="rounded-lg px-2 py-1.5 text-xs font-medium text-slate-400 transition hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+              className="rounded-lg px-2.5 py-2 text-sm font-medium text-muted-foreground transition hover:bg-white/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               Log out
             </button>
           </div>
           <button
-            className="rounded p-1.5 text-slate-400 hover:bg-white/5 md:hidden"
+            className="rounded p-1.5 text-muted-foreground hover:bg-white/5 md:hidden"
             onClick={() => setMobileOpen((open) => !open)}
             aria-label="Toggle navigation"
             aria-expanded={mobileOpen}
@@ -625,7 +693,7 @@ function AppShell({ context }: { context: AppContext }) {
           </button>
         </div>
         {mobileOpen && (
-          <div className="border-t border-white/[0.06] px-4 py-3 md:hidden">
+          <div className="border-t border-border px-4 py-3 md:hidden">
             <div className="grid gap-1">
               {nav.map(({ to, label, icon: Icon, end }) => (
                 <NavLink
@@ -636,8 +704,8 @@ function AppShell({ context }: { context: AppContext }) {
                   className={({ isActive }) =>
                     `flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
                       isActive
-                        ? "bg-indigo-600/20 text-indigo-400"
-                        : "text-slate-400"
+                        ? "bg-primary/15 text-primary"
+                        : "text-muted-foreground"
                     }`
                   }
                 >
@@ -648,7 +716,7 @@ function AppShell({ context }: { context: AppContext }) {
           </div>
         )}
       </nav>
-      <main className="min-h-[calc(100vh-3.5rem)]">
+      <main className="min-h-[calc(100vh-3.5rem)] md:min-h-[calc(100vh-4rem)]">
         <Routes>
           <Route path="/" element={<DashboardPage context={context} />} />
           <Route
@@ -692,12 +760,6 @@ function DashboardPage({ context }: { context: AppContext }) {
       lastApplied: string | null;
     }[]
   >([]);
-  const [showWorkspaceIntro, setShowWorkspaceIntro] = useState(
-    () =>
-      window.localStorage.getItem(
-        "applytogether.dashboardIntroDismissed",
-      ) !== "true",
-  );
   const [error, setError] = useState<unknown>();
   const [loading, setLoading] = useState(true);
 
@@ -827,80 +889,67 @@ function DashboardPage({ context }: { context: AppContext }) {
 
   return (
     <div className="mx-auto max-w-[1480px] px-4 py-8 sm:px-6">
-      {showWorkspaceIntro && (
-        <section className="relative mb-5 overflow-hidden rounded-2xl border border-indigo-500/20 bg-[linear-gradient(115deg,rgba(49,46,129,0.42),rgba(17,24,39,0.97)_58%)] px-7 py-9 sm:px-10">
-          <button
-            onClick={() => {
-              window.localStorage.setItem(
-                "applytogether.dashboardIntroDismissed",
-                "true",
-              );
-              setShowWorkspaceIntro(false);
-            }}
-            className="absolute right-4 top-4 rounded p-1 text-indigo-300/60 transition hover:bg-white/5 hover:text-indigo-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
-            aria-label="Dismiss workspace introduction"
-          >
-            <X size={13} />
-          </button>
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-indigo-400">
-            Shared workspace · {context.session.workspace.name}
-          </p>
-          <h1 className="mt-4 text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Track applications together
-          </h1>
-          <p className="mt-3 max-w-2xl text-base leading-relaxed text-[#90acd1] sm:text-lg">
-            A shared workspace for logging jobs, staying accountable, and
-            keeping visibility across the search.
-          </p>
-          <div className="mt-7 flex flex-wrap gap-3">
-            <Link to="/applications/new">
-              <PrimaryButton>
-                <Plus size={16} /> Add application
-              </PrimaryButton>
-            </Link>
-            <Link
-              to="/applications"
-              className="inline-flex items-center rounded-lg border border-white/10 bg-white/[0.045] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
-            >
-              View applications
-            </Link>
+      <div className="mb-6">
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <p className="text-[0.7rem] font-bold uppercase tracking-[0.16em] text-primary">
+              Dashboard
+            </p>
+            <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-foreground">
+              Overview
+            </h1>
           </div>
-        </section>
-      )}
+          <div className="flex flex-none items-center gap-2 rounded-full border border-primary/20 bg-primary/[0.08] px-3.5 py-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+            <span className="text-xs text-[#cfc4af]">
+              {context.session.workspace.name}
+            </span>
+          </div>
+        </div>
+        <div className="mt-4 h-px bg-border" />
+      </div>
 
-      <div className="mb-9 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <DashboardMetricCard
-          label="Total active applications"
-          value={summary?.total_active ?? 0}
-          color="text-indigo-400"
-          icon={<FileText size={18} />}
-          iconClass="bg-indigo-500/10 text-indigo-400"
-        />
-        <DashboardMetricCard
-          label="Applications this week"
-          value={applicationsThisWeek}
-          color="text-emerald-400"
-          icon={<TrendingUp size={18} />}
-          iconClass="bg-emerald-500/10 text-emerald-400"
-        />
-        <DashboardMetricCard
-          label="Recently updated"
-          value={summary?.recently_updated ?? 0}
-          color="text-blue-400"
-          icon={<Clock3 size={18} />}
-          iconClass="bg-blue-500/10 text-blue-400"
-        />
-        <DashboardMetricCard
-          label="My deleted applications"
-          value={deletedCount}
-          color="text-amber-400"
-          icon={<Trash size={18} />}
-          iconClass="bg-amber-500/10 text-amber-400"
-        />
+      <div className="mb-6 flex overflow-hidden rounded-xl border border-border bg-card">
+        <div className="flex flex-1 items-center gap-3 border-r border-border px-5 py-4">
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <FileText size={15} />
+          </div>
+          <div>
+            <p className="text-lg font-bold leading-none text-primary">{summary?.total_active ?? 0}</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">Active applications</p>
+          </div>
+        </div>
+        <div className="flex flex-1 items-center gap-3 border-r border-border px-5 py-4">
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
+            <TrendingUp size={15} />
+          </div>
+          <div>
+            <p className="text-lg font-bold leading-none text-emerald-400">{applicationsThisWeek}</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">Applications this week</p>
+          </div>
+        </div>
+        <div className="flex flex-1 items-center gap-3 border-r border-border px-5 py-4">
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
+            <Clock3 size={15} />
+          </div>
+          <div>
+            <p className="text-lg font-bold leading-none text-blue-400">{summary?.recently_updated ?? 0}</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">Recently updated</p>
+          </div>
+        </div>
+        <div className="flex flex-1 items-center gap-3 px-5 py-4">
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-foreground/[0.06] text-muted-foreground">
+            <Trash size={15} />
+          </div>
+          <div>
+            <p className="text-lg font-bold leading-none text-muted-foreground">{deletedCount}</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">My deleted applications</p>
+          </div>
+        </div>
       </div>
 
       <section className="mb-10">
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-[0.08em] text-[#8da8ca]">
+        <h2 className="mb-4 text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">
           Team accountability
         </h2>
         <div className="grid gap-5 lg:grid-cols-2">
@@ -913,10 +962,10 @@ function DashboardPage({ context }: { context: AppContext }) {
             return (
               <article
                 key={item.owner.id}
-                className={`rounded-2xl border bg-[#111827] p-6 ${
+                className={`rounded-2xl border bg-card p-6 ${
                   isCurrentUser
-                    ? "border-indigo-500/35"
-                    : "border-white/[0.09]"
+                    ? "border-primary/35"
+                    : "border-border"
                 }`}
               >
                 <div className="flex items-start gap-4">
@@ -927,11 +976,11 @@ function DashboardPage({ context }: { context: AppContext }) {
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-3">
-                      <h3 className="font-semibold text-white">
+                      <h3 className="font-semibold text-foreground">
                         {item.owner.display_name}
                       </h3>
                       {isCurrentUser && (
-                        <span className="rounded-full border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-0.5 text-xs text-indigo-400">
+                        <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs text-primary">
                           You
                         </span>
                       )}
@@ -942,7 +991,7 @@ function DashboardPage({ context }: { context: AppContext }) {
                   <AccountabilityStat
                     value={item.active}
                     label="Active"
-                    color="text-white"
+                    color="text-foreground"
                   />
                   <AccountabilityStat
                     value={item.thisWeek}
@@ -955,20 +1004,20 @@ function DashboardPage({ context }: { context: AppContext }) {
                     color="text-red-400"
                   />
                 </div>
-                <div className="mt-6 border-t border-white/[0.06] pt-5">
-                  <div className="flex justify-between text-xs text-[#486585]">
+                <div className="mt-6 border-t border-border pt-5">
+                  <div className="flex justify-between text-xs text-muted-foreground">
                     <span>Weekly share</span>
                     <span>{weeklyShare}%</span>
                   </div>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800">
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-secondary">
                     <div
-                      className="h-full rounded-full bg-indigo-500 transition-[width]"
+                      className="h-full rounded-full bg-primary transition-[width]"
                       style={{ width: `${weeklyShare}%` }}
                     />
                   </div>
-                  <p className="mt-4 text-xs text-[#405b7d]">
+                  <p className="mt-4 text-xs text-muted-foreground">
                     Last applied:{" "}
-                    <span className="text-[#607fa4]">
+                    <span className="text-foreground">
                       {item.lastApplied
                         ? formatDate(item.lastApplied)
                         : "No applications yet"}
@@ -981,7 +1030,7 @@ function DashboardPage({ context }: { context: AppContext }) {
         </div>
       </section>
 
-      <h2 className="mb-4 text-sm font-semibold uppercase tracking-[0.08em] text-[#8da8ca]">
+      <h2 className="mb-4 text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">
         Analytics
       </h2>
       <div className="grid gap-5 lg:grid-cols-2">
@@ -1014,9 +1063,9 @@ function DashboardPage({ context }: { context: AppContext }) {
               />
               <Tooltip
                 contentStyle={chartTooltipStyle}
-                itemStyle={{ color: "#e2e8f0" }}
-                labelStyle={{ color: "#9fb6d4" }}
-                cursor={{ fill: "rgba(99,102,241,0.06)" }}
+                itemStyle={{ color: "#f4eee1" }}
+                labelStyle={{ color: "#a89a80" }}
+                cursor={{ fill: "rgba(214,168,68,0.06)" }}
               />
               {ownerKeys.map((key, index) => (
                 <Bar
@@ -1067,9 +1116,9 @@ function DashboardPage({ context }: { context: AppContext }) {
               />
               <Tooltip
                 contentStyle={chartTooltipStyle}
-                itemStyle={{ color: "#e2e8f0" }}
-                labelStyle={{ color: "#9fb6d4" }}
-                cursor={{ fill: "rgba(99,102,241,0.06)" }}
+                itemStyle={{ color: "#f4eee1" }}
+                labelStyle={{ color: "#a89a80" }}
+                cursor={{ fill: "rgba(214,168,68,0.06)" }}
               />
               <Bar dataKey="count" fill="#6366f1" radius={[0, 4, 4, 0]} />
             </BarChart>
@@ -1084,12 +1133,12 @@ function DashboardPage({ context }: { context: AppContext }) {
       </div>
 
       <section className="mt-7">
-        <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#8da8ca]">
+        <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
           Recent activity
         </h2>
-        <div className="divide-y divide-white/[0.055] overflow-hidden rounded-xl border border-white/[0.09] bg-[#111827]">
+        <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
           {(summary?.recent_activity ?? []).length === 0 ? (
-            <div className="px-6 py-12 text-center text-sm text-slate-500">
+            <div className="px-6 py-12 text-center text-sm text-muted-foreground">
               Activity will appear after applications are added or updated.
             </div>
           ) : (
@@ -1105,15 +1154,15 @@ function DashboardPage({ context }: { context: AppContext }) {
                   size="md"
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm text-[#a9bdd6]">
-                    <span className="font-semibold text-slate-100">
+                  <p className="text-sm text-muted-foreground">
+                    <span className="font-semibold text-foreground">
                       {activity.owner.display_name}
                     </span>{" "}
-                    <span className="text-[#597394]">{activity.action}</span>{" "}
-                    <span className="font-medium text-slate-100">
+                    <span className="text-muted-foreground">{activity.action}</span>{" "}
+                    <span className="font-medium text-foreground">
                       {activity.job_title}
                     </span>{" "}
-                    <span className="text-[#425b7b]">
+                    <span className="text-muted-foreground">
                       at {activity.company_name}
                     </span>
                     {activity.action === "updated" && (
@@ -1122,7 +1171,7 @@ function DashboardPage({ context }: { context: AppContext }) {
                       </span>
                     )}
                   </p>
-                  <p className="mt-1 text-xs text-[#425b7b]">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {formatRelativeTime(activity.occurred_at)}
                   </p>
                 </div>
@@ -1148,40 +1197,12 @@ function DashboardPage({ context }: { context: AppContext }) {
 }
 
 const chartTooltipStyle = {
-  background: "#151e2f",
-  border: "1px solid rgba(148,163,184,0.16)",
+  background: "#1e1810",
+  border: "1px solid rgba(214,168,68,0.18)",
   borderRadius: "8px",
-  color: "#e2e8f0",
+  color: "#f4eee1",
   fontSize: "12px",
 };
-
-function DashboardMetricCard({
-  label,
-  value,
-  color,
-  icon,
-  iconClass,
-}: {
-  label: string;
-  value: number;
-  color: string;
-  icon: ReactNode;
-  iconClass: string;
-}) {
-  return (
-    <article className="rounded-2xl border border-white/[0.09] bg-[#111827] p-5">
-      <div
-        className={`flex h-10 w-10 items-center justify-center rounded-xl ${iconClass}`}
-      >
-        {icon}
-      </div>
-      <p className={`mt-4 text-3xl font-bold tracking-tight ${color}`}>
-        {value}
-      </p>
-      <p className="mt-1 text-sm text-[#587493]">{label}</p>
-    </article>
-  );
-}
 
 function AccountabilityStat({
   value,
@@ -1195,7 +1216,7 @@ function AccountabilityStat({
   return (
     <div>
       <p className={`text-2xl font-bold ${color}`}>{value}</p>
-      <p className="mt-1 text-xs text-[#405b7d]">{label}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{label}</p>
     </div>
   );
 }
@@ -1208,8 +1229,8 @@ function DashboardChartCard({
   children: ReactNode;
 }) {
   return (
-    <section className="relative h-[355px] rounded-2xl border border-white/[0.09] bg-[#111827] p-6 pb-12">
-      <h2 className="mb-3 text-base font-semibold text-slate-100">{title}</h2>
+    <section className="relative h-[355px] rounded-2xl border border-border bg-card p-6 pb-12">
+      <h2 className="mb-3 text-base font-semibold text-foreground">{title}</h2>
       <div className="h-[255px]">{children}</div>
     </section>
   );
@@ -1225,7 +1246,7 @@ function ChartLegend({
       {items.map((item) => (
         <span
           key={item.label}
-          className="inline-flex items-center gap-2 text-xs text-[#557191]"
+          className="inline-flex items-center gap-2 text-xs text-muted-foreground"
         >
           <span
             className="h-2.5 w-2.5 rounded-full"
@@ -1246,8 +1267,8 @@ function DashboardDonutCard({
   data: { name: string; value: number; color: string }[];
 }) {
   return (
-    <section className="h-[260px] rounded-2xl border border-white/[0.09] bg-[#111827] p-6">
-      <h2 className="text-base font-semibold text-slate-100">{title}</h2>
+    <section className="h-[260px] rounded-2xl border border-border bg-card p-6">
+      <h2 className="text-base font-semibold text-foreground">{title}</h2>
       <div className="mt-3 grid h-[180px] grid-cols-[170px_1fr] items-center gap-4">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -1269,7 +1290,7 @@ function DashboardDonutCard({
                 if (!active || !payload?.length) return null;
                 const item = payload[0];
                 return (
-                  <div className="rounded-lg border border-white/10 bg-[#151e2f] px-3 py-2 shadow-xl">
+                  <div className="rounded-lg border border-border bg-popover px-3 py-2 shadow-xl">
                     <div className="flex items-center gap-2 text-xs">
                       <span
                         className="h-2.5 w-2.5 rounded-full"
@@ -1277,11 +1298,11 @@ function DashboardDonutCard({
                           backgroundColor:
                             typeof item.payload?.color === "string"
                               ? item.payload.color
-                              : "#6366f1",
+                              : "#d6a844",
                         }}
                       />
-                      <span className="text-[#9fb6d4]">{item.name}</span>
-                      <strong className="text-white">{item.value}</strong>
+                      <span className="text-muted-foreground">{item.name}</span>
+                      <strong className="text-foreground">{item.value}</strong>
                     </div>
                   </div>
                 );
@@ -1295,14 +1316,14 @@ function DashboardDonutCard({
               key={item.name}
               className="flex items-center justify-between gap-4 text-sm"
             >
-              <span className="inline-flex items-center gap-2 text-[#597394]">
+              <span className="inline-flex items-center gap-2 text-muted-foreground">
                 <span
                   className="h-2.5 w-2.5 rounded-full"
                   style={{ backgroundColor: item.color }}
                 />
                 {item.name}
               </span>
-              <span className="font-semibold text-slate-100">{item.value}</span>
+              <span className="font-semibold text-foreground">{item.value}</span>
             </div>
           ))}
         </div>
@@ -1430,19 +1451,19 @@ function ApplicationsPage({ context }: { context: AppContext }) {
           </Link>
         }
       />
-      <div className="mb-4 rounded-xl border border-white/[0.08] bg-[#111827] p-4">
+      <div className="mb-4 rounded-xl border border-border bg-card p-4">
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-6">
           <label className="relative lg:col-span-2">
             <span className="sr-only">Search company or job title</span>
             <Search
-              className="absolute left-3 top-2.5 text-slate-600"
+              className="absolute left-3 top-2.5 text-muted-foreground"
               size={14}
             />
             <input
               value={filters.search}
               onChange={(event) => update({ search: event.target.value })}
               placeholder="Search company or role"
-              className="w-full rounded-lg border border-white/10 bg-white/5 py-2 pl-9 pr-3 text-xs text-slate-200 placeholder:text-slate-600 focus:border-indigo-500/50 focus:outline-none"
+              className="w-full rounded-lg border border-border bg-input py-2 pl-9 pr-3 text-xs text-foreground placeholder:text-[#6b6253] focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/15"
             />
           </label>
           <FilterSelect
@@ -1488,9 +1509,9 @@ function ApplicationsPage({ context }: { context: AppContext }) {
             }))}
           />
         </div>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.05] pt-3">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
           <div className="flex items-center gap-2">
-            <ArrowUpDown size={13} className="text-slate-600" />
+            <ArrowUpDown size={13} className="text-muted-foreground" />
             <FilterSelect
               label="Sort"
               value={filters.sortBy}
@@ -1504,7 +1525,7 @@ function ApplicationsPage({ context }: { context: AppContext }) {
               ]}
             />
             <button
-              className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200"
+              className="rounded-lg border border-border bg-input px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
               onClick={() =>
                 update({
                   sortOrder: filters.sortOrder === "asc" ? "desc" : "asc",
@@ -1515,7 +1536,7 @@ function ApplicationsPage({ context }: { context: AppContext }) {
             </button>
           </div>
           <button
-            className="text-xs text-slate-500 hover:text-slate-300"
+            className="text-xs text-muted-foreground hover:text-foreground"
             onClick={() => setSearchParams(searchParamsFromFilters(defaultFilters))}
           >
             Clear filters
@@ -1528,7 +1549,7 @@ function ApplicationsPage({ context }: { context: AppContext }) {
         <ErrorState error={error} onRetry={load} />
       ) : result && result.items.length > 0 ? (
         <>
-          <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#111827]">
+          <div className="overflow-hidden rounded-xl border border-border bg-card">
             <ApplicationTable
               applications={result.items}
               currentUserId={context.session.user.id}
@@ -1631,7 +1652,7 @@ function ApplicationTable({
     <>
       <div className="hidden overflow-x-auto lg:block">
         <table className="min-w-[1180px] w-full">
-          <thead className="border-b border-white/[0.065] bg-white/[0.012] text-left text-[11px] uppercase tracking-[0.08em] text-[#607da3]">
+          <thead className="border-b border-border bg-white/[0.015] text-left text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
             <tr>
               <th className="w-[12%] px-5 py-4 font-semibold">Company</th>
               <th className="w-[21%] px-4 py-4 font-semibold">Role</th>
@@ -1644,33 +1665,33 @@ function ApplicationTable({
               <th className="px-5 py-4 text-right font-semibold">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/[0.055]">
+          <tbody className="divide-y divide-border">
             {applications.map((application) => (
               <tr
                 key={application.id}
-                className="h-[82px] transition-colors hover:bg-white/[0.018]"
+                className="h-[82px] transition-colors hover:bg-[#211910]"
               >
                 <td className="px-5 py-4">
                   <a
                     href={application.job_posting_url}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-100 hover:text-indigo-400"
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-foreground hover:text-primary"
                   >
                     {application.company_name}
-                    <ExternalLink size={11} className="text-[#405878]" />
+                    <ExternalLink size={11} className="text-muted-foreground" />
                   </a>
                 </td>
                 <td className="px-4 py-4">
                   <Link
                     to={`/applications/${application.id}`}
-                    className="text-sm text-[#9bb3d1] hover:text-indigo-400"
+                    className="text-sm text-[#cdbfa3] hover:text-primary"
                   >
                     {application.job_title}
                   </Link>
                 </td>
                 <td className="px-4 py-4">
-                  <div className="flex items-center gap-2.5 text-xs text-[#607a9b]">
+                  <div className="flex items-center gap-2.5 text-xs text-muted-foreground">
                     <Avatar
                       id={application.owner.id}
                       name={application.owner.display_name}
@@ -1679,7 +1700,7 @@ function ApplicationTable({
                   </div>
                 </td>
                 <td className="px-4 py-4">
-                  <span className="block max-w-40 truncate text-xs text-[#405b7d]">
+                  <span className="block max-w-40 truncate text-xs text-muted-foreground">
                     {application.location}
                   </span>
                 </td>
@@ -1692,7 +1713,7 @@ function ApplicationTable({
                 <td className="px-4 py-4">
                   <StatusPill status={application.status} />
                 </td>
-                <td className="whitespace-nowrap px-4 py-4 text-xs text-[#486485]">
+                <td className="whitespace-nowrap px-4 py-4 text-xs text-muted-foreground">
                   {formatDate(application.application_date)}
                 </td>
                 <td className="px-5 py-4">
@@ -1712,25 +1733,25 @@ function ApplicationTable({
           </tbody>
         </table>
       </div>
-      <div className="divide-y divide-white/[0.06] lg:hidden">
+      <div className="divide-y divide-border lg:hidden">
         {applications.map((application) => (
           <article key={application.id} className="p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <Link
                   to={`/applications/${application.id}`}
-                  className="font-medium text-slate-200"
+                  className="font-medium text-foreground"
                 >
                   {application.company_name}
                 </Link>
-                <p className="mt-0.5 text-xs text-slate-500">
+                <p className="mt-0.5 text-xs text-muted-foreground">
                   {application.job_title}
                 </p>
               </div>
               <StatusPill status={application.status} />
             </div>
             <div className="mt-4 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs text-slate-500">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Avatar
                   id={application.owner.id}
                   name={application.owner.display_name}
@@ -1766,13 +1787,13 @@ function PaginationBar({
 }) {
   return (
     <div className="mt-4 flex flex-col items-center justify-between gap-3 sm:flex-row">
-      <p className="text-xs text-slate-600">
+      <p className="text-xs text-muted-foreground">
         {pagination.total_items} application
         {pagination.total_items === 1 ? "" : "s"}
       </p>
       <div className="flex items-center gap-2">
         {onPageSize && (
-          <div className="flex items-center gap-2 text-xs text-slate-600">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>Per page</span>
             <div className="w-20">
               <DarkSelect
@@ -1793,18 +1814,18 @@ function PaginationBar({
           aria-label="Previous page"
           disabled={pagination.page <= 1}
           onClick={() => onPage(pagination.page - 1)}
-          className="rounded border border-white/10 p-1.5 text-slate-400 disabled:opacity-30"
+          className="rounded border border-border p-1.5 text-muted-foreground disabled:opacity-30"
         >
           <ChevronLeft size={14} />
         </button>
-        <span className="text-xs text-slate-500">
+        <span className="text-xs text-muted-foreground">
           Page {pagination.page} of {Math.max(pagination.total_pages, 1)}
         </span>
         <button
           aria-label="Next page"
           disabled={pagination.page >= pagination.total_pages}
           onClick={() => onPage(pagination.page + 1)}
-          className="rounded border border-white/10 p-1.5 text-slate-400 disabled:opacity-30"
+          className="rounded border border-border p-1.5 text-muted-foreground disabled:opacity-30"
         >
           <ChevronRight size={14} />
         </button>
@@ -1951,6 +1972,12 @@ function ApplicationDetailPage({ context }: { context: AppContext }) {
             ]}
           />
         )}
+        <AiResumeTailorPanel
+          client={context.client}
+          workspaceId={context.session.workspace.id}
+          application={application}
+          currentUserId={context.session.user.id}
+        />
       </div>
     </div>
   );
@@ -2164,7 +2191,7 @@ function ApplicationFormPage({
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
       <button
         onClick={() => navigate(-1)}
-        className="mb-6 inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300"
+        className="mb-6 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft size={12} /> Back
       </button>
@@ -2180,7 +2207,7 @@ function ApplicationFormPage({
         {formError && (
           <div
             role="alert"
-            className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-300"
+            className="rounded-xl border border-[#e0625a]/25 bg-[#e0625a]/10 p-4 text-sm text-[#f0a9a3]"
           >
             {formError}
           </div>
@@ -2318,7 +2345,7 @@ function ApplicationFormPage({
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-400 hover:bg-white/5"
+            className="rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground"
           >
             Cancel
           </button>
@@ -2353,8 +2380,8 @@ function FormSection({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-white/[0.08] bg-[#111827] p-6">
-      <h2 className="mb-5 border-b border-white/[0.06] pb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+    <section className="rounded-xl border border-border bg-card p-6">
+      <h2 className="mb-5 border-b border-border pb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         {title}
       </h2>
       {children}
@@ -2386,8 +2413,8 @@ function FormField({
   const errorId = `${name}-error`;
   return (
     <label className={wide ? "sm:col-span-2" : ""} htmlFor={name}>
-      <span className="mb-1.5 block text-xs font-medium text-slate-400">
-        {label} {required && <span className="text-red-400">*</span>}
+      <span className="mb-1.5 block text-xs font-medium text-muted-foreground">
+        {label} {required && <span className="text-[#e0625a]">*</span>}
       </span>
       <input
         id={name}
@@ -2401,14 +2428,14 @@ function FormField({
         aria-invalid={Boolean(error)}
         aria-describedby={error ? errorId : undefined}
         onChange={(event) => onChange(event.target.value)}
-        className={`w-full rounded-lg border bg-white/5 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none ${
+        className={`w-full rounded-lg border bg-input px-3 py-2 text-sm text-foreground placeholder:text-[#6b6253] focus:outline-none ${
           error
-            ? "border-red-500/50 focus:border-red-400"
-            : "border-white/10 focus:border-indigo-500/50"
+            ? "border-[#e0625a]/50 focus:border-[#e0625a]"
+            : "border-border focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
         }`}
       />
       {error && (
-        <span id={errorId} className="mt-1 block text-xs text-red-400">
+        <span id={errorId} className="mt-1 block text-xs text-[#f0a9a3]">
           {error}
         </span>
       )}
@@ -2433,7 +2460,7 @@ function FormSelect({
 }) {
   return (
     <label htmlFor={name}>
-      <span className="mb-1.5 block text-xs font-medium text-slate-400">
+      <span className="mb-1.5 block text-xs font-medium text-muted-foreground">
         {label}
       </span>
       <DarkSelect
@@ -2444,9 +2471,9 @@ function FormSelect({
           value: optionValue,
           label: optionLabel,
         }))}
-        className={error ? "border-red-500/40" : ""}
+        className={error ? "border-[#e0625a]/40" : ""}
       />
-      {error && <span className="mt-1 block text-xs text-red-400">{error}</span>}
+      {error && <span className="mt-1 block text-xs text-[#f0a9a3]">{error}</span>}
     </label>
   );
 }
@@ -2464,7 +2491,7 @@ function FormTextarea({
 }) {
   return (
     <label htmlFor={name}>
-      <span className="mb-1.5 block text-xs font-medium text-slate-400">
+      <span className="mb-1.5 block text-xs font-medium text-muted-foreground">
         {label}
       </span>
       <textarea
@@ -2472,7 +2499,7 @@ function FormTextarea({
         rows={5}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full resize-y rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm leading-relaxed text-slate-200 focus:border-indigo-500/50 focus:outline-none"
+        className="w-full resize-y rounded-lg border border-border bg-input px-3 py-2 text-sm leading-relaxed text-foreground focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/15"
       />
     </label>
   );
@@ -2603,7 +2630,7 @@ function DeletedPage({ context }: { context: AppContext }) {
           result && result.pagination.total_items > 0 && !selecting ? (
             <button
               onClick={() => setSelecting(true)}
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-red-500/20 bg-red-500/[0.06] px-3.5 py-2 text-xs font-semibold text-red-400 transition-colors hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50"
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-[#e0625a]/25 bg-[#e0625a]/[0.08] px-3.5 py-2 text-xs font-semibold text-[#e0625a] transition-colors hover:bg-[#e0625a]/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e0625a]/50"
             >
               <Trash size={14} /> Permanently delete
             </button>
@@ -2611,12 +2638,12 @@ function DeletedPage({ context }: { context: AppContext }) {
         }
       />
       {selecting && result && (
-        <div className="mb-4 flex flex-col justify-between gap-3 rounded-xl border border-red-500/20 bg-gradient-to-r from-red-500/[0.08] to-transparent p-4 sm:flex-row sm:items-center">
+        <div className="mb-4 flex flex-col justify-between gap-3 rounded-xl border border-[#e0625a]/25 bg-gradient-to-r from-[#e0625a]/[0.08] to-transparent p-4 sm:flex-row sm:items-center">
           <div>
-            <p className="text-sm font-semibold text-slate-200">
+            <p className="text-sm font-semibold text-foreground">
               Select applications to delete forever
             </p>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-muted-foreground">
               {selectAll
                 ? `All ${result.pagination.total_items} applications in your Deleted tab are selected.`
                 : `${selectedIds.size} selected. You can still cancel or restore applications later.`}
@@ -2625,20 +2652,20 @@ function DeletedPage({ context }: { context: AppContext }) {
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={toggleSelectAll}
-              className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-medium text-slate-300 transition-colors hover:bg-white/[0.08]"
+              className="rounded-lg border border-border bg-secondary px-3 py-2 text-xs font-medium text-[#cdbfa3] transition-colors hover:bg-[#3a2a17]"
             >
               {selectAll ? "Clear all" : "Select all"}
             </button>
             <button
               onClick={leaveSelectionMode}
-              className="rounded-lg px-3 py-2 text-xs font-medium text-slate-500 transition-colors hover:text-slate-200"
+              className="rounded-lg px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               Cancel
             </button>
             <button
               disabled={deleting || (!selectAll && selectedIds.size === 0)}
               onClick={() => void permanentlyDelete()}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-red-500 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-red-400 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#e0625a] px-3 py-2 text-xs font-semibold text-[#14100a] transition-colors hover:bg-[#e0625a]/90 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {deleting ? (
                 <LoaderCircle size={13} className="animate-spin" />
@@ -2656,14 +2683,14 @@ function DeletedPage({ context }: { context: AppContext }) {
         <ErrorState error={error} onRetry={load} />
       ) : result && result.items.length > 0 ? (
         <>
-          <div className="divide-y divide-white/[0.06] overflow-hidden rounded-xl border border-white/[0.08] bg-[#111827]">
+          <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
             {result.items.map((application) => (
               <div
                 key={application.id}
                 className={`flex flex-col justify-between gap-4 p-5 transition-colors sm:flex-row sm:items-center ${
                   selecting &&
                   (selectAll || selectedIds.has(application.id))
-                    ? "bg-red-500/[0.045]"
+                    ? "bg-[#e0625a]/[0.06]"
                     : ""
                 }`}
               >
@@ -2674,17 +2701,17 @@ function DeletedPage({ context }: { context: AppContext }) {
                       aria-label={`Select ${application.company_name} ${application.job_title}`}
                       checked={selectAll || selectedIds.has(application.id)}
                       onChange={() => toggleApplication(application.id)}
-                      className="mt-1 h-4 w-4 shrink-0 cursor-pointer rounded border-white/15 bg-[#0b1220] accent-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50"
+                      className="mt-1 h-4 w-4 shrink-0 cursor-pointer rounded border-border bg-input accent-[#e0625a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e0625a]/50"
                     />
                   )}
                   <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-sm font-semibold text-slate-300">
+                    <h2 className="text-sm font-semibold text-foreground">
                       {application.company_name}
                     </h2>
                     <StatusPill status={application.status} />
                   </div>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {application.job_title} · Deleted{" "}
                     {formatDate(application.deleted_at)} by{" "}
                     {application.deleted_by.display_name}
@@ -2695,7 +2722,7 @@ function DeletedPage({ context }: { context: AppContext }) {
                 {!selecting && (
                   <button
                     onClick={() => void restore(application)}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-400 hover:bg-emerald-500/20"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-medium text-[#e0b850] hover:bg-primary/15"
                   >
                     <RotateCcw size={13} /> Restore application
                   </button>
@@ -2720,16 +2747,25 @@ function DeletedPage({ context }: { context: AppContext }) {
 }
 
 function WorkspacePage({ context }: { context: AppContext }) {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [invitations, setInvitations] = useState<WorkspaceInvitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>();
-  const [showCreate, setShowCreate] = useState(false);
+  const [showCreate, setShowCreate] = useState(
+    () => searchParams.get("create") === "1",
+  );
   const [workspaceName, setWorkspaceName] = useState("");
   const [creating, setCreating] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviting, setInviting] = useState(false);
   const isOwner = context.session.workspace.role === "owner";
+
+  useEffect(() => {
+    if (searchParams.get("create") === "1") {
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -2900,7 +2936,7 @@ function WorkspacePage({ context }: { context: AppContext }) {
         action={
           <button
             onClick={() => setShowCreate((visible) => !visible)}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-500"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-primary/35 bg-secondary px-3.5 py-2 text-xs font-semibold text-foreground transition-colors hover:border-primary/60 hover:bg-[#3a2a17]"
           >
             <Plus size={14} /> Create workspace
           </button>
@@ -2909,13 +2945,13 @@ function WorkspacePage({ context }: { context: AppContext }) {
       {showCreate && (
         <form
           onSubmit={(event) => void createWorkspace(event)}
-          className="mb-4 grid gap-4 rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-500/[0.09] to-[#111827] p-5 sm:grid-cols-[auto_1fr_auto] sm:items-center"
+          className="mb-4 grid gap-4 rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/[0.07] to-card p-5 sm:grid-cols-[auto_1fr_auto] sm:items-center"
         >
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-indigo-400/20 bg-indigo-500/15 text-indigo-300">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-primary/25 bg-primary/15 text-[#e0b850]">
             <Building2 size={19} />
           </div>
           <label className="min-w-0">
-            <span className="mb-1.5 block text-xs font-semibold text-slate-200">
+            <span className="mb-1.5 block text-xs font-semibold text-foreground">
               Name your new workspace
             </span>
             <input
@@ -2924,20 +2960,20 @@ function WorkspacePage({ context }: { context: AppContext }) {
               onChange={(event) => setWorkspaceName(event.target.value)}
               maxLength={200}
               placeholder="Example: Product search"
-              className="w-full rounded-lg border border-white/10 bg-[#0d1424] px-3 py-2 text-sm text-slate-200 placeholder:text-slate-700 focus:border-indigo-500/50 focus:outline-none"
+              className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-[#6b6253] focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/15"
             />
           </label>
           <div className="flex items-center gap-2 sm:self-end">
             <button
               type="button"
               onClick={() => setShowCreate(false)}
-              className="px-3 py-2 text-xs font-medium text-slate-500 hover:text-slate-200"
+              className="px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground"
             >
               Cancel
             </button>
             <button
               disabled={creating || !workspaceName.trim()}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-40"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-primary/35 bg-secondary px-3 py-2 text-xs font-semibold text-foreground hover:border-primary/60 hover:bg-[#3a2a17] disabled:opacity-40"
             >
               {creating && <LoaderCircle size={13} className="animate-spin" />}
               Create
@@ -2945,33 +2981,33 @@ function WorkspacePage({ context }: { context: AppContext }) {
           </div>
         </form>
       )}
-      <section className="rounded-2xl border border-white/[0.09] bg-[#111827] p-6 shadow-[0_18px_50px_rgba(0,0,0,0.18)]">
+      <section className="rounded-2xl border border-border bg-card p-6 shadow-[0_18px_50px_rgba(0,0,0,0.18)]">
         <div className="flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-950/30">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#d6a844] to-[#a9774a] text-[#14100a] shadow-lg shadow-black/30">
             <Briefcase size={20} />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-slate-100">
+            <h2 className="text-lg font-semibold text-foreground">
               {context.session.workspace.name}
             </h2>
             <div className="mt-1.5 flex items-center gap-2">
-              <span className="inline-flex rounded border border-indigo-500/25 bg-indigo-500/15 px-2 py-0.5 text-[11px] font-medium capitalize text-indigo-300">
+              <span className="inline-flex rounded border border-primary/30 bg-primary/15 px-2 py-0.5 text-[11px] font-medium capitalize text-[#e0b850]">
                 {context.session.workspace.role}
               </span>
-              <span className="text-xs text-slate-600">
+              <span className="text-xs text-muted-foreground">
                 Your role in this workspace
               </span>
             </div>
           </div>
         </div>
 
-        <div className="mt-6 border-t border-white/[0.07] pt-5">
+        <div className="mt-6 border-t border-border pt-5">
           <div className="mb-3 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
             <div>
-              <h3 className="text-[11px] font-semibold uppercase tracking-[0.09em] text-[#6f8db4]">
+              <h3 className="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
                 Members
               </h3>
-              <p className="mt-1 text-xs text-slate-600">
+              <p className="mt-1 text-xs text-muted-foreground">
                 {members.length} active{" "}
                 {members.length === 1 ? "member" : "members"}
               </p>
@@ -2984,7 +3020,7 @@ function WorkspacePage({ context }: { context: AppContext }) {
                 <label className="relative min-w-0 flex-1 sm:w-64">
                   <Mail
                     size={13}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                   />
                   <span className="sr-only">Guest email</span>
                   <input
@@ -2992,12 +3028,12 @@ function WorkspacePage({ context }: { context: AppContext }) {
                     value={inviteEmail}
                     onChange={(event) => setInviteEmail(event.target.value)}
                     placeholder="guest@example.com"
-                    className="w-full rounded-lg border border-white/10 bg-[#0d1424] py-2 pl-8 pr-3 text-xs text-slate-200 placeholder:text-slate-700 focus:border-indigo-500/50 focus:outline-none"
+                    className="w-full rounded-lg border border-border bg-input py-2 pl-8 pr-3 text-xs text-foreground placeholder:text-[#6b6253] focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/15"
                   />
                 </label>
                 <button
                   disabled={inviting || !inviteEmail.trim()}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-indigo-500/20 bg-indigo-500/10 px-3 py-2 text-xs font-semibold text-indigo-300 hover:bg-indigo-500/15 disabled:opacity-40"
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-[#e0b850] hover:bg-primary/15 disabled:opacity-40"
                 >
                   {inviting ? (
                     <LoaderCircle size={13} className="animate-spin" />
@@ -3022,7 +3058,7 @@ function WorkspacePage({ context }: { context: AppContext }) {
                 return (
                   <div
                     key={member.user.id}
-                    className="flex items-center justify-between gap-4 rounded-xl border border-white/[0.07] bg-white/[0.018] px-4 py-3 transition-colors hover:border-white/[0.11] hover:bg-white/[0.028]"
+                    className="flex items-center justify-between gap-4 rounded-xl border border-border bg-input px-4 py-3 transition-colors hover:border-primary/20 hover:bg-secondary"
                   >
                     <div className="flex min-w-0 items-center gap-3">
                       <Avatar
@@ -3031,16 +3067,16 @@ function WorkspacePage({ context }: { context: AppContext }) {
                       />
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <span className="truncate text-sm font-semibold text-slate-200">
+                          <span className="truncate text-sm font-semibold text-foreground">
                             {member.user.display_name}
                           </span>
                           {isCurrentUser && (
-                            <span className="text-[11px] font-medium text-indigo-400">
+                            <span className="text-[11px] font-medium text-primary">
                               (You)
                             </span>
                           )}
                         </div>
-                        <p className="truncate text-xs text-[#405b7d]">
+                        <p className="truncate text-xs text-muted-foreground">
                           {member.user.email}
                         </p>
                       </div>
@@ -3065,14 +3101,14 @@ function WorkspacePage({ context }: { context: AppContext }) {
                           />
                         </div>
                       ) : (
-                        <span className="rounded-md border border-white/[0.09] bg-[#1a2436] px-2 py-1 text-[11px] font-medium capitalize text-[#8da7c8]">
+                        <span className="rounded-md border border-border bg-secondary px-2 py-1 text-[11px] font-medium capitalize text-[#bcae93]">
                           {member.role}
                         </span>
                       )}
                       {canManage && (
                         <button
                           onClick={() => void removeMember(member)}
-                          className="inline-flex items-center gap-1.5 rounded-md border border-red-500/15 px-2.5 py-1 text-[11px] font-medium text-red-400 transition-colors hover:bg-red-500/10"
+                          className="inline-flex items-center gap-1.5 rounded-md border border-[#e0625a]/20 px-2.5 py-1 text-[11px] font-medium text-[#e0625a] transition-colors hover:bg-[#e0625a]/10"
                         >
                           <UserMinus size={12} /> Remove
                         </button>
@@ -3091,10 +3127,10 @@ function WorkspacePage({ context }: { context: AppContext }) {
                       <Mail size={14} />
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-slate-300">
+                      <p className="truncate text-sm font-medium text-foreground">
                         {invitation.email}
                       </p>
-                      <p className="text-xs text-slate-600">
+                      <p className="text-xs text-muted-foreground">
                         Waiting for acceptance
                       </p>
                     </div>
@@ -3108,7 +3144,7 @@ function WorkspacePage({ context }: { context: AppContext }) {
                       aria-label={`Revoke invitation to ${invitation.email}`}
                       title="Revoke invitation"
                       onClick={() => void revokeInvitation(invitation)}
-                      className="flex h-7 w-7 items-center justify-center rounded-md border border-white/[0.08] text-slate-500 transition hover:border-red-500/25 hover:bg-red-500/10 hover:text-red-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50"
+                      className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:border-[#e0625a]/25 hover:bg-[#e0625a]/10 hover:text-[#e0625a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e0625a]/50"
                     >
                       <X size={13} />
                     </button>
@@ -3119,7 +3155,7 @@ function WorkspacePage({ context }: { context: AppContext }) {
           )}
         </div>
 
-        <div className="mt-6 flex items-start gap-3 border-t border-white/[0.06] pt-5 text-sm leading-relaxed text-[#587392]">
+        <div className="mt-6 flex items-start gap-3 border-t border-border pt-5 text-sm leading-relaxed text-muted-foreground">
           <Shield size={15} className="mt-0.5 flex-shrink-0" />
           <p>
             {isOwner
@@ -3132,19 +3168,19 @@ function WorkspacePage({ context }: { context: AppContext }) {
       </section>
 
       {isOwner && (
-        <section className="mt-4 flex flex-col justify-between gap-4 rounded-2xl border border-red-500/15 bg-red-500/[0.025] p-5 sm:flex-row sm:items-center">
+        <section className="mt-4 flex flex-col justify-between gap-4 rounded-2xl border border-[#e0625a]/20 bg-[#e0625a]/[0.04] p-5 sm:flex-row sm:items-center">
           <div>
-            <h2 className="text-sm font-semibold text-slate-200">
+            <h2 className="text-sm font-semibold text-foreground">
               Delete workspace
             </h2>
-            <p className="mt-1 text-xs leading-relaxed text-slate-500">
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
               Removes access for every member. Application records are retained
               for administrative recovery.
             </p>
           </div>
           <button
             onClick={() => void deleteWorkspace()}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-red-500/25 bg-red-500/10 px-4 py-2 text-xs font-semibold text-red-400 transition-colors hover:bg-red-500/15"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-[#e0625a]/30 bg-[#e0625a]/10 px-4 py-2 text-xs font-semibold text-[#e0625a] transition-colors hover:bg-[#e0625a]/15"
           >
             <Trash size={14} /> Delete workspace
           </button>
@@ -3188,31 +3224,31 @@ function ProfilePage({ context }: { context: AppContext }) {
         title="Profile"
         description="Your account and authentication settings."
       />
-      <div className="rounded-xl border border-white/[0.08] bg-[#111827] p-6">
-        <div className="flex items-center gap-4 border-b border-white/[0.06] pb-6">
+      <div className="rounded-xl border border-border bg-card p-6">
+        <div className="flex items-center gap-4 border-b border-border pb-6">
           <Avatar
             id={context.session.user.id}
             name={context.session.user.display_name}
             size="lg"
           />
           <div>
-            <h2 className="text-xl font-semibold text-slate-100">
+            <h2 className="text-xl font-semibold text-foreground">
               {context.session.user.display_name}
             </h2>
-            <div className="mt-2 flex items-center gap-2 text-xs font-medium text-emerald-400">
+            <div className="mt-2 flex items-center gap-2 text-xs font-medium text-[#e0b850]">
               <CheckCircle size={13} /> Signed in
             </div>
           </div>
         </div>
         <form className="mt-6 max-w-md space-y-4" onSubmit={submitPasswordChange}>
           <div>
-            <h3 className="text-sm font-semibold text-slate-100">Change password</h3>
-            <p className="mt-1 text-xs leading-5 text-slate-500">
+            <h3 className="text-sm font-semibold text-foreground">Change password</h3>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
               Changing your password signs this account out on every device.
             </p>
           </div>
-          {error ? <p role="alert" className="text-sm text-rose-300">{error}</p> : null}
-          <label className="block text-sm text-slate-300">
+          {error ? <p role="alert" className="text-sm text-[#f0a9a3]">{error}</p> : null}
+          <label className="block text-sm text-[#cfc4af]">
             Current password
             <input
               type="password"
@@ -3220,10 +3256,10 @@ function ProfilePage({ context }: { context: AppContext }) {
               required
               value={currentPassword}
               onChange={(event) => setCurrentPassword(event.target.value)}
-              className="mt-1.5 w-full rounded-lg border border-white/10 bg-[#0c1120] px-3 py-2 text-sm text-white outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20"
+              className="mt-1.5 w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
             />
           </label>
-          <label className="block text-sm text-slate-300">
+          <label className="block text-sm text-[#cfc4af]">
             New password
             <input
               type="password"
@@ -3231,7 +3267,7 @@ function ProfilePage({ context }: { context: AppContext }) {
               required
               value={newPassword}
               onChange={(event) => setNewPassword(event.target.value)}
-              className="mt-1.5 w-full rounded-lg border border-white/10 bg-[#0c1120] px-3 py-2 text-sm text-white outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20"
+              className="mt-1.5 w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
             />
           </label>
           <PrimaryButton type="submit" disabled={submitting}>
@@ -3243,12 +3279,12 @@ function ProfilePage({ context }: { context: AppContext }) {
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-amber-400">
               <Shield size={13} /> Developer-only identity adapter
             </div>
-            <p className="mt-2 text-xs leading-relaxed text-slate-500">
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
               This build explicitly enables the development identity header.
               Cookie sessions take precedence in normal builds.
             </p>
             <select
-              className="mt-4 w-full rounded-lg border border-white/10 bg-[#171f30] px-3 py-2 text-sm text-slate-300"
+              className="mt-4 w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground"
               value={context.developmentIdentity.selectedUserId}
               onChange={(event) =>
                 context.developmentIdentity?.switchIdentity(event.target.value)
@@ -3263,6 +3299,7 @@ function ProfilePage({ context }: { context: AppContext }) {
           </div>
         ) : null}
       </div>
+      <ResumeProfilePanel client={context.client} />
     </div>
   );
 }

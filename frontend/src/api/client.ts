@@ -118,8 +118,10 @@ export function createApiClient({
         headers[csrfConfig.headerName] = csrfToken;
       }
     }
-    if (options.body !== undefined) {
-      headers["Content-Type"] = "application/json";
+  if (options.body !== undefined) {
+      if (!(options.body instanceof FormData)) {
+        headers["Content-Type"] = "application/json";
+      }
     }
 
     let response: Response;
@@ -128,7 +130,12 @@ export function createApiClient({
         method,
         headers,
         credentials: "include",
-        body: options.body === undefined ? undefined : JSON.stringify(options.body),
+        body:
+          options.body === undefined
+            ? undefined
+            : options.body instanceof FormData
+              ? options.body
+              : JSON.stringify(options.body),
       });
     } catch (error) {
       throw new ApiError(

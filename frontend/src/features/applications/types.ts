@@ -169,8 +169,9 @@ export type JobPostingAutofillFields = Partial<
 
 export interface JobPostingAutofillResponse {
   fields: JobPostingAutofillFields;
-  source: "json_ld" | "html" | "none";
+  source: "greenhouse" | "lever" | "ashby" | "workday" | "json_ld" | "html" | "none";
   warnings: string[];
+  field_sources: Record<string, string>;
 }
 
 export interface OwnerApplicationCount {

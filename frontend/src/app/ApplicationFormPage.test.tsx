@@ -65,6 +65,7 @@ describe("application form autofill", () => {
         job_description: "Build APIs with Python and PostgreSQL.",
       },
       warnings: [],
+      field_sources: {},
     });
 
     renderCreateForm();

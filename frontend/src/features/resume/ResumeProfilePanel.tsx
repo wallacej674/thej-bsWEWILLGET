@@ -71,18 +71,18 @@ export function ResumeProfilePanel({ client }: { client: ApiClient }) {
   };
 
   return (
-    <section className="mt-6 rounded-xl border border-white/[0.08] bg-[#111827] p-6">
-      <div className="flex flex-col justify-between gap-4 border-b border-white/[0.06] pb-5 sm:flex-row sm:items-start">
+    <section className="mt-6 rounded-xl border border-border bg-card p-6">
+      <div className="flex flex-col justify-between gap-4 border-b border-border pb-5 sm:flex-row sm:items-start">
         <div>
-          <h3 className="text-sm font-semibold text-slate-100">
+          <h3 className="text-sm font-semibold text-foreground">
             AI resume profile
           </h3>
-          <p className="mt-1 text-xs leading-5 text-slate-500">
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
             Upload a PDF resume. ApplyTogether extracts ATS-readable text and
             discards the original file.
           </p>
         </div>
-        <label className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-indigo-400/25 bg-indigo-500/10 px-4 py-2 text-xs font-semibold text-indigo-200 transition hover:bg-indigo-500/15">
+        <label className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-primary/30 bg-primary/10 px-4 py-2 text-xs font-semibold text-[#e0b850] transition hover:bg-primary/15">
           {uploading ? "Uploading..." : resume ? "Replace PDF" : "Upload PDF"}
           <input
             ref={inputRef}
@@ -96,25 +96,25 @@ export function ResumeProfilePanel({ client }: { client: ApiClient }) {
       </div>
 
       {error ? (
-        <p role="alert" className="mt-4 text-sm text-rose-300">
+        <p role="alert" className="mt-4 text-sm text-[#f0a9a3]">
           {error}
         </p>
       ) : null}
 
       {loading ? (
-        <p role="status" className="mt-4 text-sm text-slate-500">
+        <p role="status" className="mt-4 text-sm text-muted-foreground">
           Loading resume...
         </p>
       ) : resume ? (
         <div className="mt-5 space-y-4">
           <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm font-medium text-slate-200">
+            <span className="text-sm font-medium text-foreground">
               {resume.original_filename}
             </span>
-            <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-300">
+            <span className="rounded-full border border-primary/25 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-[#e0b850]">
               {statusLabel(resume.parser_status)}
             </span>
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-muted-foreground">
               {resume.extracted_text_length.toLocaleString()} readable characters
             </span>
           </div>
@@ -130,28 +130,28 @@ export function ResumeProfilePanel({ client }: { client: ApiClient }) {
               </ul>
             </div>
           ) : (
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-muted-foreground">
               Your resume text looks readable for AI tailoring.
             </p>
           )}
-          <details className="rounded-lg border border-white/[0.06] bg-[#0c1120] p-3">
-            <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-slate-400">
+          <details className="rounded-lg border border-border bg-input p-3">
+            <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Extracted text preview
             </summary>
-            <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-300">
+            <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[#cdbfa3]">
               {resume.extracted_text_preview}
             </p>
           </details>
           <button
             type="button"
-            className="rounded-lg border border-red-500/20 px-3 py-2 text-xs font-semibold text-red-300 hover:bg-red-500/10"
+            className="rounded-lg border border-[#e0625a]/25 px-3 py-2 text-xs font-semibold text-[#e0625a] hover:bg-[#e0625a]/10"
             onClick={() => void remove()}
           >
             Remove resume
           </button>
         </div>
       ) : (
-        <p className="mt-4 text-sm text-slate-500">
+        <p className="mt-4 text-sm text-muted-foreground">
           No resume uploaded yet. Add one before generating AI resume tailoring.
         </p>
       )}

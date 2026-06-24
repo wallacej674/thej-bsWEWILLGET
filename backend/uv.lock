@@ -56,6 +56,7 @@ dependencies = [
     { name = "authx" },
     { name = "email-validator" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "openai" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pwdlib", extra = ["argon2"] },
@@ -68,7 +69,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "httpx" },
     { name = "mypy" },
     { name = "pytest" },
     { name = "ruff" },
@@ -80,6 +80,7 @@ requires-dist = [
     { name = "authx", specifier = ">=1,<2" },
     { name = "email-validator", specifier = ">=2,<3" },
     { name = "fastapi", specifier = ">=0.115,<1" },
+    { name = "httpx", specifier = ">=0.28,<1" },
     { name = "openai", specifier = ">=1.99,<3" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" },
     { name = "pwdlib", extras = ["argon2"], specifier = ">=0.3,<1" },
@@ -92,7 +93,6 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "httpx", specifier = ">=0.28,<1" },
     { name = "mypy", specifier = ">=1.14,<2" },
     { name = "pytest", specifier = ">=8.3,<9" },
     { name = "ruff", specifier = ">=0.9,<1" },

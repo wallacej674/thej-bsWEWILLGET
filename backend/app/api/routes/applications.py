@@ -13,15 +13,19 @@ from app.schemas.application import (
     ApplicationSummaryResponse,
     ApplicationUpdate,
     DeletedApplicationListResponse,
+    JobPostingAutofillRequest,
+    JobPostingAutofillResponse,
     PermanentDeleteRequest,
     PermanentDeleteResponse,
 )
 from app.services.application_service import ApplicationService
+from app.services.job_posting_autofill_service import JobPostingAutofillService
 
 router = APIRouter(
     prefix="/workspaces/{workspace_id}/applications", tags=["applications"]
 )
 application_service = ApplicationService()
+job_posting_autofill_service = JobPostingAutofillService()
 
 
 @router.get("/summary", response_model=ApplicationSummaryResponse)
@@ -93,6 +97,18 @@ def permanently_delete_applications(
     return application_service.permanently_delete(
         session, workspace_id, current_user, payload
     )
+
+
+@router.post(
+    "/autofill",
+    response_model=JobPostingAutofillResponse,
+    response_model_exclude_none=True,
+)
+def autofill_job_posting(
+    payload: JobPostingAutofillRequest,
+    _membership: WorkspaceAccess,
+) -> JobPostingAutofillResponse:
+    return job_posting_autofill_service.autofill(payload.job_posting_url)
 
 
 @router.get("/{application_id}", response_model=ApplicationResponse)

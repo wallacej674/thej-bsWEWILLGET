@@ -35,8 +35,6 @@ export function InvitationInbox({
 
   useEffect(() => {
     void load();
-    const refreshTimer = window.setInterval(() => void load(), 30_000);
-    return () => window.clearInterval(refreshTimer);
   }, [load]);
 
   const accept = async (invitation: InvitationInboxItem) => {

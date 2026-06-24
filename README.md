@@ -55,18 +55,25 @@ in development or test with an explicit backend setting and frontend flag.
 
 ## Run the integrated application
 
-For the usual local development flow, run the helper script from the repository
-root:
+For the usual local development flow, use two VS Code terminals from the
+repository root so backend and frontend logs stay visible.
+
+Terminal 1:
 
 ```powershell
-.\dev.ps1
+.\dev-backend.ps1
 ```
 
-Run `.\dev.ps1 -Install` after cloning or when locked dependencies change.
-That install mode runs `uv sync --locked` and `npm ci`. Use it after pulling
-changes that update `backend/pyproject.toml`, `backend/uv.lock`,
-`frontend/package.json`, or `frontend/package-lock.json`, or when your local
-virtualenv or `node_modules` install looks broken.
+Terminal 2:
+
+```powershell
+.\dev-frontend.ps1
+```
+
+The backend script starts PostgreSQL, runs `uv sync --locked`, applies
+migrations, checks that port 8000 is not already occupied, and starts Uvicorn.
+The frontend script runs `npm ci`, points Vite at `http://localhost:8000`, and
+starts Vite.
 
 Start PostgreSQL from the repository root. The project database uses host port
 5434 to avoid colliding with locally installed PostgreSQL services:

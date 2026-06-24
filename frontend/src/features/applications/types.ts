@@ -151,6 +151,28 @@ export interface ApplicationPayload {
 
 export type ApplicationUpdate = Partial<ApplicationPayload>;
 
+export type JobPostingAutofillFields = Partial<
+  Pick<
+    ApplicationPayload,
+    | "company_name"
+    | "job_title"
+    | "location"
+    | "work_arrangement"
+    | "employment_type"
+    | "salary_min"
+    | "salary_max"
+    | "salary_currency"
+    | "salary_period"
+    | "job_description"
+  >
+>;
+
+export interface JobPostingAutofillResponse {
+  fields: JobPostingAutofillFields;
+  source: "json_ld" | "html" | "none";
+  warnings: string[];
+}
+
 export interface OwnerApplicationCount {
   owner: OwnerSummary;
   count: number;

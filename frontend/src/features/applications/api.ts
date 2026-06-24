@@ -8,6 +8,7 @@ import type {
   CurrentUser,
   DeletedApplication,
   JobApplication,
+  JobPostingAutofillResponse,
   InvitationInboxItem,
   PaginatedApplications,
   ResumeProfile,
@@ -106,6 +107,15 @@ export const applicationsApi = {
     client.post<JobApplication>(
       `/workspaces/${workspaceId}/applications`,
       payload,
+    ),
+  autofill: (
+    client: ApiClient,
+    workspaceId: string,
+    jobPostingUrl: string,
+  ) =>
+    client.post<JobPostingAutofillResponse>(
+      `/workspaces/${workspaceId}/applications/autofill`,
+      { job_posting_url: jobPostingUrl },
     ),
   update: (
     client: ApiClient,

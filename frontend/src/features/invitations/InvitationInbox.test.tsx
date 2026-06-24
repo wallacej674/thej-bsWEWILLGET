@@ -1,9 +1,13 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { InvitationInbox } from "./InvitationInbox";
 
 describe("InvitationInbox", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("shows inviter display name and accepts the workspace invitation", async () => {
     const client = {
       get: vi.fn().mockResolvedValue({
@@ -47,5 +51,27 @@ describe("InvitationInbox", () => {
       );
       expect(onAccepted).toHaveBeenCalledOnce();
     });
+  });
+
+  it("does not repeatedly poll invitations in the background", async () => {
+    vi.useFakeTimers();
+    const client = {
+      get: vi.fn().mockResolvedValue({ items: [] }),
+    };
+
+    render(
+      <InvitationInbox
+        client={client as never}
+        onAccepted={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    await vi.waitFor(() => {
+      expect(client.get).toHaveBeenCalledOnce();
+    });
+
+    await vi.advanceTimersByTimeAsync(120_000);
+
+    expect(client.get).toHaveBeenCalledOnce();
   });
 });

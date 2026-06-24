@@ -84,6 +84,37 @@ class ApplicationCreate(BaseModel):
         return self
 
 
+class JobPostingAutofillRequest(BaseModel):
+    job_posting_url: str = Field(min_length=1, max_length=2048)
+
+    @field_validator("job_posting_url", mode="before")
+    @classmethod
+    def trim_url(cls, value: str) -> str:
+        return _trim(value)
+
+
+class JobPostingAutofillFields(BaseModel):
+    company_name: str | None = None
+    job_title: str | None = None
+    location: str | None = None
+    work_arrangement: WorkArrangement | None = None
+    employment_type: EmploymentType | None = None
+    salary_min: Decimal | None = None
+    salary_max: Decimal | None = None
+    salary_currency: str | None = None
+    salary_period: SalaryPeriod | None = None
+    job_description: str | None = None
+
+
+class JobPostingAutofillResponse(BaseModel):
+    fields: JobPostingAutofillFields
+    source: Literal[
+        "greenhouse", "lever", "ashby", "workday", "json_ld", "html", "none"
+    ]
+    warnings: list[str] = Field(default_factory=list)
+    field_sources: dict[str, str] = Field(default_factory=dict)
+
+
 class ApplicationUpdate(BaseModel):
     company_name: str | None = Field(default=None, min_length=1, max_length=200)
     job_title: str | None = Field(default=None, min_length=1, max_length=200)

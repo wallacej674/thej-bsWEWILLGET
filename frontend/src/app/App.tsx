@@ -84,6 +84,7 @@ import type {
   DeletedApplication,
   EmploymentType,
   JobApplication,
+  JobPostingAutofillFields,
   PaginatedApplications,
   SalaryPeriod,
   SortField,
@@ -2064,7 +2065,54 @@ function applicationToForm(application: JobApplication): FormValues {
   };
 }
 
-function ApplicationFormPage({
+function mergeAutofillFields(
+  current: FormValues,
+  fields: JobPostingAutofillFields,
+): FormValues {
+  const next = { ...current };
+  type TextAutofillKey =
+    | "company_name"
+    | "job_title"
+    | "location"
+    | "salary_min"
+    | "salary_max"
+    | "job_description";
+  const fillText = (key: TextAutofillKey, value: string | null | undefined) => {
+    if (value !== undefined && value !== null && !String(current[key]).trim()) {
+      next[key] = String(value);
+    }
+  };
+
+  fillText("company_name", fields.company_name);
+  fillText("job_title", fields.job_title);
+  fillText("location", fields.location);
+  fillText("salary_min", fields.salary_min);
+  fillText("salary_max", fields.salary_max);
+  fillText("job_description", fields.job_description);
+
+  if (fields.work_arrangement && current.work_arrangement === "unknown") {
+    next.work_arrangement = fields.work_arrangement;
+  }
+  if (fields.employment_type && current.employment_type === "unknown") {
+    next.employment_type = fields.employment_type;
+  }
+  if (fields.salary_period && !current.salary_period) {
+    next.salary_period = fields.salary_period;
+  }
+  if (
+    fields.salary_currency &&
+    (!current.salary_currency.trim() ||
+      (current.salary_currency === "USD" &&
+        !current.salary_min.trim() &&
+        !current.salary_max.trim()))
+  ) {
+    next.salary_currency = fields.salary_currency;
+  }
+
+  return next;
+}
+
+export function ApplicationFormPage({
   context,
   mode,
 }: {
@@ -2076,6 +2124,12 @@ function ApplicationFormPage({
   const [form, setForm] = useState<FormValues>(emptyForm);
   const [loading, setLoading] = useState(mode === "edit");
   const [submitting, setSubmitting] = useState(false);
+  const [autofilling, setAutofilling] = useState(false);
+  const [autofillNotice, setAutofillNotice] = useState<{
+    kind: "success" | "warning";
+    message: string;
+    warnings: string[];
+  }>();
   const [formError, setFormError] = useState<string>();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -2103,6 +2157,60 @@ function ApplicationFormPage({
 
   const set = (key: keyof FormValues, value: string) =>
     setForm((current) => ({ ...current, [key]: value }));
+
+  const autofill = async () => {
+    setFormError(undefined);
+    setFieldErrors((current) => {
+      const next = { ...current };
+      delete next.job_posting_url;
+      return next;
+    });
+    setAutofillNotice(undefined);
+
+    const url = form.job_posting_url.trim();
+    try {
+      const parsed = new URL(url);
+      if (!["http:", "https:"].includes(parsed.protocol)) {
+        throw new Error("Use an http or https job posting URL.");
+      }
+    } catch {
+      setFieldErrors((current) => ({
+        ...current,
+        job_posting_url: "Enter a valid job posting URL.",
+      }));
+      setFormError("Add a valid job-posting URL before autofill.");
+      return;
+    }
+
+    setAutofilling(true);
+    try {
+      const response = await applicationsApi.autofill(
+        context.client,
+        context.session.workspace.id,
+        url,
+      );
+      const suggestedCount = Object.keys(response.fields).length;
+      setForm((current) => mergeAutofillFields(current, response.fields));
+      setAutofillNotice({
+        kind: response.warnings.length > 0 || suggestedCount === 0 ? "warning" : "success",
+        message:
+          suggestedCount > 0
+            ? "Autofill added the details it could find. Review everything before saving."
+            : "We could not find job details on this page. You can still fill the form manually.",
+        warnings: response.warnings,
+      });
+    } catch (error) {
+      setFormError(
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Autofill failed.",
+      );
+    } finally {
+      setAutofilling(false);
+    }
+  };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -2214,6 +2322,53 @@ function ApplicationFormPage({
         )}
         <FormSection title="Role">
           <div className="grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <div className="flex-1">
+                  <FormField
+                    label="Job-posting URL"
+                    name="job_posting_url"
+                    type="url"
+                    value={form.job_posting_url}
+                    error={fieldErrors.job_posting_url}
+                    onChange={(value) => set("job_posting_url", value)}
+                    required
+                  />
+                </div>
+                {mode === "create" && (
+                  <button
+                    type="button"
+                    onClick={() => void autofill()}
+                    disabled={autofilling || submitting}
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-sm font-medium text-amber-100 transition hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {autofilling && (
+                      <LoaderCircle className="animate-spin" size={14} />
+                    )}
+                    Autofill
+                  </button>
+                )}
+              </div>
+              {autofillNotice && (
+                <div
+                  aria-live="polite"
+                  className={`mt-3 rounded-lg border p-3 text-sm ${
+                    autofillNotice.kind === "success"
+                      ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-100"
+                      : "border-amber-400/25 bg-amber-400/10 text-amber-100"
+                  }`}
+                >
+                  <p>{autofillNotice.message}</p>
+                  {autofillNotice.warnings.length > 0 && (
+                    <ul className="mt-2 list-disc space-y-1 pl-5 text-xs opacity-90">
+                      {autofillNotice.warnings.map((warning) => (
+                        <li key={warning}>{warning}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
             <FormField
               label="Company name"
               name="company_name"
@@ -2229,16 +2384,6 @@ function ApplicationFormPage({
               error={fieldErrors.job_title}
               onChange={(value) => set("job_title", value)}
               required
-            />
-            <FormField
-              label="Job-posting URL"
-              name="job_posting_url"
-              type="url"
-              value={form.job_posting_url}
-              error={fieldErrors.job_posting_url}
-              onChange={(value) => set("job_posting_url", value)}
-              required
-              wide
             />
             <FormField
               label="Location"

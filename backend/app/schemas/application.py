@@ -108,8 +108,11 @@ class JobPostingAutofillFields(BaseModel):
 
 class JobPostingAutofillResponse(BaseModel):
     fields: JobPostingAutofillFields
-    source: Literal["json_ld", "html", "none"]
+    source: Literal[
+        "greenhouse", "lever", "ashby", "workday", "json_ld", "html", "none"
+    ]
     warnings: list[str] = Field(default_factory=list)
+    field_sources: dict[str, str] = Field(default_factory=dict)
 
 
 class ApplicationUpdate(BaseModel):

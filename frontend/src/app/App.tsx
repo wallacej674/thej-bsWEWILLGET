@@ -566,7 +566,7 @@ function AppShell({ context }: { context: AppContext }) {
   return (
     <div className="dark theme-gold min-h-screen bg-background text-foreground">
       <nav className="sticky top-0 z-50 border-b border-border bg-background">
-        <div className="mx-auto flex h-14 max-w-[1480px] items-center gap-5 px-4 sm:px-6 md:h-16">
+        <div className="mx-auto flex h-14 max-w-[1480px] items-center gap-3 px-4 sm:px-6 md:h-16">
           <Link
             to="/"
             className="flex flex-shrink-0 items-center gap-2.5 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
@@ -614,7 +614,7 @@ function AppShell({ context }: { context: AppContext }) {
                 to={to}
                 end={end}
                 className={({ isActive }) =>
-                  `nav-tab relative flex h-full items-center gap-2 border-b-2 px-4 text-sm font-medium transition ${
+                  `nav-tab relative flex h-full items-center gap-2 border-b-2 px-3 text-sm font-medium transition ${
                     isActive
                       ? "border-primary text-primary"
                       : "border-transparent text-muted-foreground hover:text-foreground"
@@ -636,7 +636,7 @@ function AppShell({ context }: { context: AppContext }) {
           </div>
           <Link
             to="/applications/new"
-            className="ml-auto hidden items-center gap-1.5 rounded-lg border border-primary/35 bg-secondary px-3.5 py-2 text-sm font-medium text-foreground transition hover:border-primary/60 hover:bg-[#3a2a17] md:flex"
+            className="ml-auto hidden shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-primary/35 bg-secondary px-3.5 py-2 text-sm font-medium text-foreground transition hover:border-primary/60 hover:bg-[#3a2a17] md:flex"
           >
             <Plus size={13} /> Add application
           </Link>
@@ -666,19 +666,19 @@ function AppShell({ context }: { context: AppContext }) {
               </select>
             </label>
           ) : null}
-          <div className="hidden items-center gap-2 md:flex">
+          <div className="hidden shrink-0 items-center gap-2 md:flex">
             <Avatar
               id={context.session.user.id}
               name={context.session.user.display_name}
               size="md"
             />
-            <span className="max-w-28 truncate text-sm text-foreground">
+            <span className="hidden max-w-28 truncate text-sm text-foreground xl:block">
               {context.session.user.display_name}
             </span>
             <button
               type="button"
               onClick={() => void context.logout()}
-              className="rounded-lg px-2.5 py-2 text-sm font-medium text-muted-foreground transition hover:bg-white/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="shrink-0 whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-medium text-muted-foreground transition hover:bg-white/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               Log out
             </button>

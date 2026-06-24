@@ -190,7 +190,9 @@ def _extract_json_ld_job_posting(document: str) -> dict[str, Any] | None:
 
 
 def _json_ld_script_bodies(document: str) -> Iterable[str]:
-    script_pattern = re.compile(r"<script\b(?P<attrs>[^>]*)>(?P<body>.*?)</script>", re.I | re.S)
+    script_pattern = re.compile(
+        r"<script\b(?P<attrs>[^>]*)>(?P<body>.*?)</script>", re.I | re.S
+    )
     for match in script_pattern.finditer(document):
         attrs = match.group("attrs")
         if "ld+json" in attrs.lower():
@@ -225,7 +227,9 @@ def _fields_from_job_posting(posting: dict[str, Any]) -> JobPostingAutofillField
     salary = _salary_from_json_ld(posting.get("baseSalary"))
     location = _location_from_json_ld(posting)
     work_arrangement = _work_arrangement_from_json_ld(posting, description)
-    employment_type = _employment_type_from_text(_as_text(posting.get("employmentType")))
+    employment_type = _employment_type_from_text(
+        _as_text(posting.get("employmentType"))
+    )
     if employment_type is None:
         employment_type = _employment_type_from_text(description)
 
@@ -245,7 +249,11 @@ def _fields_from_job_posting(posting: dict[str, Any]) -> JobPostingAutofillField
 
 def _fields_from_html(document: str) -> JobPostingAutofillFields:
     metadata = _metadata(document)
-    title = metadata.get("og:title") or _tag_text(document, "h1") or _tag_text(document, "title")
+    title = (
+        metadata.get("og:title")
+        or _tag_text(document, "h1")
+        or _tag_text(document, "title")
+    )
     job_title, company_name = _split_title_and_company(title)
     company_name = company_name or metadata.get("og:site_name")
     description = _clean_text(
@@ -395,8 +403,12 @@ def _salary_from_json_ld(value: Any) -> ExtractedSalary:
         salary["salary_currency"] = currency.upper()
     salary_value = value.get("value")
     if isinstance(salary_value, dict):
-        salary["salary_min"] = _decimal(salary_value.get("minValue") or salary_value.get("value"))
-        salary["salary_max"] = _decimal(salary_value.get("maxValue") or salary_value.get("value"))
+        salary["salary_min"] = _decimal(
+            salary_value.get("minValue") or salary_value.get("value")
+        )
+        salary["salary_max"] = _decimal(
+            salary_value.get("maxValue") or salary_value.get("value")
+        )
         salary["salary_period"] = _salary_period(_as_text(salary_value.get("unitText")))
     else:
         amount = _decimal(salary_value)
@@ -432,7 +444,9 @@ def _warnings_for(fields: JobPostingAutofillFields) -> list[str]:
     dumped = fields.model_dump(exclude_none=True)
     warnings: list[str] = []
     if not dumped:
-        return ["We could not find job details on this page. You can still fill the form manually."]
+        return [
+            "We could not find job details on this page. You can still fill the form manually."
+        ]
     if not fields.job_title:
         warnings.append("We could not confidently find the job title.")
     if not fields.company_name:

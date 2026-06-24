@@ -22,7 +22,8 @@ def test_autofill_extracts_schema_org_job_posting(
     api_client, active_member, shared_workspace
 ) -> None:
     _install_fetcher(
-        lambda _url: """
+        lambda _url: (
+            """
         <html>
           <script type="application/ld+json">
           {
@@ -52,6 +53,7 @@ def test_autofill_extracts_schema_org_job_posting(
           </script>
         </html>
         """
+        )
     )
 
     response = api_client.post(
@@ -82,7 +84,8 @@ def test_autofill_uses_html_metadata_when_structured_data_is_missing(
     api_client, active_member, shared_workspace
 ) -> None:
     _install_fetcher(
-        lambda _url: """
+        lambda _url: (
+            """
         <html>
           <head>
             <meta property="og:title" content="Product Designer at Northstar Labs" />
@@ -95,6 +98,7 @@ def test_autofill_uses_html_metadata_when_structured_data_is_missing(
           </body>
         </html>
         """
+        )
     )
 
     response = api_client.post(

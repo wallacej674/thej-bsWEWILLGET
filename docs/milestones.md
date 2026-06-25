@@ -35,12 +35,61 @@ Milestone 3 replaces the normal development-only seeded UUID selector and
 AuthX access and rotating refresh cookies, CSRF protection, and persisted
 session revocation. Google account linking remains a future enhancement.
 
+## Milestone 4 — Tracker to assistant
+
+Milestone 4 turns ApplyTogether from passive record-keeping into an active
+job-search assistant. The three capabilities below build on existing data and
+respect the membership/ownership boundary: stage changes are owner-only
+mutations, all reads stay workspace-scoped, and soft-delete semantics are
+preserved.
+
+Prerequisite: finish the in-progress warm-theme UI migration (Dashboard charts
+and stat icons, the application detail view, and the development `IdentityGate`)
+so the interface is visually consistent before new surfaces are added.
+
+- Interview pipeline: a per-application stage (for example Applied, Screening,
+  Interview, Offer, Rejected, Withdrawn) with both a board (Kanban) view and the
+  existing list view. Stage transitions are owner-only mutations, remain visible
+  to the workspace, and coexist with the current status and soft-delete model.
+- Follow-up reminders and deadline nudges: scheduled, idempotent background jobs
+  that surface in-app and by email (reusing the existing SMTP integration),
+  derived from application dates and stages, and bounded by quiet windows and
+  resend cooldowns.
+- Funnel analytics and accountability goals: response, interview, and offer
+  rates, time-to-response, and weekly velocity against per-member goals.
+  Aggregation is read-only and workspace-scoped, extending the existing summary
+  and dashboard charts.
+
+Out of scope for this milestone: AI generation, calendar integration, and email
+ingestion (tracked under the later roadmap).
+
+## Milestone 5 — Production-ready
+
+Milestone 5 hardens the integrated application for real users and operational
+deployment, closing the gaps Milestone 2 explicitly disclaimed.
+
+- Browser end-to-end coverage (Playwright) in CI for the core flows:
+  authentication, application create/view/edit/soft-delete/restore, workspace
+  switching, and pipeline transitions.
+- Continuous delivery: migrations applied on deploy, environment promotion, and
+  health-gated releases (the `/health` and `/health/db` routes already exist).
+- Observability: structured logging, error tracking, and request tracing.
+- Security hardening: enforce `Secure`/`HttpOnly`/`SameSite` cookies in
+  production, add security headers and auth-endpoint rate limiting, manage
+  secrets outside source control, and guarantee the development identity bypass
+  is disabled outside development and test.
+- Accessibility: keyboard-operable menus (including the workspace switcher's
+  footer action), plus color-contrast and screen-reader passes.
+
 ## Later roadmap
 
-Possible later work includes invitations and workspace administration,
-accountability goals, richer analytics, interview tracking, operational
-deployment, and job-posting monitoring. These are not current implementation
-commitments.
+Possible later work, not yet committed, includes: an AI assistant suite
+(cover-letter generation and resume-to-posting match and skill-gap analysis,
+building on the existing resume tailoring); a one-click "save this job" browser
+extension (building on the existing job-posting autofill); Gmail ingestion to
+auto-update application status; Google Calendar and ICS interview scheduling;
+deeper collaboration (notes, mentions, and coach/mentor read-only views); and
+ranked full-text search over applications and notes.
 
 No milestone may blur the distinction between workspace membership
 (visibility) and application ownership (mutation authority) without an

@@ -3550,14 +3550,14 @@ export function LegacyDevelopmentIdentityApp() {
   }
   if (loading) {
     return (
-      <div className="dark min-h-screen bg-[#0c1120] text-slate-200">
+      <div className="dark theme-gold min-h-screen bg-background text-foreground">
         <LoadingState label="Discovering your workspace…" />
       </div>
     );
   }
   if (error || !session) {
     return (
-      <div className="dark flex min-h-screen items-center justify-center bg-[#0c1120] p-6 text-slate-200">
+      <div className="dark theme-gold flex min-h-screen items-center justify-center bg-background p-6 text-foreground">
         <div className="w-full max-w-lg">
           <ErrorState error={error ?? new Error("Session could not be loaded.")} />
           <button
@@ -3651,7 +3651,7 @@ function AuthenticatedApp({
 
   if (auth.status === "initializing") {
     return (
-      <div className="dark min-h-screen bg-[#0c1120] text-slate-200">
+      <div className="dark theme-gold min-h-screen bg-background text-foreground">
         <LoadingState label="Restoring your secure session…" />
       </div>
     );
@@ -3659,7 +3659,7 @@ function AuthenticatedApp({
 
   if (auth.status === "recoverable-error") {
     return (
-      <div className="dark flex min-h-screen items-center justify-center bg-[#0c1120] p-6 text-slate-200">
+      <div className="dark theme-gold flex min-h-screen items-center justify-center bg-background p-6 text-foreground">
         <div className="w-full max-w-lg">
           <ErrorState
             error={auth.error ?? new Error("Session could not be restored.")}
@@ -3691,7 +3691,7 @@ function AuthenticatedApp({
 
   if (!auth.user || !auth.workspace) {
     return (
-      <div className="dark min-h-screen bg-[#0c1120] text-slate-200">
+      <div className="dark theme-gold min-h-screen bg-background text-foreground">
         <LoadingState label="Loading your workspace…" />
       </div>
     );

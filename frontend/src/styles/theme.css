@@ -267,3 +267,14 @@
 .nav-tab:hover .nav-hover-underline::after {
   transform: scaleX(1);
 }
+
+/* Dashboard typography direction: tabular mono figures + grotesk display headings. */
+.font-numeric {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.font-display {
+  font-family: "Space Grotesk", system-ui, sans-serif;
+}

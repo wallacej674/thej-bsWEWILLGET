@@ -81,6 +81,39 @@ deployment, closing the gaps Milestone 2 explicitly disclaimed.
 - Accessibility: keyboard-operable menus (including the workspace switcher's
   footer action), plus color-contrast and screen-reader passes.
 
+## Milestone 6 — Scale to large workspaces (100+ members)
+
+Milestone 6 makes a single workspace comfortably support 100+ members (designed
+for the low hundreds now, on foundations that extend to thousands later). The
+binding constraint today is the dashboard's per-member request fan-out
+(`~2 + 2 × members` requests per load); the fixes below move all per-member work
+to bounded, server-side, paginated queries.
+
+Design principles (so thousands needs no rework): all per-member data is
+server-side paginated and sorted (never "return all owners"); the summary
+payload is bounded regardless of member count (totals + top-N, not per-owner
+arrays); charts show aggregates plus top-N, never one series or row per member.
+
+- Backend: a paginated, sortable `team-accountability` endpoint returning
+  per-owner active / this-week / rejected / last-applied via `GROUP BY`; trim the
+  summary endpoint to bounded data (totals, status and arrangement counts,
+  applications-over-time as workspace totals per week, and a top-applicants
+  list); add composite indexes on `(workspace_id, owner_id, status)`,
+  `(workspace_id, application_date)`, and `(workspace_id, updated_at)`.
+- Backend: paginate and search members and invitations; expose a member count;
+  cap list `page_size` (for example `le=100`); add a configurable hard member
+  cap (default ~500 now, raised later).
+- Frontend: remove the dashboard per-member fan-out (read everything from the
+  enriched summary, ~1 request); drive the accountability table from the
+  paginated endpoint; aggregate the over-time chart to a workspace total and
+  show top-N applicants with a "view all"; add member search and pagination to
+  the Workspace page.
+- Validation: a seed path for 100–200 members (and a 1k smoke test) asserting the
+  dashboard issues ~1–2 requests, pagination works, and analytics stay readable.
+
+Future work for true thousands (enabled by, not blocking, the above): list
+virtualization, a cached or materialized summary, and cursor pagination.
+
 ## Later roadmap
 
 Possible later work, not yet committed, includes: an AI assistant suite

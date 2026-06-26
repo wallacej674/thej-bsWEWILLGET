@@ -9,19 +9,18 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Clock3,
   ExternalLink,
   FileText,
   LayoutDashboard,
   LoaderCircle,
   Menu,
   Mail,
+  Pencil,
   Plus,
   RotateCcw,
   Search,
   Shield,
   Trash,
-  TrendingUp,
   User,
   UserPlus,
   UserMinus,
@@ -53,9 +52,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -210,6 +206,10 @@ function initials(name: string): string {
     .join("")
     .slice(0, 2)
     .toUpperCase();
+}
+
+function clampChars(value: string, max: number): string {
+  return value.length > max ? `${value.slice(0, max).trimEnd()}…` : value;
 }
 
 const avatarColors = [
@@ -839,7 +839,9 @@ function DashboardPage({ context }: { context: AppContext }) {
   }
 
   const counts = summary?.by_owner ?? [];
-  const ownerColors = ["#6366f1", "#10b981", "#f59e0b", "#38bdf8"];
+  // Warm categorical palette — gold + earth tones with a single muted teal as the
+  // only cool accent. Deliberately avoids the indigo/emerald/blue defaults.
+  const ownerColors = ["#d6a844", "#cc7a4d", "#5f8f8a", "#9aa05f"];
   const ownerKeys = counts.map((_item, index) => `owner_${index}`);
   const applicationsOverTime = (summary?.applications_over_time ?? []).map(
     (point) => {
@@ -864,10 +866,10 @@ function DashboardPage({ context }: { context: AppContext }) {
       name: statusLabels[status],
       value: summary?.status_counts[status] ?? 0,
       color: {
-        applied: "#3b82f6",
-        rejected: "#ef4444",
-        withdrawn: "#64748b",
-        closed: "#f59e0b",
+        applied: "#d6a844",
+        rejected: "#c2686a",
+        withdrawn: "#8c8170",
+        closed: "#b08953",
       }[status],
     }),
   );
@@ -877,164 +879,197 @@ function DashboardPage({ context }: { context: AppContext }) {
     name: arrangementLabels[arrangement],
     value: summary?.work_arrangement_counts[arrangement] ?? 0,
     color: {
-      remote: "#10b981",
-      hybrid: "#6366f1",
-      onsite: "#94a3b8",
-      unknown: "#475569",
+      remote: "#5f8f8a",
+      hybrid: "#cc7a4d",
+      onsite: "#9aa05f",
+      unknown: "#6b6253",
     }[arrangement],
   }));
   const applicationsThisWeek = teamStats.reduce(
     (total, item) => total + item.thisWeek,
     0,
   );
+  // Placeholder weekly target per member. Real per-member goals are a
+  // Milestone 4 ("accountability goals") backend feature.
+  const WEEKLY_GOAL = 5;
 
+  const overTimeRaw = summary?.applications_over_time ?? [];
+  const weekTotalAt = (index: number) =>
+    overTimeRaw[index]?.by_owner.reduce((sum, owner) => sum + owner.count, 0) ??
+    0;
+  const weekDelta =
+    weekTotalAt(overTimeRaw.length - 1) - weekTotalAt(overTimeRaw.length - 2);
+  const latestWeekLabel = overTimeRaw.length
+    ? formatWeekRange(overTimeRaw[overTimeRaw.length - 1].week_start)
+    : "This week";
   return (
     <div className="mx-auto max-w-[1480px] px-4 py-8 sm:px-6">
-      <div className="mb-6">
+      <div className="mb-7">
         <div className="flex items-end justify-between gap-4">
           <div>
-            <p className="text-[0.7rem] font-bold uppercase tracking-[0.16em] text-primary">
-              Dashboard
-            </p>
-            <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-foreground">
+            <p className="text-[0.7rem] font-medium uppercase tracking-[0.18em] text-muted-foreground">
               Overview
+            </p>
+            <h1 className="font-display mt-1.5 text-2xl font-semibold tracking-tight text-foreground">
+              This week at a glance
             </h1>
           </div>
-          <div className="flex flex-none items-center gap-2 rounded-full border border-primary/20 bg-primary/[0.08] px-3.5 py-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-            <span className="text-xs text-[#cfc4af]">
-              {context.session.workspace.name}
-            </span>
-          </div>
+          <span className="flex-none whitespace-nowrap rounded-md border border-border px-3 py-1.5 text-xs text-[#bcae93]">
+            {latestWeekLabel}
+          </span>
         </div>
         <div className="mt-4 h-px bg-border" />
       </div>
 
-      <div className="mb-6 flex overflow-hidden rounded-xl border border-border bg-card">
-        <div className="flex flex-1 items-center gap-3 border-r border-border px-5 py-4">
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <FileText size={15} />
-          </div>
-          <div>
-            <p className="text-lg font-bold leading-none text-primary">{summary?.total_active ?? 0}</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">Active applications</p>
-          </div>
+      <div className="mb-7 grid grid-cols-2 overflow-hidden rounded-xl border border-border bg-card sm:grid-cols-4">
+        <div className="border-b border-r border-border px-5 py-4 sm:border-b-0">
+          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+            Active
+          </p>
+          <p className="font-numeric mt-2 text-[28px] font-semibold leading-none text-foreground">
+            {summary?.total_active ?? 0}
+          </p>
+          <p className="mt-2 text-[11px] text-muted-foreground">in this workspace</p>
         </div>
-        <div className="flex flex-1 items-center gap-3 border-r border-border px-5 py-4">
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
-            <TrendingUp size={15} />
-          </div>
-          <div>
-            <p className="text-lg font-bold leading-none text-emerald-400">{applicationsThisWeek}</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">Applications this week</p>
-          </div>
+        <div className="border-b border-border px-5 py-4 sm:border-b-0 sm:border-r">
+          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+            Applied this week
+          </p>
+          <p className="font-numeric mt-2 text-[28px] font-semibold leading-none text-foreground">
+            {applicationsThisWeek}
+          </p>
+          <p className="mt-2 text-[11px]">
+            {weekDelta > 0 ? (
+              <span className="text-[#9aa05f]">▲ {weekDelta} vs last wk</span>
+            ) : weekDelta < 0 ? (
+              <span className="text-[#c2686a]">
+                ▼ {Math.abs(weekDelta)} vs last wk
+              </span>
+            ) : (
+              <span className="text-muted-foreground">— vs last wk</span>
+            )}
+          </p>
         </div>
-        <div className="flex flex-1 items-center gap-3 border-r border-border px-5 py-4">
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
-            <Clock3 size={15} />
-          </div>
-          <div>
-            <p className="text-lg font-bold leading-none text-blue-400">{summary?.recently_updated ?? 0}</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">Recently updated</p>
-          </div>
+        <div className="border-r border-border px-5 py-4">
+          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+            Recently updated
+          </p>
+          <p className="font-numeric mt-2 text-[28px] font-semibold leading-none text-foreground">
+            {summary?.recently_updated ?? 0}
+          </p>
+          <p className="mt-2 text-[11px] text-muted-foreground">in the last 7 days</p>
         </div>
-        <div className="flex flex-1 items-center gap-3 px-5 py-4">
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-foreground/[0.06] text-muted-foreground">
-            <Trash size={15} />
-          </div>
-          <div>
-            <p className="text-lg font-bold leading-none text-muted-foreground">{deletedCount}</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">My deleted applications</p>
-          </div>
+        <div className="px-5 py-4">
+          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+            Deleted
+          </p>
+          <p className="font-numeric mt-2 text-[28px] font-semibold leading-none text-foreground">
+            {deletedCount}
+          </p>
+          <p className="mt-2 text-[11px] text-muted-foreground">recoverable</p>
         </div>
       </div>
 
-      <section className="mb-10">
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+      <div className="mb-10 grid items-start gap-5 lg:grid-cols-[1.7fr_1fr]">
+        <section>
+        <h2 className="mb-3 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
           Team accountability
         </h2>
-        <div className="grid gap-5 lg:grid-cols-2">
-          {teamStats.map((item) => {
-            const weeklyShare =
-              applicationsThisWeek === 0
-                ? 0
-                : Math.round((item.thisWeek / applicationsThisWeek) * 100);
-            const isCurrentUser = item.owner.id === context.session.user.id;
-            return (
-              <article
-                key={item.owner.id}
-                className={`rounded-2xl border bg-card p-6 ${
-                  isCurrentUser
-                    ? "border-primary/35"
-                    : "border-border"
-                }`}
-              >
-                <div className="flex items-start gap-4">
-                  <Avatar
-                    id={item.owner.id}
-                    name={item.owner.display_name}
-                    size="lg"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-3">
-                      <h3 className="font-semibold text-foreground">
-                        {item.owner.display_name}
-                      </h3>
-                      {isCurrentUser && (
-                        <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs text-primary">
-                          You
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+                <th className="px-5 py-3 font-medium">Member</th>
+                <th className="px-4 py-3 text-right font-medium">Active</th>
+                <th className="px-4 py-3 text-right font-medium">This wk</th>
+                <th className="px-4 py-3 text-right font-medium">Rejected</th>
+                <th className="w-[34%] px-5 py-3 font-medium">Weekly goal</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {teamStats.map((item) => {
+                const goalProgress = Math.min(
+                  100,
+                  Math.round((item.thisWeek / WEEKLY_GOAL) * 100),
+                );
+                const isCurrentUser =
+                  item.owner.id === context.session.user.id;
+                return (
+                  <tr
+                    key={item.owner.id}
+                    className="transition-colors hover:bg-[#211910]"
+                  >
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <Avatar
+                          id={item.owner.id}
+                          name={item.owner.display_name}
+                        />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="truncate font-medium text-foreground">
+                              {item.owner.display_name}
+                            </span>
+                            {isCurrentUser && (
+                              <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
+                                You
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-0.5 text-[11px] text-muted-foreground">
+                            {item.lastApplied
+                              ? `Last applied ${formatDate(item.lastApplied)}`
+                              : "No applications yet"}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="font-numeric px-4 py-3.5 text-right text-foreground">
+                      {item.active}
+                    </td>
+                    <td className="font-numeric px-4 py-3.5 text-right text-[#9aa05f]">
+                      {item.thisWeek}
+                    </td>
+                    <td className="font-numeric px-4 py-3.5 text-right text-[#c2686a]">
+                      {item.rejected}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-secondary">
+                          <div
+                            className="h-full rounded-full bg-primary transition-[width]"
+                            style={{ width: `${goalProgress}%` }}
+                          />
+                        </div>
+                        <span className="font-numeric whitespace-nowrap text-xs text-muted-foreground">
+                          <span className="text-foreground">
+                            {item.thisWeek}
+                          </span>{" "}
+                          / {WEEKLY_GOAL}
                         </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-6 grid grid-cols-3 text-center">
-                  <AccountabilityStat
-                    value={item.active}
-                    label="Active"
-                    color="text-foreground"
-                  />
-                  <AccountabilityStat
-                    value={item.thisWeek}
-                    label="This week"
-                    color="text-emerald-400"
-                  />
-                  <AccountabilityStat
-                    value={item.rejected}
-                    label="Rejected"
-                    color="text-red-400"
-                  />
-                </div>
-                <div className="mt-6 border-t border-border pt-5">
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Weekly share</span>
-                    <span>{weeklyShare}%</span>
-                  </div>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-secondary">
-                    <div
-                      className="h-full rounded-full bg-primary transition-[width]"
-                      style={{ width: `${weeklyShare}%` }}
-                    />
-                  </div>
-                  <p className="mt-4 text-xs text-muted-foreground">
-                    Last applied:{" "}
-                    <span className="text-foreground">
-                      {item.lastApplied
-                        ? formatDate(item.lastApplied)
-                        : "No applications yet"}
-                    </span>
-                  </p>
-                </div>
-              </article>
-            );
-          })}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-      </section>
+        </section>
+        <section>
+          <h2 className="mb-3 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            Recent activity
+          </h2>
+          <div className="rounded-xl border border-border bg-card p-5">
+            <RecentActivityFeed activities={summary?.recent_activity ?? []} />
+          </div>
+        </section>
+      </div>
 
       <h2 className="mb-4 text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">
         Analytics
       </h2>
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div>
         <DashboardChartCard title="Applications over time">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
@@ -1042,7 +1077,7 @@ function DashboardPage({ context }: { context: AppContext }) {
               margin={{ top: 14, right: 8, left: -20, bottom: 4 }}
             >
               <CartesianGrid
-                stroke="rgba(148,163,184,0.08)"
+                stroke="rgba(140,129,112,0.12)"
                 strokeDasharray="3 4"
                 vertical={false}
               />
@@ -1054,13 +1089,13 @@ function DashboardPage({ context }: { context: AppContext }) {
                 height={58}
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: "#49617f", fontSize: 10 }}
+                tick={{ fill: "#8c8170", fontSize: 10 }}
               />
               <YAxis
                 allowDecimals={false}
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: "#49617f", fontSize: 11 }}
+                tick={{ fill: "#8c8170", fontSize: 11 }}
               />
               <Tooltip
                 contentStyle={chartTooltipStyle}
@@ -1088,111 +1123,46 @@ function DashboardPage({ context }: { context: AppContext }) {
           />
         </DashboardChartCard>
 
-        <DashboardChartCard title="Applications by user">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={applicationsByUser}
-              layout="vertical"
-              margin={{ top: 14, right: 8, left: 4, bottom: 4 }}
-            >
-              <CartesianGrid
-                stroke="rgba(148,163,184,0.08)"
-                strokeDasharray="3 4"
-                horizontal={false}
-              />
-              <XAxis
-                type="number"
-                allowDecimals={false}
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: "#49617f", fontSize: 11 }}
-              />
-              <YAxis
-                type="category"
-                dataKey="name"
-                width={92}
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: "#9eb6d4", fontSize: 12 }}
-              />
-              <Tooltip
-                contentStyle={chartTooltipStyle}
-                itemStyle={{ color: "#f4eee1" }}
-                labelStyle={{ color: "#a89a80" }}
-                cursor={{ fill: "rgba(214,168,68,0.06)" }}
-              />
-              <Bar dataKey="count" fill="#6366f1" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </DashboardChartCard>
-
-        <DashboardDonutCard title="Status mix" data={statusMix} />
-        <DashboardDonutCard
-          title="Work arrangement mix"
-          data={arrangementMix}
-        />
+        <section className="mt-5 grid gap-x-8 gap-y-6 rounded-2xl border border-border bg-card p-6 md:grid-cols-3">
+          <div>
+            <h3 className="mb-4 text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
+              Status
+            </h3>
+            <BarGaugeRows
+              rows={statusMix.map((item) => ({
+                label: item.name,
+                value: item.value,
+                color: item.color,
+              }))}
+            />
+          </div>
+          <div>
+            <h3 className="mb-4 text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
+              Work arrangement
+            </h3>
+            <BarGaugeRows
+              rows={arrangementMix.map((item) => ({
+                label: item.name,
+                value: item.value,
+                color: item.color,
+              }))}
+            />
+          </div>
+          <div>
+            <h3 className="mb-4 text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
+              By applicant
+            </h3>
+            <BarGaugeRows
+              rows={applicationsByUser.map((item, index) => ({
+                label: item.name,
+                value: item.count,
+                color: ownerColors[index % ownerColors.length],
+              }))}
+            />
+          </div>
+        </section>
       </div>
 
-      <section className="mt-7">
-        <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-          Recent activity
-        </h2>
-        <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
-          {(summary?.recent_activity ?? []).length === 0 ? (
-            <div className="px-6 py-12 text-center text-sm text-muted-foreground">
-              Activity will appear after applications are added or updated.
-            </div>
-          ) : (
-            summary?.recent_activity.map((activity) => (
-              <Link
-                key={`${activity.application_id}-${activity.occurred_at}`}
-                to={`/applications/${activity.application_id}`}
-                className="flex min-h-20 items-center gap-4 px-6 py-4 transition-colors hover:bg-white/[0.025]"
-              >
-                <Avatar
-                  id={activity.owner.id}
-                  name={activity.owner.display_name}
-                  size="md"
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm text-muted-foreground">
-                    <span className="font-semibold text-foreground">
-                      {activity.owner.display_name}
-                    </span>{" "}
-                    <span className="text-muted-foreground">{activity.action}</span>{" "}
-                    <span className="font-medium text-foreground">
-                      {activity.job_title}
-                    </span>{" "}
-                    <span className="text-muted-foreground">
-                      at {activity.company_name}
-                    </span>
-                    {activity.action === "updated" && (
-                      <span className="ml-2">
-                        <StatusPill status={activity.status} />
-                      </span>
-                    )}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {formatRelativeTime(activity.occurred_at)}
-                  </p>
-                </div>
-                <span
-                  className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${
-                    activity.action === "added"
-                      ? "bg-emerald-500"
-                      : activity.status === "rejected"
-                        ? "bg-red-500"
-                        : activity.status === "closed"
-                          ? "bg-amber-500"
-                          : "bg-blue-500"
-                  }`}
-                  aria-hidden="true"
-                />
-              </Link>
-            ))
-          )}
-        </div>
-      </section>
     </div>
   );
 }
@@ -1205,23 +1175,6 @@ const chartTooltipStyle = {
   fontSize: "12px",
 };
 
-function AccountabilityStat({
-  value,
-  label,
-  color,
-}: {
-  value: number;
-  label: string;
-  color: string;
-}) {
-  return (
-    <div>
-      <p className={`text-2xl font-bold ${color}`}>{value}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{label}</p>
-    </div>
-  );
-}
-
 function DashboardChartCard({
   title,
   children,
@@ -1231,7 +1184,7 @@ function DashboardChartCard({
 }) {
   return (
     <section className="relative h-[355px] rounded-2xl border border-border bg-card p-6 pb-12">
-      <h2 className="mb-3 text-base font-semibold text-foreground">{title}</h2>
+      <h2 className="font-display mb-3 text-base font-semibold text-foreground">{title}</h2>
       <div className="h-[255px]">{children}</div>
     </section>
   );
@@ -1260,76 +1213,137 @@ function ChartLegend({
   );
 }
 
-function DashboardDonutCard({
-  title,
-  data,
+function BarGaugeRows({
+  rows,
 }: {
-  title: string;
-  data: { name: string; value: number; color: string }[];
+  rows: { label: string; value: number; color: string }[];
 }) {
+  const max = Math.max(...rows.map((row) => row.value), 1);
   return (
-    <section className="h-[260px] rounded-2xl border border-border bg-card p-6">
-      <h2 className="text-base font-semibold text-foreground">{title}</h2>
-      <div className="mt-3 grid h-[180px] grid-cols-[170px_1fr] items-center gap-4">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={data}
-              dataKey="value"
-              nameKey="name"
-              innerRadius={46}
-              outerRadius={70}
-              stroke="none"
-              strokeWidth={0}
+    <div className="flex flex-col gap-3">
+      {rows.map((row) => {
+        const empty = row.value === 0;
+        return (
+          <div key={row.label} className="flex items-center gap-3 text-xs">
+            <span
+              className={`w-20 shrink-0 truncate ${
+                empty ? "text-muted-foreground" : "text-[#cdbfa3]"
+              }`}
             >
-              {data.map((item) => (
-                <Cell key={item.name} fill={item.color} />
-              ))}
-            </Pie>
-            <Tooltip
-              content={({ active, payload }) => {
-                if (!active || !payload?.length) return null;
-                const item = payload[0];
-                return (
-                  <div className="rounded-lg border border-border bg-popover px-3 py-2 shadow-xl">
-                    <div className="flex items-center gap-2 text-xs">
-                      <span
-                        className="h-2.5 w-2.5 rounded-full"
-                        style={{
-                          backgroundColor:
-                            typeof item.payload?.color === "string"
-                              ? item.payload.color
-                              : "#d6a844",
-                        }}
-                      />
-                      <span className="text-muted-foreground">{item.name}</span>
-                      <strong className="text-foreground">{item.value}</strong>
+              {row.label}
+            </span>
+            <div className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">
+              <div
+                className="h-full rounded-full transition-[width]"
+                style={{
+                  width: `${(row.value / max) * 100}%`,
+                  backgroundColor: row.color,
+                }}
+              />
+            </div>
+            <span
+              className={`font-numeric w-5 shrink-0 text-right ${
+                empty ? "text-[#6b6253]" : "text-foreground"
+              }`}
+            >
+              {row.value}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function activityDayBucket(occurredAt: string): string {
+  const then = new Date(occurredAt).getTime();
+  const now = new Date();
+  const startOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  ).getTime();
+  if (then >= startOfToday) return "Today";
+  if (then >= startOfToday - 86_400_000) return "Yesterday";
+  return "Earlier";
+}
+
+function RecentActivityFeed({
+  activities,
+}: {
+  activities: ApplicationSummary["recent_activity"];
+}) {
+  if (activities.length === 0) {
+    return (
+      <p className="py-10 text-center text-sm text-muted-foreground">
+        Activity appears as applications are added or updated.
+      </p>
+    );
+  }
+  const groups: { bucket: string; items: typeof activities }[] = [];
+  for (const activity of activities) {
+    const bucket = activityDayBucket(activity.occurred_at);
+    const last = groups[groups.length - 1];
+    if (last && last.bucket === bucket) last.items.push(activity);
+    else groups.push({ bucket, items: [activity] });
+  }
+  return (
+    <div className="flex flex-col gap-5">
+      {groups.map((group) => (
+        <div key={group.bucket}>
+          <div className="mb-3 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+            {group.bucket}
+          </div>
+          <div className="relative flex flex-col gap-4 pl-8">
+            <div className="absolute bottom-1 left-[11px] top-1 w-px bg-border" />
+            {group.items.map((activity) => {
+              const added = activity.action === "added";
+              const Icon = added ? Plus : Pencil;
+              return (
+                <Link
+                  key={`${activity.application_id}-${activity.occurred_at}`}
+                  to={`/applications/${activity.application_id}`}
+                  className="group relative flex items-start justify-between gap-3"
+                >
+                  <span
+                    className={`absolute left-[-32px] top-0 flex h-6 w-6 items-center justify-center rounded-full border-2 border-card ${
+                      added
+                        ? "bg-[#9aa05f]/15 text-[#9aa05f]"
+                        : "bg-primary/15 text-[#e0b850]"
+                    }`}
+                    aria-hidden="true"
+                  >
+                    <Icon size={12} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13px] leading-snug text-muted-foreground">
+                      <span className="font-medium text-foreground">
+                        {activity.owner.display_name}
+                      </span>{" "}
+                      {activity.action}{" "}
+                      <span className="font-medium text-foreground transition-colors group-hover:text-primary">
+                        {activity.job_title}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+                      <span className="truncate">{activity.company_name}</span>
+                      {activity.action === "updated" && (
+                        <span className="shrink-0">
+                          <StatusPill status={activity.status} />
+                        </span>
+                      )}
                     </div>
                   </div>
-                );
-              }}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-        <div className="space-y-3">
-          {data.map((item) => (
-            <div
-              key={item.name}
-              className="flex items-center justify-between gap-4 text-sm"
-            >
-              <span className="inline-flex items-center gap-2 text-muted-foreground">
-                <span
-                  className="h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: item.color }}
-                />
-                {item.name}
-              </span>
-              <span className="font-semibold text-foreground">{item.value}</span>
-            </div>
-          ))}
+                  <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground">
+                    {formatRelativeTime(activity.occurred_at)}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
         </div>
-      </div>
-    </section>
+      ))}
+    </div>
   );
 }
 
@@ -1652,18 +1666,18 @@ function ApplicationTable({
   return (
     <>
       <div className="hidden overflow-x-auto lg:block">
-        <table className="min-w-[1180px] w-full">
+        <table className="min-w-[1180px] w-full table-fixed">
           <thead className="border-b border-border bg-white/[0.015] text-left text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
             <tr>
-              <th className="w-[12%] px-5 py-4 font-semibold">Company</th>
-              <th className="w-[21%] px-4 py-4 font-semibold">Role</th>
-              <th className="w-[12%] px-4 py-4 font-semibold">Owner</th>
-              <th className="w-[14%] px-4 py-4 font-semibold">Location</th>
-              <th className="w-[11%] px-4 py-4 font-semibold">Arrangement</th>
+              <th className="w-[13%] px-5 py-4 font-semibold">Company</th>
+              <th className="w-[18%] px-4 py-4 font-semibold">Role</th>
+              <th className="w-[11%] px-4 py-4 font-semibold">Owner</th>
+              <th className="w-[11%] px-4 py-4 font-semibold">Location</th>
+              <th className="w-[10%] px-4 py-4 font-semibold">Arrangement</th>
               <th className="w-[9%] px-4 py-4 font-semibold">Type</th>
-              <th className="w-[10%] px-4 py-4 font-semibold">Status</th>
-              <th className="w-[10%] px-4 py-4 font-semibold">Applied</th>
-              <th className="px-5 py-4 text-right font-semibold">Actions</th>
+              <th className="w-[9%] px-4 py-4 font-semibold">Status</th>
+              <th className="w-[9%] px-4 py-4 font-semibold">Applied</th>
+              <th className="w-[10%] px-4 py-4 text-right font-semibold">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -1677,10 +1691,16 @@ function ApplicationTable({
                     href={application.job_posting_url}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-foreground hover:text-primary"
+                    title={application.company_name}
+                    className="inline-flex items-start gap-1.5 text-sm font-semibold text-foreground hover:text-primary"
                   >
-                    {application.company_name}
-                    <ExternalLink size={11} className="text-muted-foreground" />
+                    <span className="line-clamp-3 break-words">
+                      {clampChars(application.company_name, 60)}
+                    </span>
+                    <ExternalLink
+                      size={11}
+                      className="mt-1 shrink-0 text-muted-foreground"
+                    />
                   </a>
                 </td>
                 <td className="px-4 py-4">
@@ -1717,7 +1737,7 @@ function ApplicationTable({
                 <td className="whitespace-nowrap px-4 py-4 text-xs text-muted-foreground">
                   {formatDate(application.application_date)}
                 </td>
-                <td className="px-5 py-4">
+                <td className="px-4 py-4">
                   <ApplicationActions
                     applicationOwnerId={application.owner.id}
                     canModerate={canModerate}
@@ -1741,9 +1761,10 @@ function ApplicationTable({
               <div>
                 <Link
                   to={`/applications/${application.id}`}
+                  title={application.company_name}
                   className="font-medium text-foreground"
                 >
-                  {application.company_name}
+                  {clampChars(application.company_name, 60)}
                 </Link>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {application.job_title}
@@ -1894,19 +1915,19 @@ function ApplicationDetailPage({ context }: { context: AppContext }) {
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
       <Link
         to="/applications"
-        className="mb-6 inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300"
+        className="mb-6 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft size={12} /> Applications
       </Link>
       <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
         <div>
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-100">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
               {application.company_name}
             </h1>
             <StatusPill status={application.status} />
           </div>
-          <p className="mt-1 text-slate-500">{application.job_title}</p>
+          <p className="mt-1 text-muted-foreground">{application.job_title}</p>
         </div>
         {(owned || canModerate) && (
           <div className="flex gap-2">
@@ -1916,7 +1937,7 @@ function ApplicationDetailPage({ context }: { context: AppContext }) {
               </Link>
             )}
             <button
-              className="rounded-lg border border-red-500/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-500/10"
+              className="rounded-lg border border-[#e0625a]/30 px-4 py-2 text-sm font-medium text-[#e0625a] hover:bg-[#e0625a]/10"
               onClick={() => void remove()}
             >
               Delete
@@ -1925,8 +1946,8 @@ function ApplicationDetailPage({ context }: { context: AppContext }) {
         )}
       </div>
       {!owned && (
-        <div className="mb-5 flex items-start gap-3 rounded-xl border border-indigo-500/15 bg-indigo-500/5 p-4 text-sm text-slate-400">
-          <Shield size={15} className="mt-0.5 flex-shrink-0 text-indigo-400" />
+        <div className="mb-5 flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/[0.06] p-4 text-sm text-[#cdbfa3]">
+          <Shield size={15} className="mt-0.5 flex-shrink-0 text-[#e0b850]" />
           <span>
             This record belongs to {application.owner.display_name}. You can
             view it but cannot edit it.
@@ -1957,7 +1978,7 @@ function ApplicationDetailPage({ context }: { context: AppContext }) {
                 href={application.job_posting_url}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 text-indigo-400 hover:text-indigo-300"
+                className="inline-flex items-center gap-1 text-[#e0b850] hover:text-primary"
               >
                 Open posting <ExternalLink size={12} />
               </a>,
@@ -1977,7 +1998,6 @@ function ApplicationDetailPage({ context }: { context: AppContext }) {
           client={context.client}
           workspaceId={context.session.workspace.id}
           application={application}
-          currentUserId={context.session.user.id}
         />
       </div>
     </div>
@@ -1992,17 +2012,17 @@ function DetailCard({
   items: [string, ReactNode][];
 }) {
   return (
-    <section className="rounded-xl border border-white/[0.08] bg-[#111827] p-5">
-      <h2 className="mb-4 border-b border-white/[0.06] pb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+    <section className="rounded-xl border border-border bg-card p-5">
+      <h2 className="mb-4 border-b border-border pb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         {title}
       </h2>
       <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
         {items.map(([label, value]) => (
           <div key={label}>
-            <dt className="mb-1 text-[11px] uppercase tracking-wider text-slate-600">
+            <dt className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">
               {label}
             </dt>
-            <dd className="whitespace-pre-wrap text-sm leading-relaxed text-slate-300">
+            <dd className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
               {value}
             </dd>
           </div>

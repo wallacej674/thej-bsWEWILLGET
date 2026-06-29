@@ -84,6 +84,8 @@ import type {
   PaginatedApplications,
   SalaryPeriod,
   SortField,
+  TeamAccountabilityRow,
+  TeamAccountabilitySort,
   WorkArrangement,
   Workspace,
   WorkspaceInvitation,
@@ -749,77 +751,27 @@ function AppShell({ context }: { context: AppContext }) {
   );
 }
 
+// Warm categorical palette — gold + earth tones with a single muted teal as the
+// only cool accent. Deliberately avoids the indigo/emerald/blue defaults.
+const ownerColors = ["#d6a844", "#cc7a4d", "#5f8f8a", "#9aa05f", "#a9774a", "#b08968"];
+
 function DashboardPage({ context }: { context: AppContext }) {
   const [summary, setSummary] = useState<ApplicationSummary | null>(null);
-  const [deletedCount, setDeletedCount] = useState(0);
-  const [teamStats, setTeamStats] = useState<
-    {
-      owner: ApplicationSummary["by_owner"][number]["owner"];
-      active: number;
-      thisWeek: number;
-      rejected: number;
-      lastApplied: string | null;
-    }[]
-  >([]);
   const [error, setError] = useState<unknown>();
   const [loading, setLoading] = useState(true);
 
+  // One bounded request drives the whole dashboard summary; per-member
+  // accountability is loaded separately and paginated by TeamAccountabilityCard.
   const load = useCallback(async () => {
     setLoading(true);
     setError(undefined);
     try {
-      const summaryResponse = await applicationsApi.summary(
-        context.client,
-        context.session.workspace.id,
-      );
-      const latestWeek =
-        summaryResponse.applications_over_time.at(-1)?.by_owner ?? [];
-      const [deletedResponse, ...ownerDetails] = await Promise.all([
-        applicationsApi.deleted(
+      setSummary(
+        await applicationsApi.summary(
           context.client,
           context.session.workspace.id,
-          1,
-          1,
         ),
-        ...summaryResponse.by_owner.map(async (ownerCount) => {
-          const [rejected, latest] = await Promise.all([
-            applicationsApi.list(
-              context.client,
-              context.session.workspace.id,
-              {
-                ...defaultFilters,
-                ownerId: ownerCount.owner.id,
-                status: "rejected",
-                pageSize: 1,
-              },
-            ),
-            applicationsApi.list(
-              context.client,
-              context.session.workspace.id,
-              {
-                ...defaultFilters,
-                ownerId: ownerCount.owner.id,
-                sortBy: "application_date",
-                sortOrder: "desc",
-                pageSize: 1,
-              },
-            ),
-          ]);
-          return {
-            owner: ownerCount.owner,
-            active: ownerCount.count,
-            thisWeek:
-              latestWeek.find(
-                (item) => item.owner.id === ownerCount.owner.id,
-              )?.count ?? 0,
-            rejected: rejected.pagination.total_items,
-            lastApplied: latest.items[0]?.application_date ?? null,
-          };
-        }),
-      ]);
-      setSummary(summaryResponse);
-      setDeletedCount(deletedResponse.pagination.total_items);
-      setTeamStats(ownerDetails);
+      );
     } catch (caught) {
       setError(caught);
     } finally {
@@ -838,29 +790,12 @@ function DashboardPage({ context }: { context: AppContext }) {
     );
   }
 
-  const counts = summary?.by_owner ?? [];
-  // Warm categorical palette — gold + earth tones with a single muted teal as the
-  // only cool accent. Deliberately avoids the indigo/emerald/blue defaults.
-  const ownerColors = ["#d6a844", "#cc7a4d", "#5f8f8a", "#9aa05f"];
-  const ownerKeys = counts.map((_item, index) => `owner_${index}`);
-  const applicationsOverTime = (summary?.applications_over_time ?? []).map(
-    (point) => {
-      const row: Record<string, string | number> = {
-        week: formatWeekRange(point.week_start),
-      };
-      counts.forEach((ownerCount, index) => {
-        row[ownerKeys[index]] =
-          point.by_owner.find(
-            (item) => item.owner.id === ownerCount.owner.id,
-          )?.count ?? 0;
-      });
-      return row;
-    },
-  );
-  const applicationsByUser = counts.map((item) => ({
-    name: item.owner.display_name,
-    count: item.count,
+  const overTimeRaw = summary?.applications_over_time ?? [];
+  const applicationsOverTime = overTimeRaw.map((point) => ({
+    week: formatWeekRange(point.week_start),
+    total: point.total,
   }));
+  const topApplicants = summary?.top_applicants ?? [];
   const statusMix = (Object.keys(statusLabels) as ApplicationStatus[]).map(
     (status) => ({
       name: statusLabels[status],
@@ -885,18 +820,9 @@ function DashboardPage({ context }: { context: AppContext }) {
       unknown: "#6b6253",
     }[arrangement],
   }));
-  const applicationsThisWeek = teamStats.reduce(
-    (total, item) => total + item.thisWeek,
-    0,
-  );
-  // Placeholder weekly target per member. Real per-member goals are a
-  // Milestone 4 ("accountability goals") backend feature.
-  const WEEKLY_GOAL = 5;
+  const applicationsThisWeek = summary?.current_week ?? 0;
 
-  const overTimeRaw = summary?.applications_over_time ?? [];
-  const weekTotalAt = (index: number) =>
-    overTimeRaw[index]?.by_owner.reduce((sum, owner) => sum + owner.count, 0) ??
-    0;
+  const weekTotalAt = (index: number) => overTimeRaw[index]?.total ?? 0;
   const weekDelta =
     weekTotalAt(overTimeRaw.length - 1) - weekTotalAt(overTimeRaw.length - 2);
   const latestWeekLabel = overTimeRaw.length
@@ -964,98 +890,14 @@ function DashboardPage({ context }: { context: AppContext }) {
             Deleted
           </p>
           <p className="font-numeric mt-2 text-[28px] font-semibold leading-none text-foreground">
-            {deletedCount}
+            {summary?.deleted ?? 0}
           </p>
           <p className="mt-2 text-[11px] text-muted-foreground">recoverable</p>
         </div>
       </div>
 
       <div className="mb-10 grid items-start gap-5 lg:grid-cols-[1.7fr_1fr]">
-        <section>
-        <h2 className="mb-3 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-          Team accountability
-        </h2>
-        <div className="overflow-hidden rounded-xl border border-border bg-card">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
-                <th className="px-5 py-3 font-medium">Member</th>
-                <th className="px-4 py-3 text-right font-medium">Active</th>
-                <th className="px-4 py-3 text-right font-medium">This wk</th>
-                <th className="px-4 py-3 text-right font-medium">Rejected</th>
-                <th className="w-[34%] px-5 py-3 font-medium">Weekly goal</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {teamStats.map((item) => {
-                const goalProgress = Math.min(
-                  100,
-                  Math.round((item.thisWeek / WEEKLY_GOAL) * 100),
-                );
-                const isCurrentUser =
-                  item.owner.id === context.session.user.id;
-                return (
-                  <tr
-                    key={item.owner.id}
-                    className="transition-colors hover:bg-[#211910]"
-                  >
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <Avatar
-                          id={item.owner.id}
-                          name={item.owner.display_name}
-                        />
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="truncate font-medium text-foreground">
-                              {item.owner.display_name}
-                            </span>
-                            {isCurrentUser && (
-                              <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
-                                You
-                              </span>
-                            )}
-                          </div>
-                          <p className="mt-0.5 text-[11px] text-muted-foreground">
-                            {item.lastApplied
-                              ? `Last applied ${formatDate(item.lastApplied)}`
-                              : "No applications yet"}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="font-numeric px-4 py-3.5 text-right text-foreground">
-                      {item.active}
-                    </td>
-                    <td className="font-numeric px-4 py-3.5 text-right text-[#9aa05f]">
-                      {item.thisWeek}
-                    </td>
-                    <td className="font-numeric px-4 py-3.5 text-right text-[#c2686a]">
-                      {item.rejected}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-secondary">
-                          <div
-                            className="h-full rounded-full bg-primary transition-[width]"
-                            style={{ width: `${goalProgress}%` }}
-                          />
-                        </div>
-                        <span className="font-numeric whitespace-nowrap text-xs text-muted-foreground">
-                          <span className="text-foreground">
-                            {item.thisWeek}
-                          </span>{" "}
-                          / {WEEKLY_GOAL}
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        </section>
+        <TeamAccountabilityCard context={context} />
         <section>
           <h2 className="mb-3 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
             Recent activity
@@ -1103,24 +945,15 @@ function DashboardPage({ context }: { context: AppContext }) {
                 labelStyle={{ color: "#a89a80" }}
                 cursor={{ fill: "rgba(214,168,68,0.06)" }}
               />
-              {ownerKeys.map((key, index) => (
-                <Bar
-                  key={key}
-                  dataKey={key}
-                  name={counts[index]?.owner.display_name}
-                  fill={ownerColors[index % ownerColors.length]}
-                  radius={[3, 3, 0, 0]}
-                  maxBarSize={16}
-                />
-              ))}
+              <Bar
+                dataKey="total"
+                name="Applications"
+                fill="#d6a844"
+                radius={[3, 3, 0, 0]}
+                maxBarSize={28}
+              />
             </BarChart>
           </ResponsiveContainer>
-          <ChartLegend
-            items={counts.map((item, index) => ({
-              label: item.owner.display_name,
-              color: ownerColors[index % ownerColors.length],
-            }))}
-          />
         </DashboardChartCard>
 
         <section className="mt-5 grid gap-x-8 gap-y-6 rounded-2xl border border-border bg-card p-6 md:grid-cols-3">
@@ -1149,16 +982,30 @@ function DashboardPage({ context }: { context: AppContext }) {
             />
           </div>
           <div>
-            <h3 className="mb-4 text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
-              By applicant
-            </h3>
-            <BarGaugeRows
-              rows={applicationsByUser.map((item, index) => ({
-                label: item.name,
-                value: item.count,
-                color: ownerColors[index % ownerColors.length],
-              }))}
-            />
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <h3 className="text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
+                Top applicants
+              </h3>
+              <Link
+                to="/applications"
+                className="text-[10px] font-medium uppercase tracking-[0.08em] text-[#e0b850] transition-colors hover:text-primary"
+              >
+                View all
+              </Link>
+            </div>
+            {topApplicants.length > 0 ? (
+              <BarGaugeRows
+                rows={topApplicants.map((item, index) => ({
+                  label: item.owner.display_name,
+                  value: item.count,
+                  color: ownerColors[index % ownerColors.length],
+                }))}
+              />
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                No applications yet.
+              </p>
+            )}
           </div>
         </section>
       </div>
@@ -1190,26 +1037,182 @@ function DashboardChartCard({
   );
 }
 
-function ChartLegend({
-  items,
-}: {
-  items: { label: string; color: string }[];
-}) {
+// Placeholder weekly target per member. Real per-member goals are a
+// Milestone 4 ("accountability goals") backend feature.
+const WEEKLY_GOAL = 5;
+
+const teamAccountabilityColumns: {
+  key: TeamAccountabilitySort;
+  label: string;
+  align: "left" | "right";
+}[] = [
+  { key: "name", label: "Member", align: "left" },
+  { key: "active", label: "Active", align: "right" },
+  { key: "this_week", label: "This wk", align: "right" },
+  { key: "rejected", label: "Rejected", align: "right" },
+];
+
+function TeamAccountabilityCard({ context }: { context: AppContext }) {
+  const [rows, setRows] = useState<TeamAccountabilityRow[]>([]);
+  const [pagination, setPagination] = useState<
+    PaginatedApplications["pagination"]
+  >({ page: 1, page_size: 10, total_items: 0, total_pages: 0 });
+  const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<TeamAccountabilitySort>("active");
+  const [order, setOrder] = useState<"asc" | "desc">("desc");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<unknown>();
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(undefined);
+    try {
+      const response = await applicationsApi.teamAccountability(
+        context.client,
+        context.session.workspace.id,
+        { sort, order, page, pageSize: 10 },
+      );
+      setRows(response.items);
+      setPagination(response.pagination);
+    } catch (caught) {
+      setError(caught);
+    } finally {
+      setLoading(false);
+    }
+  }, [context.client, context.session.workspace.id, sort, order, page]);
+
+  useEffect(() => void load(), [load]);
+
+  const sortBy = (key: TeamAccountabilitySort) => {
+    if (key === sort) {
+      setOrder((current) => (current === "asc" ? "desc" : "asc"));
+    } else {
+      setSort(key);
+      setOrder(key === "name" ? "asc" : "desc");
+    }
+    setPage(1);
+  };
+
   return (
-    <div className="absolute bottom-6 left-6 flex flex-wrap gap-x-6 gap-y-2">
-      {items.map((item) => (
-        <span
-          key={item.label}
-          className="inline-flex items-center gap-2 text-xs text-muted-foreground"
-        >
-          <span
-            className="h-2.5 w-2.5 rounded-full"
-            style={{ backgroundColor: item.color }}
-          />
-          {item.label}
-        </span>
-      ))}
-    </div>
+    <section>
+      <h2 className="mb-3 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+        Team accountability
+      </h2>
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-border text-left text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+              {teamAccountabilityColumns.map((column) => (
+                <th
+                  key={column.key}
+                  className={`px-4 py-3 font-medium ${
+                    column.align === "right" ? "text-right" : "px-5"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => sortBy(column.key)}
+                    className={`inline-flex items-center gap-1 uppercase tracking-[0.08em] transition-colors hover:text-foreground ${
+                      sort === column.key ? "text-foreground" : ""
+                    } ${column.align === "right" ? "flex-row-reverse" : ""}`}
+                  >
+                    {column.label}
+                    {sort === column.key && (
+                      <span aria-hidden="true">
+                        {order === "asc" ? "▲" : "▼"}
+                      </span>
+                    )}
+                  </button>
+                </th>
+              ))}
+              <th className="w-[34%] px-5 py-3 font-medium">Weekly goal</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {rows.map((item) => {
+              const goalProgress = Math.min(
+                100,
+                Math.round((item.this_week / WEEKLY_GOAL) * 100),
+              );
+              const isCurrentUser = item.owner.id === context.session.user.id;
+              return (
+                <tr
+                  key={item.owner.id}
+                  className="transition-colors hover:bg-[#211910]"
+                >
+                  <td className="px-5 py-3.5">
+                    <div className="flex items-center gap-3">
+                      <Avatar id={item.owner.id} name={item.owner.display_name} />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate font-medium text-foreground">
+                            {item.owner.display_name}
+                          </span>
+                          {isCurrentUser && (
+                            <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
+                              You
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">
+                          {item.last_applied
+                            ? `Last applied ${formatDate(item.last_applied)}`
+                            : "No applications yet"}
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="font-numeric px-4 py-3.5 text-right text-foreground">
+                    {item.active}
+                  </td>
+                  <td className="font-numeric px-4 py-3.5 text-right text-[#9aa05f]">
+                    {item.this_week}
+                  </td>
+                  <td className="font-numeric px-4 py-3.5 text-right text-[#c2686a]">
+                    {item.rejected}
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <div className="flex items-center gap-3">
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-secondary">
+                        <div
+                          className="h-full rounded-full bg-primary transition-[width]"
+                          style={{ width: `${goalProgress}%` }}
+                        />
+                      </div>
+                      <span className="font-numeric whitespace-nowrap text-xs text-muted-foreground">
+                        <span className="text-foreground">{item.this_week}</span>{" "}
+                        / {WEEKLY_GOAL}
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {loading ? (
+          <div className="px-5 py-6">
+            <LoadingState label="Loading team…" />
+          </div>
+        ) : error ? (
+          <div className="px-5 py-6">
+            <ErrorState error={error} onRetry={load} />
+          </div>
+        ) : rows.length === 0 ? (
+          <p className="px-5 py-8 text-center text-sm text-muted-foreground">
+            No members yet.
+          </p>
+        ) : null}
+      </div>
+      {pagination.total_pages > 1 && (
+        <PaginationBar
+          pagination={pagination}
+          onPage={setPage}
+          pageSize={pagination.page_size}
+          noun="member"
+        />
+      )}
+    </section>
   );
 }
 
@@ -1485,7 +1488,7 @@ function ApplicationsPage({ context }: { context: AppContext }) {
             label="Owner"
             value={filters.ownerId}
             onChange={(value) => update({ ownerId: value })}
-            options={(summary?.by_owner ?? []).map((item) => ({
+            options={(summary?.top_applicants ?? []).map((item) => ({
               value: item.owner.id,
               label: item.owner.display_name,
             }))}
@@ -1801,16 +1804,18 @@ function PaginationBar({
   onPage,
   pageSize,
   onPageSize,
+  noun = "application",
 }: {
   pagination: PaginatedApplications["pagination"];
   onPage: (page: number) => void;
   pageSize: number;
   onPageSize?: (size: number) => void;
+  noun?: string;
 }) {
   return (
     <div className="mt-4 flex flex-col items-center justify-between gap-3 sm:flex-row">
       <p className="text-xs text-muted-foreground">
-        {pagination.total_items} application
+        {pagination.total_items} {noun}
         {pagination.total_items === 1 ? "" : "s"}
       </p>
       <div className="flex items-center gap-2">
@@ -2914,6 +2919,12 @@ function DeletedPage({ context }: { context: AppContext }) {
 function WorkspacePage({ context }: { context: AppContext }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
+  const [memberPagination, setMemberPagination] = useState<
+    PaginatedApplications["pagination"]
+  >({ page: 1, page_size: 20, total_items: 0, total_pages: 0 });
+  const [memberCount, setMemberCount] = useState(0);
+  const [memberSearch, setMemberSearch] = useState("");
+  const [memberPage, setMemberPage] = useState(1);
   const [invitations, setInvitations] = useState<WorkspaceInvitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>();
@@ -2936,18 +2947,22 @@ function WorkspacePage({ context }: { context: AppContext }) {
     setLoading(true);
     try {
       const [memberResponse, invitationResponse] = await Promise.all([
-        workspaceApi.members(
-          context.client,
-          context.session.workspace.id,
-        ),
+        workspaceApi.members(context.client, context.session.workspace.id, {
+          search: memberSearch.trim() || undefined,
+          page: memberPage,
+          pageSize: 20,
+        }),
         isOwner
           ? workspaceApi.invitations(
               context.client,
               context.session.workspace.id,
+              { pageSize: 100 },
             )
-          : Promise.resolve({ items: [] }),
+          : Promise.resolve({ items: [] as WorkspaceInvitation[] }),
       ]);
       setMembers(memberResponse.items);
+      setMemberPagination(memberResponse.pagination);
+      setMemberCount(memberResponse.member_count);
       setInvitations(invitationResponse.items);
       setError(undefined);
     } catch (caught) {
@@ -2955,7 +2970,13 @@ function WorkspacePage({ context }: { context: AppContext }) {
     } finally {
       setLoading(false);
     }
-  }, [context.client, context.session.workspace.id, isOwner]);
+  }, [
+    context.client,
+    context.session.workspace.id,
+    isOwner,
+    memberSearch,
+    memberPage,
+  ]);
 
   useEffect(() => void load(), [load]);
 
@@ -3173,8 +3194,7 @@ function WorkspacePage({ context }: { context: AppContext }) {
                 Members
               </h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                {members.length} active{" "}
-                {members.length === 1 ? "member" : "members"}
+                {memberCount} active {memberCount === 1 ? "member" : "members"}
               </p>
             </div>
             {isOwner && (
@@ -3210,10 +3230,32 @@ function WorkspacePage({ context }: { context: AppContext }) {
               </form>
             )}
           </div>
+          <label className="relative mb-3 block">
+            <span className="sr-only">Search members</span>
+            <Search
+              className="absolute left-3 top-2.5 text-muted-foreground"
+              size={14}
+            />
+            <input
+              value={memberSearch}
+              onChange={(event) => {
+                setMemberSearch(event.target.value);
+                setMemberPage(1);
+              }}
+              placeholder="Search members by name or email"
+              className="w-full rounded-lg border border-border bg-input py-2 pl-9 pr-3 text-xs text-foreground placeholder:text-[#6b6253] focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/15"
+            />
+          </label>
           {loading ? (
             <LoadingState label="Loading workspace members..." />
           ) : error ? (
             <ErrorState error={error} onRetry={load} />
+          ) : members.length === 0 ? (
+            <p className="rounded-xl border border-border bg-input px-4 py-8 text-center text-sm text-muted-foreground">
+              {memberSearch.trim()
+                ? "No members match your search."
+                : "No members yet."}
+            </p>
           ) : (
             <div className="space-y-2">
               {members.map((member) => {
@@ -3317,6 +3359,14 @@ function WorkspacePage({ context }: { context: AppContext }) {
                 </div>
               ))}
             </div>
+          )}
+          {memberPagination.total_pages > 1 && (
+            <PaginationBar
+              pagination={memberPagination}
+              onPage={setMemberPage}
+              pageSize={memberPagination.page_size}
+              noun="member"
+            />
           )}
         </div>
 

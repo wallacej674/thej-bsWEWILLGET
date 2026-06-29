@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.invitation import WorkspaceInvitation
@@ -47,18 +47,49 @@ class WorkspaceRepository:
         return session.execute(statement).tuples().one_or_none()
 
     def list_active_members(
-        self, session: Session, workspace_id: UUID
-    ) -> list[tuple[WorkspaceMembership, User]]:
+        self,
+        session: Session,
+        workspace_id: UUID,
+        *,
+        search: str | None = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> tuple[list[tuple[WorkspaceMembership, User]], int]:
+        filters = [
+            WorkspaceMembership.workspace_id == workspace_id,
+            WorkspaceMembership.removed_at.is_(None),
+        ]
+        if search:
+            pattern = f"%{search}%"
+            filters.append(
+                or_(User.display_name.ilike(pattern), User.email.ilike(pattern))
+            )
         statement: Select[tuple[WorkspaceMembership, User]] = (
             select(WorkspaceMembership, User)
             .join(User, User.id == WorkspaceMembership.user_id)
+            .where(*filters)
+            .order_by(User.display_name, User.id)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+        total = session.scalar(
+            select(func.count())
+            .select_from(WorkspaceMembership)
+            .join(User, User.id == WorkspaceMembership.user_id)
+            .where(*filters)
+        )
+        return list(session.execute(statement).tuples()), int(total or 0)
+
+    def count_active_members(self, session: Session, workspace_id: UUID) -> int:
+        total = session.scalar(
+            select(func.count())
+            .select_from(WorkspaceMembership)
             .where(
                 WorkspaceMembership.workspace_id == workspace_id,
                 WorkspaceMembership.removed_at.is_(None),
             )
-            .order_by(User.display_name, User.id)
         )
-        return list(session.execute(statement).tuples())
+        return int(total or 0)
 
     def get_active_membership(
         self, session: Session, workspace_id: UUID, user_id: UUID
@@ -93,19 +124,32 @@ class WorkspaceRepository:
         )
 
     def list_pending_invitations(
-        self, session: Session, workspace_id: UUID
-    ) -> list[WorkspaceInvitation]:
-        return list(
-            session.scalars(
-                select(WorkspaceInvitation)
-                .where(
-                    WorkspaceInvitation.workspace_id == workspace_id,
-                    WorkspaceInvitation.accepted_at.is_(None),
-                    WorkspaceInvitation.declined_at.is_(None),
-                )
-                .order_by(WorkspaceInvitation.created_at, WorkspaceInvitation.id)
-            )
+        self,
+        session: Session,
+        workspace_id: UUID,
+        *,
+        search: str | None = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> tuple[list[WorkspaceInvitation], int]:
+        filters = [
+            WorkspaceInvitation.workspace_id == workspace_id,
+            WorkspaceInvitation.accepted_at.is_(None),
+            WorkspaceInvitation.declined_at.is_(None),
+        ]
+        if search:
+            filters.append(WorkspaceInvitation.email.ilike(f"%{search}%"))
+        statement = (
+            select(WorkspaceInvitation)
+            .where(*filters)
+            .order_by(WorkspaceInvitation.created_at, WorkspaceInvitation.id)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
         )
+        total = session.scalar(
+            select(func.count()).select_from(WorkspaceInvitation).where(*filters)
+        )
+        return list(session.scalars(statement)), int(total or 0)
 
     def list_inbox_invitations(
         self, session: Session, email: str

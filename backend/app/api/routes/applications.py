@@ -17,6 +17,7 @@ from app.schemas.application import (
     JobPostingAutofillResponse,
     PermanentDeleteRequest,
     PermanentDeleteResponse,
+    TeamAccountabilityResponse,
 )
 from app.services.application_service import ApplicationService
 from app.services.job_posting_autofill_service import JobPostingAutofillService
@@ -31,10 +32,31 @@ job_posting_autofill_service = JobPostingAutofillService()
 @router.get("/summary", response_model=ApplicationSummaryResponse)
 def summarize_applications(
     workspace_id: UUID,
+    current_user: CurrentUser,
     _membership: WorkspaceAccess,
     session: DatabaseSession,
 ) -> ApplicationSummaryResponse:
-    return application_service.summarize(session, workspace_id)
+    return application_service.summarize(session, workspace_id, current_user.id)
+
+
+@router.get("/team-accountability", response_model=TeamAccountabilityResponse)
+def team_accountability(
+    workspace_id: UUID,
+    _membership: WorkspaceAccess,
+    session: DatabaseSession,
+    sort: Literal["active", "this_week", "rejected", "last_applied", "name"] = "active",
+    order: Literal["asc", "desc"] = "desc",
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> TeamAccountabilityResponse:
+    return application_service.team_accountability(
+        session,
+        workspace_id,
+        sort=sort,
+        order=order,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.get("", response_model=ApplicationListResponse)

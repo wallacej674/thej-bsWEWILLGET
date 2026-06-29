@@ -17,7 +17,10 @@ from app.core.url_normalization import normalize_job_posting_url
 from app.models.application import JobApplication
 from app.models.membership import WorkspaceMembership
 from app.models.user import User
-from app.repositories.application_repository import ApplicationRepository
+from app.repositories.application_repository import (
+    TEAM_ACCOUNTABILITY_SORTS,
+    ApplicationRepository,
+)
 from app.schemas.application import (
     ApplicationCreate,
     ApplicationListResponse,
@@ -33,7 +36,15 @@ from app.schemas.application import (
     PermanentDeleteRequest,
     PermanentDeleteResponse,
     RecentApplicationActivity,
+    TeamAccountabilityResponse,
+    TeamAccountabilityRow,
 )
+
+# Bounds for the dashboard summary so the payload stays small regardless of how
+# many members or applications a workspace holds.
+SUMMARY_WEEK_WINDOW = 8
+TOP_APPLICANTS_LIMIT = 8
+RECENT_ACTIVITY_LIMIT = 5
 
 
 class ApplicationService:
@@ -147,60 +158,51 @@ class ApplicationService:
         )
 
     def summarize(
-        self, session: Session, workspace_id: UUID
+        self, session: Session, workspace_id: UUID, user_id: UUID
     ) -> ApplicationSummaryResponse:
         today = application_today()
-        month_start = today.replace(day=1)
-        next_month_start = (
-            month_start.replace(year=month_start.year + 1, month=1)
-            if month_start.month == 12
-            else month_start.replace(month=month_start.month + 1)
+        current_week_start = today - timedelta(days=today.weekday())
+        next_week_start = current_week_start + timedelta(days=7)
+        week_starts = [
+            current_week_start - timedelta(weeks=offset)
+            for offset in reversed(range(SUMMARY_WEEK_WINDOW))
+        ]
+        window_start = week_starts[0]
+
+        total_active, current_week, recently_updated, deleted = (
+            self._repository.summarize_totals(
+                session, workspace_id, user_id, current_week_start, next_week_start
+            )
         )
-        rows, current_month = self._repository.summarize_active(
-            session, workspace_id, month_start, next_month_start
+        status_counts = self._repository.summarize_status_counts(session, workspace_id)
+        work_arrangement_counts = self._repository.summarize_work_arrangement_counts(
+            session, workspace_id
         )
-        by_owner = [
+
+        daily_counts = self._repository.applications_over_time(
+            session, workspace_id, window_start, next_week_start
+        )
+        applications_over_time = [
+            ApplicationsOverTimePoint(
+                week_start=week_start,
+                total=sum(
+                    count
+                    for day, count in daily_counts.items()
+                    if week_start <= day < week_start + timedelta(days=7)
+                ),
+            )
+            for week_start in week_starts
+        ]
+
+        top_applicants = [
             ApplicationOwnerSummary(
                 owner=ApplicationOwner.from_user(owner),
                 count=count,
             )
-            for owner, count in rows
-        ]
-        dashboard_rows = self._repository.list_active_for_dashboard(
-            session, workspace_id
-        )
-        status_counts = {status: 0 for status in ApplicationStatus}
-        work_arrangement_counts = {arrangement: 0 for arrangement in WorkArrangement}
-        for application, _owner in dashboard_rows:
-            status_counts[application.status] += 1
-            work_arrangement_counts[application.work_arrangement] += 1
-
-        current_week_start = today - timedelta(days=today.weekday())
-        week_starts = [
-            current_week_start - timedelta(weeks=offset)
-            for offset in reversed(range(8))
-        ]
-        applications_over_time = []
-        for week_start in week_starts:
-            next_week_start = week_start + timedelta(days=7)
-            owner_counts = {owner_summary.owner.id: 0 for owner_summary in by_owner}
-            for application, _owner in dashboard_rows:
-                if week_start <= application.application_date < next_week_start:
-                    owner_counts[application.owner_id] = (
-                        owner_counts.get(application.owner_id, 0) + 1
-                    )
-            applications_over_time.append(
-                ApplicationsOverTimePoint(
-                    week_start=week_start,
-                    by_owner=[
-                        ApplicationOwnerSummary(
-                            owner=owner_summary.owner,
-                            count=owner_counts.get(owner_summary.owner.id, 0),
-                        )
-                        for owner_summary in by_owner
-                    ],
-                )
+            for owner, count in self._repository.top_applicants(
+                session, workspace_id, TOP_APPLICANTS_LIMIT
             )
+        ]
 
         recent_activity = [
             RecentApplicationActivity(
@@ -221,23 +223,66 @@ class ApplicationService:
                 occurred_at=application.updated_at,
                 status=application.status,
             )
-            for application, owner in dashboard_rows[:5]
+            for application, owner in self._repository.list_recent_activity(
+                session, workspace_id, RECENT_ACTIVITY_LIMIT
+            )
         ]
-        recently_updated = sum(
-            1
-            for application, _owner in dashboard_rows
-            if abs((application.updated_at - application.created_at).total_seconds())
-            >= 1
-        )
         return ApplicationSummaryResponse(
-            total_active=sum(owner.count for owner in by_owner),
-            current_month=current_month,
+            total_active=total_active,
+            current_week=current_week,
             recently_updated=recently_updated,
-            by_owner=by_owner,
+            deleted=deleted,
             status_counts=status_counts,
             work_arrangement_counts=work_arrangement_counts,
             applications_over_time=applications_over_time,
+            top_applicants=top_applicants,
             recent_activity=recent_activity,
+        )
+
+    def team_accountability(
+        self,
+        session: Session,
+        workspace_id: UUID,
+        *,
+        sort: str,
+        order: str,
+        page: int,
+        page_size: int,
+    ) -> TeamAccountabilityResponse:
+        if sort not in TEAM_ACCOUNTABILITY_SORTS:
+            raise AppError(
+                400, "validation_error", "Unsupported team-accountability sort."
+            )
+        today = application_today()
+        current_week_start = today - timedelta(days=today.weekday())
+        next_week_start = current_week_start + timedelta(days=7)
+        rows, total = self._repository.team_accountability(
+            session,
+            workspace_id,
+            week_start=current_week_start,
+            next_week_start=next_week_start,
+            sort=sort,
+            order=order,
+            page=page,
+            page_size=page_size,
+        )
+        return TeamAccountabilityResponse(
+            items=[
+                TeamAccountabilityRow(
+                    owner=ApplicationOwner.from_user(owner),
+                    active=active,
+                    this_week=this_week,
+                    rejected=rejected,
+                    last_applied=last_applied,
+                )
+                for owner, active, this_week, rejected, last_applied in rows
+            ],
+            pagination=Pagination(
+                page=page,
+                page_size=page_size,
+                total_items=total,
+                total_pages=(total + page_size - 1) // page_size if total else 0,
+            ),
         )
 
     def get_active(

@@ -249,7 +249,7 @@ class ApplicationOwnerSummary(BaseModel):
 
 class ApplicationsOverTimePoint(BaseModel):
     week_start: date
-    by_owner: list[ApplicationOwnerSummary]
+    total: int
 
 
 class RecentApplicationActivity(BaseModel):
@@ -263,14 +263,36 @@ class RecentApplicationActivity(BaseModel):
 
 
 class ApplicationSummaryResponse(BaseModel):
+    """Bounded workspace summary.
+
+    The payload size is independent of member count: totals are scalars,
+    ``applications_over_time`` carries one workspace total per week, and
+    ``top_applicants`` is capped at a small top-N. Per-owner accountability
+    data lives behind the paginated team-accountability endpoint instead.
+    """
+
     total_active: int
-    current_month: int
+    current_week: int
     recently_updated: int
-    by_owner: list[ApplicationOwnerSummary]
+    deleted: int
     status_counts: dict[ApplicationStatus, int]
     work_arrangement_counts: dict[WorkArrangement, int]
     applications_over_time: list[ApplicationsOverTimePoint]
+    top_applicants: list[ApplicationOwnerSummary]
     recent_activity: list[RecentApplicationActivity]
+
+
+class TeamAccountabilityRow(BaseModel):
+    owner: ApplicationOwner
+    active: int
+    this_week: int
+    rejected: int
+    last_applied: date | None
+
+
+class TeamAccountabilityResponse(BaseModel):
+    items: list[TeamAccountabilityRow]
+    pagination: Pagination
 
 
 class DeletedApplicationResponse(ApplicationResponse):

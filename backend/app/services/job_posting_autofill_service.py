@@ -24,9 +24,9 @@ from app.schemas.application import (
     JobPostingAutofillResponse,
 )
 
-MAX_FETCH_BYTES = 1_000_000
+MAX_FETCH_BYTES = 2_000_000
 MAX_DESCRIPTION_CHARS = 20_000
-FETCH_TIMEOUT_SECONDS = 8
+FETCH_TIMEOUT_SECONDS = 12
 USER_AGENT = "ApplyTogetherJobAutofill/3.0"
 BLOCKED_HOSTNAMES = {"localhost", "localhost.localdomain"}
 JOB_BOARD_SITE_NAMES = {

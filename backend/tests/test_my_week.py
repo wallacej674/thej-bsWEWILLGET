@@ -57,7 +57,9 @@ def test_my_week_reports_this_week_count_and_unset_goal(
     api_client, database_session, active_member, shared_workspace
 ) -> None:
     database_session.add(
-        _make_application(shared_workspace, active_member, application_date=application_today())
+        _make_application(
+            shared_workspace, active_member, application_date=application_today()
+        )
     )
     database_session.flush()
 
@@ -83,9 +85,7 @@ def test_setting_weekly_goal_persists_and_is_reflected(
 def test_invalid_weekly_goal_is_rejected(
     api_client, database_session, active_member, shared_workspace
 ) -> None:
-    assert (
-        _set_goal(api_client, shared_workspace, active_member, 0).status_code == 422
-    )
+    assert _set_goal(api_client, shared_workspace, active_member, 0).status_code == 422
 
 
 def test_streak_is_one_when_only_current_week_meets_goal(
@@ -95,8 +95,12 @@ def test_streak_is_one_when_only_current_week_meets_goal(
     today = application_today()
     database_session.add_all(
         [
-            _make_application(shared_workspace, active_member, application_date=today, slug="a"),
-            _make_application(shared_workspace, active_member, application_date=today, slug="b"),
+            _make_application(
+                shared_workspace, active_member, application_date=today, slug="a"
+            ),
+            _make_application(
+                shared_workspace, active_member, application_date=today, slug="b"
+            ),
         ]
     )
     database_session.flush()
@@ -114,11 +118,30 @@ def test_incomplete_current_week_does_not_break_prior_streak(
     database_session.add_all(
         [
             # Current week is below goal (in progress) — must not reset the streak.
-            _make_application(shared_workspace, active_member, application_date=application_today(), slug="now"),
-            _make_application(shared_workspace, active_member, application_date=last_week, slug="l1"),
-            _make_application(shared_workspace, active_member, application_date=last_week, slug="l2"),
-            _make_application(shared_workspace, active_member, application_date=two_weeks_ago, slug="t1"),
-            _make_application(shared_workspace, active_member, application_date=two_weeks_ago, slug="t2"),
+            _make_application(
+                shared_workspace,
+                active_member,
+                application_date=application_today(),
+                slug="now",
+            ),
+            _make_application(
+                shared_workspace, active_member, application_date=last_week, slug="l1"
+            ),
+            _make_application(
+                shared_workspace, active_member, application_date=last_week, slug="l2"
+            ),
+            _make_application(
+                shared_workspace,
+                active_member,
+                application_date=two_weeks_ago,
+                slug="t1",
+            ),
+            _make_application(
+                shared_workspace,
+                active_member,
+                application_date=two_weeks_ago,
+                slug="t2",
+            ),
         ]
     )
     database_session.flush()
@@ -136,12 +159,31 @@ def test_missed_week_stops_the_streak(
     three_weeks_ago = this_week - timedelta(days=21)
     database_session.add_all(
         [
-            _make_application(shared_workspace, active_member, application_date=last_week, slug="l1"),
-            _make_application(shared_workspace, active_member, application_date=last_week, slug="l2"),
+            _make_application(
+                shared_workspace, active_member, application_date=last_week, slug="l1"
+            ),
+            _make_application(
+                shared_workspace, active_member, application_date=last_week, slug="l2"
+            ),
             # Two weeks ago missed the goal (only one) — the streak stops here.
-            _make_application(shared_workspace, active_member, application_date=two_weeks_ago, slug="t1"),
-            _make_application(shared_workspace, active_member, application_date=three_weeks_ago, slug="x1"),
-            _make_application(shared_workspace, active_member, application_date=three_weeks_ago, slug="x2"),
+            _make_application(
+                shared_workspace,
+                active_member,
+                application_date=two_weeks_ago,
+                slug="t1",
+            ),
+            _make_application(
+                shared_workspace,
+                active_member,
+                application_date=three_weeks_ago,
+                slug="x1",
+            ),
+            _make_application(
+                shared_workspace,
+                active_member,
+                application_date=three_weeks_ago,
+                slug="x2",
+            ),
         ]
     )
     database_session.flush()
@@ -155,9 +197,16 @@ def test_day_streak_counts_back_from_today_and_stops_at_a_gap(
     today = application_today()
     database_session.add_all(
         [
-            _make_application(shared_workspace, active_member, application_date=today, slug="d0"),
+            _make_application(
+                shared_workspace, active_member, application_date=today, slug="d0"
+            ),
             # Skip yesterday; the day two back is present but the gap stops the run.
-            _make_application(shared_workspace, active_member, application_date=today - timedelta(days=2), slug="d2"),
+            _make_application(
+                shared_workspace,
+                active_member,
+                application_date=today - timedelta(days=2),
+                slug="d2",
+            ),
         ]
     )
     database_session.flush()
@@ -171,8 +220,18 @@ def test_day_streak_survives_an_empty_today(
     today = application_today()
     database_session.add_all(
         [
-            _make_application(shared_workspace, active_member, application_date=today - timedelta(days=1), slug="y"),
-            _make_application(shared_workspace, active_member, application_date=today - timedelta(days=2), slug="yy"),
+            _make_application(
+                shared_workspace,
+                active_member,
+                application_date=today - timedelta(days=1),
+                slug="y",
+            ),
+            _make_application(
+                shared_workspace,
+                active_member,
+                application_date=today - timedelta(days=2),
+                slug="yy",
+            ),
         ]
     )
     database_session.flush()
@@ -187,13 +246,17 @@ def test_oldest_open_returns_oldest_applied_and_ignores_closed(
     database_session.add_all(
         [
             _make_application(
-                shared_workspace, active_member,
-                application_date=today - timedelta(days=20), slug="old",
+                shared_workspace,
+                active_member,
+                application_date=today - timedelta(days=20),
+                slug="old",
             ),
             _make_application(
-                shared_workspace, active_member,
+                shared_workspace,
+                active_member,
                 application_date=today - timedelta(days=40),
-                status=ApplicationStatus.REJECTED, slug="rej",
+                status=ApplicationStatus.REJECTED,
+                slug="rej",
             ),
         ]
     )
@@ -209,9 +272,11 @@ def test_oldest_open_is_null_without_open_applications(
 ) -> None:
     database_session.add(
         _make_application(
-            shared_workspace, active_member,
+            shared_workspace,
+            active_member,
             application_date=application_today(),
-            status=ApplicationStatus.WITHDRAWN, slug="w",
+            status=ApplicationStatus.WITHDRAWN,
+            slug="w",
         )
     )
     database_session.flush()

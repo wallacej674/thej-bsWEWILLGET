@@ -347,9 +347,7 @@ class ApplicationService:
         today = application_today()
         current_week_start = _week_start_of(today)
         next_week_start = current_week_start + timedelta(days=7)
-        window_start = current_week_start - timedelta(
-            weeks=MY_WEEK_STREAK_WINDOW - 1
-        )
+        window_start = current_week_start - timedelta(weeks=MY_WEEK_STREAK_WINDOW - 1)
 
         daily_counts = self._repository.owner_daily_counts(
             session, workspace_id, user_id, window_start, next_week_start
@@ -409,9 +407,7 @@ class ApplicationService:
     ) -> MyWeekResponse:
         membership.weekly_goal = weekly_goal
         self._commit(session)
-        return self.my_week(
-            session, workspace_id, membership.user_id, weekly_goal
-        )
+        return self.my_week(session, workspace_id, membership.user_id, weekly_goal)
 
     def get_active(
         self, session: Session, workspace_id: UUID, application_id: UUID

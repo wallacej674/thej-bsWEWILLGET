@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.enums import MembershipRole
 from app.core.errors import AppError
+from app.core.settings import get_settings
 from app.core.time import utc_now
 from app.models.invitation import WorkspaceInvitation
 from app.models.membership import WorkspaceMembership
@@ -16,6 +17,7 @@ from app.schemas.workspace import (
     InvitationInboxResponse,
     InvitationSender,
     InvitationWorkspace,
+    Pagination,
     WorkspaceCreate,
     WorkspaceInvitationCreate,
     WorkspaceInvitationListResponse,
@@ -29,9 +31,27 @@ from app.schemas.workspace import (
 )
 
 
+def _pagination(page: int, page_size: int, total: int) -> Pagination:
+    return Pagination(
+        page=page,
+        page_size=page_size,
+        total_items=total,
+        total_pages=(total + page_size - 1) // page_size if total else 0,
+    )
+
+
 class WorkspaceService:
     def __init__(self, repository: WorkspaceRepository | None = None) -> None:
         self._repository = repository or WorkspaceRepository()
+
+    def _enforce_member_cap(self, session: Session, workspace_id: UUID) -> None:
+        cap = get_settings().workspace_member_cap
+        if self._repository.count_active_members(session, workspace_id) >= cap:
+            raise AppError(
+                409,
+                "workspace_member_cap_reached",
+                f"This workspace has reached its limit of {cap} members.",
+            )
 
     def list_accessible_workspaces(
         self, session: Session, user_id: UUID
@@ -84,8 +104,22 @@ class WorkspaceService:
         )
 
     def list_members(
-        self, session: Session, workspace_id: UUID
+        self,
+        session: Session,
+        workspace_id: UUID,
+        *,
+        search: str | None = None,
+        page: int = 1,
+        page_size: int = 20,
     ) -> WorkspaceMemberListResponse:
+        rows, total = self._repository.list_active_members(
+            session, workspace_id, search=search, page=page, page_size=page_size
+        )
+        member_count = (
+            total
+            if not search
+            else self._repository.count_active_members(session, workspace_id)
+        )
         return WorkspaceMemberListResponse(
             items=[
                 WorkspaceMember(
@@ -98,10 +132,10 @@ class WorkspaceService:
                     role=membership.role,
                     joined_at=membership.created_at,
                 )
-                for membership, user in self._repository.list_active_members(
-                    session, workspace_id
-                )
-            ]
+                for membership, user in rows
+            ],
+            pagination=_pagination(page, page_size, total),
+            member_count=member_count,
         )
 
     def invite_member(
@@ -113,6 +147,7 @@ class WorkspaceService:
         payload: WorkspaceInvitationCreate,
     ) -> WorkspaceInvitationResponse:
         self._require_owner(actor_membership)
+        self._enforce_member_cap(session, workspace_id)
         user = self._repository.get_user_by_email(session, payload.email)
         if user is not None:
             existing_membership = self._repository.get_active_membership(
@@ -207,6 +242,11 @@ class WorkspaceService:
                 WorkspaceMembership.user_id == user.id,
             )
         )
+        # Joining (new membership or re-activating a removed one) grows the active
+        # roster, so it must respect the hard cap. An already-active membership is
+        # idempotent and exempt.
+        if membership is None or membership.removed_at is not None:
+            self._enforce_member_cap(session, workspace.id)
         if membership is None:
             session.add(
                 WorkspaceMembership(
@@ -247,8 +287,15 @@ class WorkspaceService:
         session: Session,
         workspace_id: UUID,
         actor_membership: WorkspaceMembership,
+        *,
+        search: str | None = None,
+        page: int = 1,
+        page_size: int = 20,
     ) -> WorkspaceInvitationListResponse:
         self._require_owner(actor_membership)
+        invitations, total = self._repository.list_pending_invitations(
+            session, workspace_id, search=search, page=page, page_size=page_size
+        )
         return WorkspaceInvitationListResponse(
             items=[
                 WorkspaceInvitationResponse(
@@ -257,10 +304,9 @@ class WorkspaceService:
                     status="pending",
                     invited_at=invitation.created_at,
                 )
-                for invitation in self._repository.list_pending_invitations(
-                    session, workspace_id
-                )
-            ]
+                for invitation in invitations
+            ],
+            pagination=_pagination(page, page_size, total),
         )
 
     def revoke_invitation(

@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     openai_resume_tailor_timeout_seconds: int = 30
     log_level: str = "INFO"
     app_timezone: str = "America/Chicago"
+    # Hard cap on active members per workspace, enforced on invite and accept.
+    # Conservative default for the low-hundreds target; raise as scale grows.
+    workspace_member_cap: int = 500
     seed_jonathan_email: str = "jonathan@example.test"
     seed_jonathan_display_name: str = "Jonathan"
     seed_kareem_email: str = "kareem@example.test"

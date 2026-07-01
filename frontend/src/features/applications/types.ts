@@ -179,17 +179,20 @@ export interface OwnerApplicationCount {
   count: number;
 }
 
+export interface ApplicationsOverTimePoint {
+  week_start: string;
+  total: number;
+}
+
 export interface ApplicationSummary {
   total_active: number;
-  current_month: number;
+  current_week: number;
   recently_updated: number;
-  by_owner: OwnerApplicationCount[];
+  deleted: number;
   status_counts: Record<ApplicationStatus, number>;
   work_arrangement_counts: Record<WorkArrangement, number>;
-  applications_over_time: {
-    week_start: string;
-    by_owner: OwnerApplicationCount[];
-  }[];
+  applications_over_time: ApplicationsOverTimePoint[];
+  top_applicants: OwnerApplicationCount[];
   recent_activity: {
     application_id: string;
     company_name: string;
@@ -199,6 +202,60 @@ export interface ApplicationSummary {
     occurred_at: string;
     status: ApplicationStatus;
   }[];
+}
+
+export type TeamAccountabilitySort =
+  | "active"
+  | "this_week"
+  | "rejected"
+  | "last_applied"
+  | "name";
+
+export interface TeamAccountabilityRow {
+  owner: OwnerSummary;
+  active: number;
+  this_week: number;
+  rejected: number;
+  last_applied: string | null;
+  weekly_goal: number | null;
+}
+
+export interface TeamAccountabilityResponse {
+  items: TeamAccountabilityRow[];
+  pagination: Pagination;
+}
+
+export interface MyWeekPoint {
+  week_start: string;
+  total: number;
+  met_goal: boolean;
+}
+
+export interface MyWeekOldestOpen {
+  application_id: string;
+  company_name: string;
+  job_title: string;
+  application_date: string;
+}
+
+export interface MyWeek {
+  weekly_goal: number | null;
+  applied_this_week: number;
+  streak_weeks: number;
+  day_streak: number;
+  recent_weeks: MyWeekPoint[];
+  oldest_open: MyWeekOldestOpen | null;
+}
+
+export interface WorkspaceMemberListResponse {
+  items: WorkspaceMember[];
+  pagination: Pagination;
+  member_count: number;
+}
+
+export interface WorkspaceInvitationListResponse {
+  items: WorkspaceInvitation[];
+  pagination: Pagination;
 }
 
 export interface ApplicationFilters {

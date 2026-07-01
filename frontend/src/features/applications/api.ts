@@ -10,12 +10,17 @@ import type {
   JobApplication,
   JobPostingAutofillResponse,
   InvitationInboxItem,
+  MyWeek,
   PaginatedApplications,
   ResumeProfile,
   ResumeTailorAnalysis,
+  TeamAccountabilityResponse,
+  TeamAccountabilitySort,
   Workspace,
   WorkspaceInvitation,
+  WorkspaceInvitationListResponse,
   WorkspaceMember,
+  WorkspaceMemberListResponse,
 } from "./types";
 
 export type ApiClient = ReturnType<typeof createApiClient>;
@@ -29,9 +34,18 @@ export const sessionApi = {
 export const workspaceApi = {
   create: (client: ApiClient, name: string) =>
     client.post<Workspace>("/workspaces", { name }),
-  members: (client: ApiClient, workspaceId: string) =>
-    client.get<{ items: WorkspaceMember[] }>(
+  members: (
+    client: ApiClient,
+    workspaceId: string,
+    params: { search?: string; page?: number; pageSize?: number } = {},
+  ) =>
+    client.get<WorkspaceMemberListResponse>(
       `/workspaces/${workspaceId}/members`,
+      {
+        ...(params.search ? { search: params.search } : {}),
+        page: params.page ?? 1,
+        page_size: params.pageSize ?? 20,
+      },
     ),
   removeMember: (client: ApiClient, workspaceId: string, userId: string) =>
     client.delete(`/workspaces/${workspaceId}/members/${userId}`),
@@ -47,9 +61,18 @@ export const workspaceApi = {
     ),
   delete: (client: ApiClient, workspaceId: string) =>
     client.delete(`/workspaces/${workspaceId}`),
-  invitations: (client: ApiClient, workspaceId: string) =>
-    client.get<{ items: WorkspaceInvitation[] }>(
+  invitations: (
+    client: ApiClient,
+    workspaceId: string,
+    params: { search?: string; page?: number; pageSize?: number } = {},
+  ) =>
+    client.get<WorkspaceInvitationListResponse>(
       `/workspaces/${workspaceId}/invitations`,
+      {
+        ...(params.search ? { search: params.search } : {}),
+        page: params.page ?? 1,
+        page_size: params.pageSize ?? 100,
+      },
     ),
   invite: (client: ApiClient, workspaceId: string, email: string) =>
     client.post<WorkspaceInvitation>(
@@ -94,6 +117,32 @@ export const applicationsApi = {
   summary: (client: ApiClient, workspaceId: string) =>
     client.get<ApplicationSummary>(
       `/workspaces/${workspaceId}/applications/summary`,
+    ),
+  myWeek: (client: ApiClient, workspaceId: string) =>
+    client.get<MyWeek>(`/workspaces/${workspaceId}/applications/my-week`),
+  setWeeklyGoal: (client: ApiClient, workspaceId: string, weeklyGoal: number) =>
+    client.patch<MyWeek>(
+      `/workspaces/${workspaceId}/applications/weekly-goal`,
+      { weekly_goal: weeklyGoal },
+    ),
+  teamAccountability: (
+    client: ApiClient,
+    workspaceId: string,
+    params: {
+      sort?: TeamAccountabilitySort;
+      order?: "asc" | "desc";
+      page?: number;
+      pageSize?: number;
+    } = {},
+  ) =>
+    client.get<TeamAccountabilityResponse>(
+      `/workspaces/${workspaceId}/applications/team-accountability`,
+      {
+        sort: params.sort ?? "active",
+        order: params.order ?? "desc",
+        page: params.page ?? 1,
+        page_size: params.pageSize ?? 10,
+      },
     ),
   get: (client: ApiClient, workspaceId: string, applicationId: string) =>
     client.get<JobApplication>(

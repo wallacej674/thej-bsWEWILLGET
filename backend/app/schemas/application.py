@@ -249,7 +249,7 @@ class ApplicationOwnerSummary(BaseModel):
 
 class ApplicationsOverTimePoint(BaseModel):
     week_start: date
-    by_owner: list[ApplicationOwnerSummary]
+    total: int
 
 
 class RecentApplicationActivity(BaseModel):
@@ -263,14 +263,65 @@ class RecentApplicationActivity(BaseModel):
 
 
 class ApplicationSummaryResponse(BaseModel):
+    """Bounded workspace summary.
+
+    The payload size is independent of member count: totals are scalars,
+    ``applications_over_time`` carries one workspace total per week, and
+    ``top_applicants`` is capped at a small top-N. Per-owner accountability
+    data lives behind the paginated team-accountability endpoint instead.
+    """
+
     total_active: int
-    current_month: int
+    current_week: int
     recently_updated: int
-    by_owner: list[ApplicationOwnerSummary]
+    deleted: int
     status_counts: dict[ApplicationStatus, int]
     work_arrangement_counts: dict[WorkArrangement, int]
     applications_over_time: list[ApplicationsOverTimePoint]
+    top_applicants: list[ApplicationOwnerSummary]
     recent_activity: list[RecentApplicationActivity]
+
+
+class TeamAccountabilityRow(BaseModel):
+    owner: ApplicationOwner
+    active: int
+    this_week: int
+    rejected: int
+    last_applied: date | None
+    weekly_goal: int | None
+
+
+class TeamAccountabilityResponse(BaseModel):
+    items: list[TeamAccountabilityRow]
+    pagination: Pagination
+
+
+class MyWeekPoint(BaseModel):
+    week_start: date
+    total: int
+    met_goal: bool
+
+
+class OldestOpenApplication(BaseModel):
+    application_id: UUID
+    company_name: str
+    job_title: str
+    application_date: date
+
+
+class MyWeekResponse(BaseModel):
+    """The current member's personal accountability snapshot."""
+
+    weekly_goal: int | None
+    applied_this_week: int
+    streak_weeks: int
+    day_streak: int
+    recent_weeks: list[MyWeekPoint]
+    oldest_open: OldestOpenApplication | None
+
+
+class WeeklyGoalUpdate(BaseModel):
+    weekly_goal: int = Field(ge=1, le=100)
 
 
 class DeletedApplicationResponse(ApplicationResponse):

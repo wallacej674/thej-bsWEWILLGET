@@ -20,7 +20,10 @@ def test_workspace_member_can_view_active_application_summary(
     shared_workspace,
 ) -> None:
     today = application_today()
-    previous_month = today.replace(day=1) - timedelta(days=1)
+    # Monday of the previous week — reliably outside the current week regardless
+    # of where today falls in the month (a fixed "last day of prior month" lands
+    # inside the current week near month boundaries).
+    earlier_week = today - timedelta(days=today.weekday() + 7)
     former_member = User(email="former@example.test", display_name="Former Member")
     database_session.add(former_member)
     database_session.flush()
@@ -69,7 +72,7 @@ def test_workspace_member_can_view_active_application_summary(
             location="Chicago",
             work_arrangement=WorkArrangement.HYBRID,
             employment_type=EmploymentType.FULL_TIME,
-            application_date=previous_month,
+            application_date=earlier_week,
             status=ApplicationStatus.REJECTED,
         ),
         JobApplication(
@@ -98,17 +101,17 @@ def test_workspace_member_can_view_active_application_summary(
     assert response.status_code == 200
     body = response.json()
     assert body["total_active"] == 3
-    assert body["current_month"] == 2
+    # Two of the active applications fall in the current week (the two dated
+    # today); Beta is dated in an earlier week and the deleted row is excluded.
+    assert body["current_week"] == 2
     assert body["recently_updated"] == 0
-    assert body["by_owner"] == [
-        {
-            "owner": {
-                "id": str(former_member.id),
-                "display_name": "Former Member",
-                "avatar_url": None,
-            },
-            "count": 1,
-        },
+    # The requesting member deleted nothing, so their recoverable count is zero.
+    assert body["deleted"] == 0
+    # The bounded summary no longer carries a per-owner array; it exposes a
+    # capped top-applicants list ordered by active count (members with no active
+    # applications are omitted).
+    assert "by_owner" not in body
+    assert body["top_applicants"] == [
         {
             "owner": {
                 "id": str(active_member.id),
@@ -119,11 +122,11 @@ def test_workspace_member_can_view_active_application_summary(
         },
         {
             "owner": {
-                "id": str(second_active_member.id),
-                "display_name": "Kareem",
+                "id": str(former_member.id),
+                "display_name": "Former Member",
                 "avatar_url": None,
             },
-            "count": 0,
+            "count": 1,
         },
     ]
     assert body["status_counts"] == {
@@ -144,4 +147,8 @@ def test_workspace_member_can_view_active_application_summary(
         "Beta",
     }
     assert body["recent_activity"][0]["action"] == "added"
+    # Over-time is now a workspace total per week, not a per-owner breakdown.
     assert len(body["applications_over_time"]) == 8
+    latest_week = body["applications_over_time"][-1]
+    assert set(latest_week) == {"week_start", "total"}
+    assert latest_week["total"] == 2

@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, timedelta
 from uuid import UUID
 
 from pydantic import ValidationError
@@ -17,7 +17,10 @@ from app.core.url_normalization import normalize_job_posting_url
 from app.models.application import JobApplication
 from app.models.membership import WorkspaceMembership
 from app.models.user import User
-from app.repositories.application_repository import ApplicationRepository
+from app.repositories.application_repository import (
+    TEAM_ACCOUNTABILITY_SORTS,
+    ApplicationRepository,
+)
 from app.schemas.application import (
     ApplicationCreate,
     ApplicationListResponse,
@@ -29,11 +32,70 @@ from app.schemas.application import (
     ApplicationUpdate,
     DeletedApplicationListResponse,
     DeletedApplicationResponse,
+    MyWeekPoint,
+    MyWeekResponse,
+    OldestOpenApplication,
     Pagination,
     PermanentDeleteRequest,
     PermanentDeleteResponse,
     RecentApplicationActivity,
+    TeamAccountabilityResponse,
+    TeamAccountabilityRow,
 )
+
+# Bounds for the dashboard summary so the payload stays small regardless of how
+# many members or applications a workspace holds.
+SUMMARY_WEEK_WINDOW = 8
+TOP_APPLICANTS_LIMIT = 8
+RECENT_ACTIVITY_LIMIT = 5
+
+# Bounds for the personal "your week" snapshot. Streaks are computed within this
+# window (a longer run is capped at the window); the sparkline shows the most
+# recent weeks.
+MY_WEEK_STREAK_WINDOW = 26
+MY_WEEK_RECENT_WEEKS = 8
+
+
+def _week_start_of(day: date) -> date:
+    """Monday of the week containing ``day`` (matches the rest of the app)."""
+    return day - timedelta(days=day.weekday())
+
+
+def compute_week_streak(
+    counts_by_week: dict[date, int], goal: int | None, current_week_start: date
+) -> int:
+    """Consecutive weeks meeting ``goal``, counting back from this week.
+
+    The in-progress current week never breaks the streak: it only adds to it
+    once already met, otherwise the streak is the run of completed prior weeks.
+    A missing or non-positive goal yields no streak.
+    """
+    if goal is None or goal <= 0:
+        return 0
+    streak = 0
+    if counts_by_week.get(current_week_start, 0) >= goal:
+        streak += 1
+    cursor = current_week_start - timedelta(days=7)
+    while counts_by_week.get(cursor, 0) >= goal:
+        streak += 1
+        cursor -= timedelta(days=7)
+    return streak
+
+
+def compute_day_streak(active_days: set[date], today: date) -> int:
+    """Consecutive days with at least one application, counting back from today.
+
+    Today being empty does not break the streak (the day is still in progress);
+    the count then runs back from yesterday.
+    """
+    streak = 0
+    cursor = today
+    if today not in active_days:
+        cursor = today - timedelta(days=1)
+    while cursor in active_days:
+        streak += 1
+        cursor -= timedelta(days=1)
+    return streak
 
 
 class ApplicationService:
@@ -147,60 +209,51 @@ class ApplicationService:
         )
 
     def summarize(
-        self, session: Session, workspace_id: UUID
+        self, session: Session, workspace_id: UUID, user_id: UUID
     ) -> ApplicationSummaryResponse:
         today = application_today()
-        month_start = today.replace(day=1)
-        next_month_start = (
-            month_start.replace(year=month_start.year + 1, month=1)
-            if month_start.month == 12
-            else month_start.replace(month=month_start.month + 1)
+        current_week_start = today - timedelta(days=today.weekday())
+        next_week_start = current_week_start + timedelta(days=7)
+        week_starts = [
+            current_week_start - timedelta(weeks=offset)
+            for offset in reversed(range(SUMMARY_WEEK_WINDOW))
+        ]
+        window_start = week_starts[0]
+
+        total_active, current_week, recently_updated, deleted = (
+            self._repository.summarize_totals(
+                session, workspace_id, user_id, current_week_start, next_week_start
+            )
         )
-        rows, current_month = self._repository.summarize_active(
-            session, workspace_id, month_start, next_month_start
+        status_counts = self._repository.summarize_status_counts(session, workspace_id)
+        work_arrangement_counts = self._repository.summarize_work_arrangement_counts(
+            session, workspace_id
         )
-        by_owner = [
+
+        daily_counts = self._repository.applications_over_time(
+            session, workspace_id, window_start, next_week_start
+        )
+        applications_over_time = [
+            ApplicationsOverTimePoint(
+                week_start=week_start,
+                total=sum(
+                    count
+                    for day, count in daily_counts.items()
+                    if week_start <= day < week_start + timedelta(days=7)
+                ),
+            )
+            for week_start in week_starts
+        ]
+
+        top_applicants = [
             ApplicationOwnerSummary(
                 owner=ApplicationOwner.from_user(owner),
                 count=count,
             )
-            for owner, count in rows
-        ]
-        dashboard_rows = self._repository.list_active_for_dashboard(
-            session, workspace_id
-        )
-        status_counts = {status: 0 for status in ApplicationStatus}
-        work_arrangement_counts = {arrangement: 0 for arrangement in WorkArrangement}
-        for application, _owner in dashboard_rows:
-            status_counts[application.status] += 1
-            work_arrangement_counts[application.work_arrangement] += 1
-
-        current_week_start = today - timedelta(days=today.weekday())
-        week_starts = [
-            current_week_start - timedelta(weeks=offset)
-            for offset in reversed(range(8))
-        ]
-        applications_over_time = []
-        for week_start in week_starts:
-            next_week_start = week_start + timedelta(days=7)
-            owner_counts = {owner_summary.owner.id: 0 for owner_summary in by_owner}
-            for application, _owner in dashboard_rows:
-                if week_start <= application.application_date < next_week_start:
-                    owner_counts[application.owner_id] = (
-                        owner_counts.get(application.owner_id, 0) + 1
-                    )
-            applications_over_time.append(
-                ApplicationsOverTimePoint(
-                    week_start=week_start,
-                    by_owner=[
-                        ApplicationOwnerSummary(
-                            owner=owner_summary.owner,
-                            count=owner_counts.get(owner_summary.owner.id, 0),
-                        )
-                        for owner_summary in by_owner
-                    ],
-                )
+            for owner, count in self._repository.top_applicants(
+                session, workspace_id, TOP_APPLICANTS_LIMIT
             )
+        ]
 
         recent_activity = [
             RecentApplicationActivity(
@@ -221,24 +274,140 @@ class ApplicationService:
                 occurred_at=application.updated_at,
                 status=application.status,
             )
-            for application, owner in dashboard_rows[:5]
+            for application, owner in self._repository.list_recent_activity(
+                session, workspace_id, RECENT_ACTIVITY_LIMIT
+            )
         ]
-        recently_updated = sum(
-            1
-            for application, _owner in dashboard_rows
-            if abs((application.updated_at - application.created_at).total_seconds())
-            >= 1
-        )
         return ApplicationSummaryResponse(
-            total_active=sum(owner.count for owner in by_owner),
-            current_month=current_month,
+            total_active=total_active,
+            current_week=current_week,
             recently_updated=recently_updated,
-            by_owner=by_owner,
+            deleted=deleted,
             status_counts=status_counts,
             work_arrangement_counts=work_arrangement_counts,
             applications_over_time=applications_over_time,
+            top_applicants=top_applicants,
             recent_activity=recent_activity,
         )
+
+    def team_accountability(
+        self,
+        session: Session,
+        workspace_id: UUID,
+        *,
+        sort: str,
+        order: str,
+        page: int,
+        page_size: int,
+    ) -> TeamAccountabilityResponse:
+        if sort not in TEAM_ACCOUNTABILITY_SORTS:
+            raise AppError(
+                400, "validation_error", "Unsupported team-accountability sort."
+            )
+        today = application_today()
+        current_week_start = today - timedelta(days=today.weekday())
+        next_week_start = current_week_start + timedelta(days=7)
+        rows, total = self._repository.team_accountability(
+            session,
+            workspace_id,
+            week_start=current_week_start,
+            next_week_start=next_week_start,
+            sort=sort,
+            order=order,
+            page=page,
+            page_size=page_size,
+        )
+        return TeamAccountabilityResponse(
+            items=[
+                TeamAccountabilityRow(
+                    owner=ApplicationOwner.from_user(owner),
+                    active=active,
+                    this_week=this_week,
+                    rejected=rejected,
+                    last_applied=last_applied,
+                    weekly_goal=weekly_goal,
+                )
+                for owner, active, this_week, rejected, last_applied, weekly_goal in rows
+            ],
+            pagination=Pagination(
+                page=page,
+                page_size=page_size,
+                total_items=total,
+                total_pages=(total + page_size - 1) // page_size if total else 0,
+            ),
+        )
+
+    def my_week(
+        self,
+        session: Session,
+        workspace_id: UUID,
+        user_id: UUID,
+        weekly_goal: int | None,
+    ) -> MyWeekResponse:
+        today = application_today()
+        current_week_start = _week_start_of(today)
+        next_week_start = current_week_start + timedelta(days=7)
+        window_start = current_week_start - timedelta(weeks=MY_WEEK_STREAK_WINDOW - 1)
+
+        daily_counts = self._repository.owner_daily_counts(
+            session, workspace_id, user_id, window_start, next_week_start
+        )
+        counts_by_week: dict[date, int] = {}
+        for day, count in daily_counts.items():
+            counts_by_week[_week_start_of(day)] = (
+                counts_by_week.get(_week_start_of(day), 0) + count
+            )
+
+        recent_week_starts = [
+            current_week_start - timedelta(weeks=offset)
+            for offset in reversed(range(MY_WEEK_RECENT_WEEKS))
+        ]
+        recent_weeks = [
+            MyWeekPoint(
+                week_start=week_start,
+                total=counts_by_week.get(week_start, 0),
+                met_goal=weekly_goal is not None
+                and weekly_goal > 0
+                and counts_by_week.get(week_start, 0) >= weekly_goal,
+            )
+            for week_start in recent_week_starts
+        ]
+
+        oldest = self._repository.oldest_open_application(
+            session, workspace_id, user_id
+        )
+        oldest_open = (
+            OldestOpenApplication(
+                application_id=oldest.id,
+                company_name=oldest.company_name,
+                job_title=oldest.job_title,
+                application_date=oldest.application_date,
+            )
+            if oldest is not None
+            else None
+        )
+
+        return MyWeekResponse(
+            weekly_goal=weekly_goal,
+            applied_this_week=counts_by_week.get(current_week_start, 0),
+            streak_weeks=compute_week_streak(
+                counts_by_week, weekly_goal, current_week_start
+            ),
+            day_streak=compute_day_streak(set(daily_counts.keys()), today),
+            recent_weeks=recent_weeks,
+            oldest_open=oldest_open,
+        )
+
+    def set_weekly_goal(
+        self,
+        session: Session,
+        workspace_id: UUID,
+        membership: WorkspaceMembership,
+        weekly_goal: int,
+    ) -> MyWeekResponse:
+        membership.weekly_goal = weekly_goal
+        self._commit(session)
+        return self.my_week(session, workspace_id, membership.user_id, weekly_goal)
 
     def get_active(
         self, session: Session, workspace_id: UUID, application_id: UUID

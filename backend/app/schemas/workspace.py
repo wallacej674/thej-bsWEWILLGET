@@ -30,6 +30,13 @@ class WorkspaceMember(BaseModel):
     joined_at: datetime
 
 
+class Pagination(BaseModel):
+    page: int
+    page_size: int
+    total_items: int
+    total_pages: int
+
+
 class WorkspaceCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
 
@@ -41,6 +48,10 @@ class WorkspaceCreate(BaseModel):
 
 class WorkspaceMemberListResponse(BaseModel):
     items: list[WorkspaceMember]
+    pagination: Pagination
+    # Total active members in the workspace, independent of the current search
+    # filter — used for the cap and the "N members" header.
+    member_count: int
 
 
 class WorkspaceMemberRoleUpdate(BaseModel):
@@ -73,6 +84,7 @@ class WorkspaceInvitationResponse(BaseModel):
 
 class WorkspaceInvitationListResponse(BaseModel):
     items: list[WorkspaceInvitationResponse]
+    pagination: Pagination
 
 
 class InvitationWorkspace(BaseModel):

@@ -4,6 +4,7 @@ import {
   ArrowUpDown,
   Briefcase,
   Building2,
+  CalendarDays,
   CheckCircle,
   Check,
   ChevronDown,
@@ -11,6 +12,7 @@ import {
   ChevronRight,
   ExternalLink,
   FileText,
+  Flame,
   LayoutDashboard,
   LoaderCircle,
   Menu,
@@ -20,6 +22,7 @@ import {
   RotateCcw,
   Search,
   Shield,
+  Target,
   Trash,
   User,
   UserPlus,
@@ -81,6 +84,7 @@ import type {
   EmploymentType,
   JobApplication,
   JobPostingAutofillFields,
+  MyWeek,
   PaginatedApplications,
   SalaryPeriod,
   SortField,
@@ -569,7 +573,7 @@ function AppShell({ context }: { context: AppContext }) {
   return (
     <div className="dark theme-gold min-h-screen bg-background text-foreground">
       <nav className="sticky top-0 z-50 border-b border-border bg-background">
-        <div className="mx-auto flex h-14 max-w-[1480px] items-center gap-3 px-4 sm:px-6 md:h-16">
+        <div className="mx-auto flex h-14 max-w-[1280px] items-center gap-3 px-4 sm:px-6 md:h-16">
           <Link
             to="/"
             className="flex flex-shrink-0 items-center gap-2.5 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
@@ -755,23 +759,271 @@ function AppShell({ context }: { context: AppContext }) {
 // only cool accent. Deliberately avoids the indigo/emerald/blue defaults.
 const ownerColors = ["#d6a844", "#cc7a4d", "#5f8f8a", "#9aa05f", "#a9774a", "#b08968"];
 
+// Raised surface treatment shared across dashboard modules: a soft drop shadow
+// lifts the tile off the near-black background, and an inset white ring fakes a lit
+// top edge — the standard dark-UI elevation trick — so panels read as distinct tiles
+// instead of dissolving into the page.
+const PANEL =
+  "rounded-xl border border-border bg-card shadow-[0_1px_2px_rgba(0,0,0,0.45)] ring-1 ring-inset ring-white/[0.03]";
+
+// Dependency-free sparkline: maps a short numeric series to a polyline in a fixed
+// viewBox and lets it stretch to the container (preserveAspectRatio="none").
+function Sparkline({
+  points,
+  stroke,
+}: {
+  points: number[];
+  stroke: string;
+}) {
+  if (points.length < 2) return null;
+  const max = Math.max(...points);
+  const min = Math.min(...points);
+  const span = max - min || 1;
+  const stepX = 60 / (points.length - 1);
+  const coords = points
+    .map((value, index) => {
+      const x = index * stepX;
+      const y = 15 - ((value - min) / span) * 14;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  return (
+    <svg
+      className="mt-2 block h-4 w-full"
+      viewBox="0 0 60 16"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      <polyline
+        points={coords}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
+
+// Circular progress toward the weekly goal. Hex values are the gold-theme
+// palette (matching the dashboard's other data visuals); the ring turns olive
+// once the goal is met.
+function GoalRing({ value, goal }: { value: number; goal: number }) {
+  const radius = 34;
+  const circumference = 2 * Math.PI * radius;
+  const progress = goal > 0 ? Math.min(1, value / goal) : 0;
+  const reached = goal > 0 && value >= goal;
+  return (
+    <svg width={92} height={92} viewBox="0 0 92 92" className="shrink-0" aria-hidden="true">
+      <circle cx={46} cy={46} r={radius} fill="none" stroke="#2e2113" strokeWidth={8} />
+      <circle
+        cx={46}
+        cy={46}
+        r={radius}
+        fill="none"
+        stroke={reached ? "#9aa05f" : "#d6a844"}
+        strokeWidth={8}
+        strokeLinecap="round"
+        strokeDasharray={circumference}
+        strokeDashoffset={circumference * (1 - progress)}
+        transform="rotate(-90 46 46)"
+        style={{ transition: "stroke-dashoffset 0.5s ease" }}
+      />
+      <text
+        x={46}
+        y={44}
+        textAnchor="middle"
+        fill="#f4eee1"
+        fontSize={19}
+        fontWeight={600}
+        style={{ fontFamily: "Space Grotesk, system-ui, sans-serif" }}
+      >
+        {value}/{goal}
+      </text>
+      <text x={46} y={59} textAnchor="middle" fill="#8c8170" fontSize={9}>
+        applied
+      </text>
+    </svg>
+  );
+}
+
+// Personal accountability panel: goal ring, weekly + day streaks, a trend
+// sparkline, and a follow-up nudge — with an empty state that invites the
+// member to set a goal, and an inline editor to change it.
+function YourWeekCard({
+  myWeek,
+  onSetGoal,
+}: {
+  myWeek: MyWeek | null;
+  onSetGoal: (goal: number) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("5");
+  const [saving, setSaving] = useState(false);
+
+  if (!myWeek) return <section className={`${PANEL} p-5`} />;
+
+  const startEditing = () => {
+    setDraft(String(myWeek.weekly_goal ?? 5));
+    setEditing(true);
+  };
+
+  const save = async () => {
+    const parsed = Math.round(Number(draft));
+    if (!Number.isFinite(parsed) || parsed < 1 || parsed > 100) return;
+    setSaving(true);
+    try {
+      await onSetGoal(parsed);
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const primaryButton =
+    "inline-flex items-center justify-center gap-2 rounded-lg border border-primary/35 bg-secondary px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/60 hover:bg-[#3a2a17] disabled:cursor-not-allowed disabled:opacity-50";
+
+  return (
+    <section className={`${PANEL} flex flex-col p-5`}>
+      <div className="flex items-center justify-between">
+        <h2 className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+          Your week
+        </h2>
+        {myWeek.weekly_goal != null && !editing && (
+          <button
+            type="button"
+            onClick={startEditing}
+            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-primary"
+          >
+            <Pencil size={12} /> Goal
+          </button>
+        )}
+      </div>
+
+      {editing ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6">
+          <label htmlFor="weekly-goal-input" className="text-xs text-muted-foreground">
+            Applications per week
+          </label>
+          <input
+            id="weekly-goal-input"
+            type="number"
+            min={1}
+            max={100}
+            value={draft}
+            autoFocus
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") void save();
+              if (event.key === "Escape") setEditing(false);
+            }}
+            className="font-numeric w-24 rounded-lg border border-border bg-input px-3 py-2 text-center text-lg text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => void save()}
+              disabled={saving}
+              className={primaryButton}
+            >
+              Save goal
+            </button>
+            {myWeek.weekly_goal != null && (
+              <button
+                type="button"
+                onClick={() => setEditing(false)}
+                className="rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        </div>
+      ) : myWeek.weekly_goal == null ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6 text-center">
+          <Target size={26} className="text-primary/70" />
+          <div>
+            <p className="text-sm font-medium text-foreground">Set your weekly goal</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Track how many applications you aim for each week.
+            </p>
+          </div>
+          <button type="button" onClick={startEditing} className={primaryButton}>
+            Set goal
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="mt-3 flex items-center gap-4">
+            <GoalRing value={myWeek.applied_this_week} goal={myWeek.weekly_goal} />
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 text-sm">
+                <Flame
+                  size={15}
+                  className={myWeek.streak_weeks > 0 ? "text-primary" : "text-muted-foreground"}
+                />
+                <span className="font-medium text-foreground">
+                  {myWeek.streak_weeks > 0
+                    ? `${myWeek.streak_weeks}-week streak`
+                    : "No streak yet"}
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {myWeek.day_streak > 0
+                  ? `${myWeek.day_streak}-day activity streak`
+                  : "Apply today to start a streak"}
+              </p>
+              <div className="mt-2 w-24">
+                <Sparkline
+                  points={myWeek.recent_weeks.map((week) => week.total)}
+                  stroke="#d6a844"
+                />
+              </div>
+            </div>
+          </div>
+          {myWeek.oldest_open && (
+            <Link
+              to={`/applications/${myWeek.oldest_open.application_id}`}
+              className="mt-4 flex items-center gap-2 rounded-lg border border-border bg-input/40 px-3 py-2 text-xs transition-colors hover:border-primary/50"
+            >
+              <ChevronRight size={14} className="shrink-0 text-primary" />
+              <span className="min-w-0 truncate text-muted-foreground">
+                Follow up:{" "}
+                <span className="text-foreground">
+                  {myWeek.oldest_open.company_name}
+                </span>{" "}
+                — {myWeek.oldest_open.job_title}
+              </span>
+            </Link>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
 function DashboardPage({ context }: { context: AppContext }) {
   const [summary, setSummary] = useState<ApplicationSummary | null>(null);
+  const [myWeek, setMyWeek] = useState<MyWeek | null>(null);
+  const [goalRefresh, setGoalRefresh] = useState(0);
   const [error, setError] = useState<unknown>();
   const [loading, setLoading] = useState(true);
 
-  // One bounded request drives the whole dashboard summary; per-member
-  // accountability is loaded separately and paginated by TeamAccountabilityCard.
+  // Two bounded requests drive the dashboard: the workspace summary and the
+  // current member's personal "your week" snapshot. Per-member accountability
+  // is loaded separately and paginated by TeamAccountabilityCard.
   const load = useCallback(async () => {
     setLoading(true);
     setError(undefined);
     try {
-      setSummary(
-        await applicationsApi.summary(
-          context.client,
-          context.session.workspace.id,
-        ),
-      );
+      const [summaryResult, myWeekResult] = await Promise.all([
+        applicationsApi.summary(context.client, context.session.workspace.id),
+        applicationsApi.myWeek(context.client, context.session.workspace.id),
+      ]);
+      setSummary(summaryResult);
+      setMyWeek(myWeekResult);
     } catch (caught) {
       setError(caught);
     } finally {
@@ -780,6 +1032,21 @@ function DashboardPage({ context }: { context: AppContext }) {
   }, [context.client, context.session.workspace.id]);
 
   useEffect(() => void load(), [load]);
+
+  // Saving a goal returns the recomputed snapshot; bumping goalRefresh also
+  // re-pulls the team table so its goal column reflects the new value.
+  const handleSetGoal = useCallback(
+    async (goal: number) => {
+      const updated = await applicationsApi.setWeeklyGoal(
+        context.client,
+        context.session.workspace.id,
+        goal,
+      );
+      setMyWeek(updated);
+      setGoalRefresh((count) => count + 1);
+    },
+    [context.client, context.session.workspace.id],
+  );
 
   if (loading) return <LoadingState label="Loading dashboard…" />;
   if (error) {
@@ -821,6 +1088,9 @@ function DashboardPage({ context }: { context: AppContext }) {
     }[arrangement],
   }));
   const applicationsThisWeek = summary?.current_week ?? 0;
+  const totalApplied = summary
+    ? Object.values(summary.status_counts).reduce((sum, count) => sum + count, 0)
+    : 0;
 
   const weekTotalAt = (index: number) => overTimeRaw[index]?.total ?? 0;
   const weekDelta =
@@ -828,8 +1098,10 @@ function DashboardPage({ context }: { context: AppContext }) {
   const latestWeekLabel = overTimeRaw.length
     ? formatWeekRange(overTimeRaw[overTimeRaw.length - 1].week_start)
     : "This week";
+  const weeklyTotals = overTimeRaw.map((point) => point.total);
+  const windowTotal = weeklyTotals.reduce((sum, value) => sum + value, 0);
   return (
-    <div className="mx-auto max-w-[1480px] px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-[1280px] px-4 py-8 sm:px-6">
       <div className="mb-7">
         <div className="flex items-end justify-between gap-4">
           <div>
@@ -840,69 +1112,87 @@ function DashboardPage({ context }: { context: AppContext }) {
               This week at a glance
             </h1>
           </div>
-          <span className="flex-none whitespace-nowrap rounded-md border border-border px-3 py-1.5 text-xs text-[#bcae93]">
+          <span className="flex flex-none items-center gap-1.5 whitespace-nowrap rounded-lg border border-primary/35 bg-secondary px-3 py-1.5 text-xs text-foreground">
+            <CalendarDays size={13} className="text-primary" />
             {latestWeekLabel}
           </span>
         </div>
         <div className="mt-4 h-px bg-border" />
       </div>
 
-      <div className="mb-7 grid grid-cols-2 overflow-hidden rounded-xl border border-border bg-card sm:grid-cols-4">
-        <div className="border-b border-r border-border px-5 py-4 sm:border-b-0">
-          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-            Active
-          </p>
-          <p className="font-numeric mt-2 text-[28px] font-semibold leading-none text-foreground">
-            {summary?.total_active ?? 0}
-          </p>
-          <p className="mt-2 text-[11px] text-muted-foreground">in this workspace</p>
-        </div>
-        <div className="border-b border-border px-5 py-4 sm:border-b-0 sm:border-r">
-          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-            Applied this week
-          </p>
-          <p className="font-numeric mt-2 text-[28px] font-semibold leading-none text-foreground">
-            {applicationsThisWeek}
-          </p>
-          <p className="mt-2 text-[11px]">
-            {weekDelta > 0 ? (
-              <span className="text-[#9aa05f]">▲ {weekDelta} vs last wk</span>
-            ) : weekDelta < 0 ? (
-              <span className="text-[#c2686a]">
-                ▼ {Math.abs(weekDelta)} vs last wk
-              </span>
-            ) : (
-              <span className="text-muted-foreground">— vs last wk</span>
-            )}
-          </p>
-        </div>
-        <div className="border-r border-border px-5 py-4">
-          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-            Recently updated
-          </p>
-          <p className="font-numeric mt-2 text-[28px] font-semibold leading-none text-foreground">
-            {summary?.recently_updated ?? 0}
-          </p>
-          <p className="mt-2 text-[11px] text-muted-foreground">in the last 7 days</p>
-        </div>
-        <div className="px-5 py-4">
-          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-            Deleted
-          </p>
-          <p className="font-numeric mt-2 text-[28px] font-semibold leading-none text-foreground">
-            {summary?.deleted ?? 0}
-          </p>
-          <p className="mt-2 text-[11px] text-muted-foreground">recoverable</p>
+      <div className="mb-7 grid gap-6 lg:grid-cols-[320px_1fr]">
+        <YourWeekCard myWeek={myWeek} onSetGoal={handleSetGoal} />
+        <div className="grid grid-cols-2 gap-4">
+          <div className={`${PANEL} px-5 py-4`}>
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                Active
+              </p>
+              <Briefcase size={14} className="text-muted-foreground" />
+            </div>
+            <p className="font-numeric mt-2 text-[28px] font-semibold leading-none text-foreground">
+              {summary?.total_active ?? 0}
+            </p>
+            <p className="mt-2 text-[11px] text-muted-foreground">in this workspace</p>
+          </div>
+          <div className={`${PANEL} px-5 py-4`}>
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                Applied this week
+              </p>
+              <p className="text-[11px]">
+                {weekDelta > 0 ? (
+                  <span className="text-[#9aa05f]">▲ {weekDelta}</span>
+                ) : weekDelta < 0 ? (
+                  <span className="text-[#c2686a]">▼ {Math.abs(weekDelta)}</span>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </p>
+            </div>
+            <p className="font-numeric mt-2 text-[28px] font-semibold leading-none text-foreground">
+              {applicationsThisWeek}
+            </p>
+            <Sparkline
+              points={weeklyTotals}
+              stroke={weekDelta < 0 ? "#c2686a" : "#9aa05f"}
+            />
+          </div>
+          <div className={`${PANEL} px-5 py-4`}>
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                Recently updated
+              </p>
+              <Pencil size={14} className="text-muted-foreground" />
+            </div>
+            <p className="font-numeric mt-2 text-[28px] font-semibold leading-none text-foreground">
+              {summary?.recently_updated ?? 0}
+            </p>
+            <p className="mt-2 text-[11px] text-muted-foreground">in the last 7 days</p>
+          </div>
+          <div className={`${PANEL} px-5 py-4`}>
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                Total applied
+              </p>
+              <FileText size={14} className="text-muted-foreground" />
+            </div>
+            <p className="font-numeric mt-2 text-[28px] font-semibold leading-none text-foreground">
+              {totalApplied}
+            </p>
+            <p className="mt-2 text-[11px] text-muted-foreground">all time</p>
+          </div>
         </div>
       </div>
 
-      <div className="mb-10 grid items-start gap-5 lg:grid-cols-[1.7fr_1fr]">
-        <TeamAccountabilityCard context={context} />
+      <div className="mb-10 grid items-start gap-6 lg:grid-cols-[1.7fr_1fr]">
+        {/* Remount when the member saves a new goal so the goal column re-pulls. */}
+        <TeamAccountabilityCard key={goalRefresh} context={context} />
         <section>
           <h2 className="mb-3 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
             Recent activity
           </h2>
-          <div className="rounded-xl border border-border bg-card p-5">
+          <div className={`${PANEL} p-5`}>
             <RecentActivityFeed activities={summary?.recent_activity ?? []} />
           </div>
         </section>
@@ -912,7 +1202,22 @@ function DashboardPage({ context }: { context: AppContext }) {
         Analytics
       </h2>
       <div>
-        <DashboardChartCard title="Applications over time">
+        <DashboardChartCard
+          title="Applications over time"
+          trend={
+            <span className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="font-numeric text-foreground">{windowTotal}</span>
+              total
+              {weekDelta > 0 ? (
+                <span className="text-[#9aa05f]">▲ {weekDelta}</span>
+              ) : weekDelta < 0 ? (
+                <span className="text-[#c2686a]">▼ {Math.abs(weekDelta)}</span>
+              ) : (
+                <span>—</span>
+              )}
+            </span>
+          }
+        >
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={applicationsOverTime}
@@ -956,7 +1261,7 @@ function DashboardPage({ context }: { context: AppContext }) {
           </ResponsiveContainer>
         </DashboardChartCard>
 
-        <section className="mt-5 grid gap-x-8 gap-y-6 rounded-2xl border border-border bg-card p-6 md:grid-cols-3">
+        <section className={`${PANEL} mt-6 grid gap-x-8 gap-y-6 p-6 md:grid-cols-3`}>
           <div>
             <h3 className="mb-4 text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
               Status
@@ -1024,32 +1329,33 @@ const chartTooltipStyle = {
 
 function DashboardChartCard({
   title,
+  trend,
   children,
 }: {
   title: string;
+  trend?: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <section className="relative h-[355px] rounded-2xl border border-border bg-card p-6 pb-12">
-      <h2 className="font-display mb-3 text-base font-semibold text-foreground">{title}</h2>
+    <section className={`${PANEL} relative h-[355px] p-6 pb-12`}>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="font-display text-base font-semibold text-foreground">{title}</h2>
+        {trend}
+      </div>
       <div className="h-[255px]">{children}</div>
     </section>
   );
 }
 
-// Placeholder weekly target per member. Real per-member goals are a
-// Milestone 4 ("accountability goals") backend feature.
-const WEEKLY_GOAL = 5;
-
 const teamAccountabilityColumns: {
   key: TeamAccountabilitySort;
   label: string;
-  align: "left" | "right";
+  align: "left" | "center";
 }[] = [
   { key: "name", label: "Member", align: "left" },
-  { key: "active", label: "Active", align: "right" },
-  { key: "this_week", label: "This wk", align: "right" },
-  { key: "rejected", label: "Rejected", align: "right" },
+  { key: "active", label: "Active", align: "center" },
+  { key: "this_week", label: "This wk", align: "center" },
+  { key: "rejected", label: "Rejected", align: "center" },
 ];
 
 function TeamAccountabilityCard({ context }: { context: AppContext }) {
@@ -1098,7 +1404,7 @@ function TeamAccountabilityCard({ context }: { context: AppContext }) {
       <h2 className="mb-3 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
         Team accountability
       </h2>
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className={`${PANEL} overflow-hidden`}>
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-border text-left text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
@@ -1106,39 +1412,46 @@ function TeamAccountabilityCard({ context }: { context: AppContext }) {
                 <th
                   key={column.key}
                   className={`px-4 py-3 font-medium ${
-                    column.align === "right" ? "text-right" : "px-5"
+                    column.align === "center" ? "text-center" : "px-5"
                   }`}
                 >
                   <button
                     type="button"
                     onClick={() => sortBy(column.key)}
-                    className={`inline-flex items-center gap-1 uppercase tracking-[0.08em] transition-colors hover:text-foreground ${
+                    className={`inline-flex items-center gap-1 whitespace-nowrap text-[10px] font-medium uppercase leading-none tracking-[0.08em] transition-colors hover:text-foreground ${
                       sort === column.key ? "text-foreground" : ""
-                    } ${column.align === "right" ? "flex-row-reverse" : ""}`}
+                    }`}
                   >
                     {column.label}
-                    {sort === column.key && (
-                      <span aria-hidden="true">
-                        {order === "asc" ? "▲" : "▼"}
-                      </span>
-                    )}
+                    <ChevronDown
+                      size={12}
+                      aria-hidden="true"
+                      className={`transition-all duration-200 ${
+                        sort === column.key
+                          ? `opacity-100 ${order === "asc" ? "rotate-180" : ""}`
+                          : "opacity-0"
+                      }`}
+                    />
                   </button>
                 </th>
               ))}
               <th className="w-[34%] px-5 py-3 font-medium">Weekly goal</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-border">
+          {/* Keyed by the sort so a re-sort remounts the rows and replays the
+              fade/slide-in — the visible feedback when a header is clicked. */}
+          <tbody key={`${sort}-${order}-${page}`} className="divide-y divide-border">
             {rows.map((item) => {
-              const goalProgress = Math.min(
-                100,
-                Math.round((item.this_week / WEEKLY_GOAL) * 100),
-              );
+              const goal = item.weekly_goal;
+              const hasGoal = goal != null && goal > 0;
+              const goalProgress = hasGoal
+                ? Math.min(100, Math.round((item.this_week / goal) * 100))
+                : 0;
               const isCurrentUser = item.owner.id === context.session.user.id;
               return (
                 <tr
                   key={item.owner.id}
-                  className="transition-colors hover:bg-[#211910]"
+                  className="animate-in fade-in-0 slide-in-from-bottom-1 duration-300 transition-colors hover:bg-[#211910]"
                 >
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
@@ -1154,7 +1467,7 @@ function TeamAccountabilityCard({ context }: { context: AppContext }) {
                             </span>
                           )}
                         </div>
-                        <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        <p className="mt-0.5 whitespace-nowrap text-[11px] text-muted-foreground">
                           {item.last_applied
                             ? `Last applied ${formatDate(item.last_applied)}`
                             : "No applications yet"}
@@ -1162,28 +1475,34 @@ function TeamAccountabilityCard({ context }: { context: AppContext }) {
                       </div>
                     </div>
                   </td>
-                  <td className="font-numeric px-4 py-3.5 text-right text-foreground">
+                  <td className="font-numeric px-4 py-3.5 text-center text-foreground">
                     {item.active}
                   </td>
-                  <td className="font-numeric px-4 py-3.5 text-right text-[#9aa05f]">
+                  <td className="font-numeric px-4 py-3.5 text-center text-[#9aa05f]">
                     {item.this_week}
                   </td>
-                  <td className="font-numeric px-4 py-3.5 text-right text-[#c2686a]">
+                  <td className="font-numeric px-4 py-3.5 text-center text-[#c2686a]">
                     {item.rejected}
                   </td>
                   <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-secondary">
-                        <div
-                          className="h-full rounded-full bg-primary transition-[width]"
-                          style={{ width: `${goalProgress}%` }}
-                        />
+                    {hasGoal ? (
+                      <div className="flex items-center gap-3">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-secondary">
+                          <div
+                            className="h-full rounded-full bg-primary transition-[width]"
+                            style={{ width: `${goalProgress}%` }}
+                          />
+                        </div>
+                        <span className="font-numeric whitespace-nowrap text-xs text-muted-foreground">
+                          <span className="text-foreground">{item.this_week}</span>{" "}
+                          / {goal}
+                        </span>
                       </div>
-                      <span className="font-numeric whitespace-nowrap text-xs text-muted-foreground">
-                        <span className="text-foreground">{item.this_week}</span>{" "}
-                        / {WEEKLY_GOAL}
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        No goal set
                       </span>
-                    </div>
+                    )}
                   </td>
                 </tr>
               );
@@ -1222,10 +1541,12 @@ function BarGaugeRows({
   rows: { label: string; value: number; color: string }[];
 }) {
   const max = Math.max(...rows.map((row) => row.value), 1);
+  const total = rows.reduce((sum, row) => sum + row.value, 0);
   return (
     <div className="flex flex-col gap-3">
       {rows.map((row) => {
         const empty = row.value === 0;
+        const share = total > 0 ? Math.round((row.value / total) * 100) : 0;
         return (
           <div key={row.label} className="flex items-center gap-3 text-xs">
             <span
@@ -1250,6 +1571,9 @@ function BarGaugeRows({
               }`}
             >
               {row.value}
+            </span>
+            <span className="font-numeric w-9 shrink-0 text-right text-[11px] text-muted-foreground">
+              {share}%
             </span>
           </div>
         );

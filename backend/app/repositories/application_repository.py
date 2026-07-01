@@ -130,6 +130,49 @@ class ApplicationRepository:
         ).tuples()
         return {day: int(count) for day, count in rows}
 
+    def owner_daily_counts(
+        self,
+        session: Session,
+        workspace_id: UUID,
+        owner_id: UUID,
+        window_start: date,
+        window_end: date,
+    ) -> dict[date, int]:
+        """Daily active-application counts for one owner within the window.
+
+        Bounded by the number of distinct application dates the owner has in
+        the window; the service buckets these into weeks and walks them for the
+        weekly and day streaks.
+        """
+        rows = session.execute(
+            select(JobApplication.application_date, func.count(JobApplication.id))
+            .where(
+                JobApplication.workspace_id == workspace_id,
+                JobApplication.owner_id == owner_id,
+                JobApplication.deleted_at.is_(None),
+                JobApplication.application_date >= window_start,
+                JobApplication.application_date < window_end,
+            )
+            .group_by(JobApplication.application_date)
+        ).tuples()
+        return {day: int(count) for day, count in rows}
+
+    def oldest_open_application(
+        self, session: Session, workspace_id: UUID, owner_id: UUID
+    ) -> JobApplication | None:
+        """The owner's oldest still-open (applied) application, if any."""
+        return session.scalar(
+            select(JobApplication)
+            .where(
+                JobApplication.workspace_id == workspace_id,
+                JobApplication.owner_id == owner_id,
+                JobApplication.deleted_at.is_(None),
+                JobApplication.status == ApplicationStatus.APPLIED,
+            )
+            .order_by(asc(JobApplication.application_date), JobApplication.id)
+            .limit(1)
+        )
+
     def top_applicants(
         self, session: Session, workspace_id: UUID, limit: int
     ) -> list[tuple[User, int]]:
@@ -179,13 +222,14 @@ class ApplicationRepository:
         order: str,
         page: int,
         page_size: int,
-    ) -> tuple[list[tuple[User, int, int, int, date | None]], int]:
+    ) -> tuple[list[tuple[User, int, int, int, date | None, int | None]], int]:
         """Per-owner accountability rows via a single GROUP BY (constant cost).
 
         The owner universe is the union of active members and owners of active
         applications, matching workspace visibility. Aggregates are computed in
         one grouped query; pagination and sorting happen in SQL so the response
-        is bounded regardless of member count.
+        is bounded regardless of member count. Each owner's weekly goal is
+        left-joined from their active membership (NULL when unset or non-member).
         """
         owner_ids = union(
             select(WorkspaceMembership.user_id.label("user_id")).where(
@@ -220,13 +264,26 @@ class ApplicationRepository:
             )
         ).label("rejected_total")
         last_applied = func.max(JobApplication.application_date).label("last_applied")
+        goal_join = and_(
+            WorkspaceMembership.user_id == User.id,
+            WorkspaceMembership.workspace_id == workspace_id,
+            WorkspaceMembership.removed_at.is_(None),
+        )
 
         statement = (
-            select(User, active_total, this_week_total, rejected_total, last_applied)
+            select(
+                User,
+                active_total,
+                this_week_total,
+                rejected_total,
+                last_applied,
+                WorkspaceMembership.weekly_goal,
+            )
             .select_from(owner_ids)
             .join(User, User.id == owner_ids.c.user_id)
             .outerjoin(JobApplication, active_join)
-            .group_by(User.id)
+            .outerjoin(WorkspaceMembership, goal_join)
+            .group_by(User.id, WorkspaceMembership.weekly_goal)
         )
 
         sort_columns: dict[str, ColumnElement[Any]] = {
@@ -248,11 +305,11 @@ class ApplicationRepository:
             )
 
         statement = statement.offset((page - 1) * page_size).limit(page_size)
-        rows: list[tuple[User, int, int, int, date | None]] = [
-            (owner, int(active), int(this_week), int(rejected), last)
-            for owner, active, this_week, rejected, last in session.execute(
-                statement
-            ).tuples()
+        rows: list[tuple[User, int, int, int, date | None, int | None]] = [
+            (owner, int(active), int(this_week), int(rejected), last, weekly_goal)
+            for owner, active, this_week, rejected, last, weekly_goal in (
+                session.execute(statement).tuples()
+            )
         ]
         total = session.scalar(select(func.count()).select_from(owner_ids))
         return rows, int(total or 0)

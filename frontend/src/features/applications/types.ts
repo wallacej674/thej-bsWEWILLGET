@@ -217,11 +217,34 @@ export interface TeamAccountabilityRow {
   this_week: number;
   rejected: number;
   last_applied: string | null;
+  weekly_goal: number | null;
 }
 
 export interface TeamAccountabilityResponse {
   items: TeamAccountabilityRow[];
   pagination: Pagination;
+}
+
+export interface MyWeekPoint {
+  week_start: string;
+  total: number;
+  met_goal: boolean;
+}
+
+export interface MyWeekOldestOpen {
+  application_id: string;
+  company_name: string;
+  job_title: string;
+  application_date: string;
+}
+
+export interface MyWeek {
+  weekly_goal: number | null;
+  applied_this_week: number;
+  streak_weeks: number;
+  day_streak: number;
+  recent_weeks: MyWeekPoint[];
+  oldest_open: MyWeekOldestOpen | null;
 }
 
 export interface WorkspaceMemberListResponse {

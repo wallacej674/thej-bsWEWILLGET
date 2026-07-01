@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, timedelta
 from uuid import UUID
 
 from pydantic import ValidationError
@@ -32,6 +32,9 @@ from app.schemas.application import (
     ApplicationUpdate,
     DeletedApplicationListResponse,
     DeletedApplicationResponse,
+    MyWeekPoint,
+    MyWeekResponse,
+    OldestOpenApplication,
     Pagination,
     PermanentDeleteRequest,
     PermanentDeleteResponse,
@@ -45,6 +48,54 @@ from app.schemas.application import (
 SUMMARY_WEEK_WINDOW = 8
 TOP_APPLICANTS_LIMIT = 8
 RECENT_ACTIVITY_LIMIT = 5
+
+# Bounds for the personal "your week" snapshot. Streaks are computed within this
+# window (a longer run is capped at the window); the sparkline shows the most
+# recent weeks.
+MY_WEEK_STREAK_WINDOW = 26
+MY_WEEK_RECENT_WEEKS = 8
+
+
+def _week_start_of(day: date) -> date:
+    """Monday of the week containing ``day`` (matches the rest of the app)."""
+    return day - timedelta(days=day.weekday())
+
+
+def compute_week_streak(
+    counts_by_week: dict[date, int], goal: int | None, current_week_start: date
+) -> int:
+    """Consecutive weeks meeting ``goal``, counting back from this week.
+
+    The in-progress current week never breaks the streak: it only adds to it
+    once already met, otherwise the streak is the run of completed prior weeks.
+    A missing or non-positive goal yields no streak.
+    """
+    if goal is None or goal <= 0:
+        return 0
+    streak = 0
+    if counts_by_week.get(current_week_start, 0) >= goal:
+        streak += 1
+    cursor = current_week_start - timedelta(days=7)
+    while counts_by_week.get(cursor, 0) >= goal:
+        streak += 1
+        cursor -= timedelta(days=7)
+    return streak
+
+
+def compute_day_streak(active_days: set[date], today: date) -> int:
+    """Consecutive days with at least one application, counting back from today.
+
+    Today being empty does not break the streak (the day is still in progress);
+    the count then runs back from yesterday.
+    """
+    streak = 0
+    cursor = today
+    if today not in active_days:
+        cursor = today - timedelta(days=1)
+    while cursor in active_days:
+        streak += 1
+        cursor -= timedelta(days=1)
+    return streak
 
 
 class ApplicationService:
@@ -274,8 +325,9 @@ class ApplicationService:
                     this_week=this_week,
                     rejected=rejected,
                     last_applied=last_applied,
+                    weekly_goal=weekly_goal,
                 )
-                for owner, active, this_week, rejected, last_applied in rows
+                for owner, active, this_week, rejected, last_applied, weekly_goal in rows
             ],
             pagination=Pagination(
                 page=page,
@@ -283,6 +335,82 @@ class ApplicationService:
                 total_items=total,
                 total_pages=(total + page_size - 1) // page_size if total else 0,
             ),
+        )
+
+    def my_week(
+        self,
+        session: Session,
+        workspace_id: UUID,
+        user_id: UUID,
+        weekly_goal: int | None,
+    ) -> MyWeekResponse:
+        today = application_today()
+        current_week_start = _week_start_of(today)
+        next_week_start = current_week_start + timedelta(days=7)
+        window_start = current_week_start - timedelta(
+            weeks=MY_WEEK_STREAK_WINDOW - 1
+        )
+
+        daily_counts = self._repository.owner_daily_counts(
+            session, workspace_id, user_id, window_start, next_week_start
+        )
+        counts_by_week: dict[date, int] = {}
+        for day, count in daily_counts.items():
+            counts_by_week[_week_start_of(day)] = (
+                counts_by_week.get(_week_start_of(day), 0) + count
+            )
+
+        recent_week_starts = [
+            current_week_start - timedelta(weeks=offset)
+            for offset in reversed(range(MY_WEEK_RECENT_WEEKS))
+        ]
+        recent_weeks = [
+            MyWeekPoint(
+                week_start=week_start,
+                total=counts_by_week.get(week_start, 0),
+                met_goal=weekly_goal is not None
+                and weekly_goal > 0
+                and counts_by_week.get(week_start, 0) >= weekly_goal,
+            )
+            for week_start in recent_week_starts
+        ]
+
+        oldest = self._repository.oldest_open_application(
+            session, workspace_id, user_id
+        )
+        oldest_open = (
+            OldestOpenApplication(
+                application_id=oldest.id,
+                company_name=oldest.company_name,
+                job_title=oldest.job_title,
+                application_date=oldest.application_date,
+            )
+            if oldest is not None
+            else None
+        )
+
+        return MyWeekResponse(
+            weekly_goal=weekly_goal,
+            applied_this_week=counts_by_week.get(current_week_start, 0),
+            streak_weeks=compute_week_streak(
+                counts_by_week, weekly_goal, current_week_start
+            ),
+            day_streak=compute_day_streak(set(daily_counts.keys()), today),
+            recent_weeks=recent_weeks,
+            oldest_open=oldest_open,
+        )
+
+    def set_weekly_goal(
+        self,
+        session: Session,
+        workspace_id: UUID,
+        membership: WorkspaceMembership,
+        weekly_goal: int,
+    ) -> MyWeekResponse:
+        membership.weekly_goal = weekly_goal
+        self._commit(session)
+        return self.my_week(
+            session, workspace_id, membership.user_id, weekly_goal
         )
 
     def get_active(

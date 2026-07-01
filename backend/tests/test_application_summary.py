@@ -20,7 +20,10 @@ def test_workspace_member_can_view_active_application_summary(
     shared_workspace,
 ) -> None:
     today = application_today()
-    previous_month = today.replace(day=1) - timedelta(days=1)
+    # Monday of the previous week — reliably outside the current week regardless
+    # of where today falls in the month (a fixed "last day of prior month" lands
+    # inside the current week near month boundaries).
+    earlier_week = today - timedelta(days=today.weekday() + 7)
     former_member = User(email="former@example.test", display_name="Former Member")
     database_session.add(former_member)
     database_session.flush()
@@ -69,7 +72,7 @@ def test_workspace_member_can_view_active_application_summary(
             location="Chicago",
             work_arrangement=WorkArrangement.HYBRID,
             employment_type=EmploymentType.FULL_TIME,
-            application_date=previous_month,
+            application_date=earlier_week,
             status=ApplicationStatus.REJECTED,
         ),
         JobApplication(
@@ -99,7 +102,7 @@ def test_workspace_member_can_view_active_application_summary(
     body = response.json()
     assert body["total_active"] == 3
     # Two of the active applications fall in the current week (the two dated
-    # today); Beta is dated in the prior month and the deleted row is excluded.
+    # today); Beta is dated in an earlier week and the deleted row is excluded.
     assert body["current_week"] == 2
     assert body["recently_updated"] == 0
     # The requesting member deleted nothing, so their recoverable count is zero.

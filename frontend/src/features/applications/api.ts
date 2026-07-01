@@ -10,6 +10,7 @@ import type {
   JobApplication,
   JobPostingAutofillResponse,
   InvitationInboxItem,
+  MyWeek,
   PaginatedApplications,
   ResumeProfile,
   ResumeTailorAnalysis,
@@ -116,6 +117,13 @@ export const applicationsApi = {
   summary: (client: ApiClient, workspaceId: string) =>
     client.get<ApplicationSummary>(
       `/workspaces/${workspaceId}/applications/summary`,
+    ),
+  myWeek: (client: ApiClient, workspaceId: string) =>
+    client.get<MyWeek>(`/workspaces/${workspaceId}/applications/my-week`),
+  setWeeklyGoal: (client: ApiClient, workspaceId: string, weeklyGoal: number) =>
+    client.patch<MyWeek>(
+      `/workspaces/${workspaceId}/applications/weekly-goal`,
+      { weekly_goal: weeklyGoal },
     ),
   teamAccountability: (
     client: ApiClient,

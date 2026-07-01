@@ -121,6 +121,7 @@ def test_team_accountability_groups_per_owner(
         "this_week": 1,
         "rejected": 1,
         "last_applied": today.isoformat(),
+        "weekly_goal": None,
     }
     assert rows[str(second_active_member.id)]["active"] == 1
     assert rows[str(second_active_member.id)]["this_week"] == 0

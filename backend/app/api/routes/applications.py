@@ -15,9 +15,11 @@ from app.schemas.application import (
     DeletedApplicationListResponse,
     JobPostingAutofillRequest,
     JobPostingAutofillResponse,
+    MyWeekResponse,
     PermanentDeleteRequest,
     PermanentDeleteResponse,
     TeamAccountabilityResponse,
+    WeeklyGoalUpdate,
 )
 from app.services.application_service import ApplicationService
 from app.services.job_posting_autofill_service import JobPostingAutofillService
@@ -56,6 +58,29 @@ def team_accountability(
         order=order,
         page=page,
         page_size=page_size,
+    )
+
+
+@router.get("/my-week", response_model=MyWeekResponse)
+def my_week(
+    workspace_id: UUID,
+    membership: WorkspaceAccess,
+    session: DatabaseSession,
+) -> MyWeekResponse:
+    return application_service.my_week(
+        session, workspace_id, membership.user_id, membership.weekly_goal
+    )
+
+
+@router.patch("/weekly-goal", response_model=MyWeekResponse)
+def set_weekly_goal(
+    workspace_id: UUID,
+    payload: WeeklyGoalUpdate,
+    membership: WorkspaceAccess,
+    session: DatabaseSession,
+) -> MyWeekResponse:
+    return application_service.set_weekly_goal(
+        session, workspace_id, membership, payload.weekly_goal
     )
 
 

@@ -37,6 +37,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -2315,13 +2316,10 @@ function ApplicationDetailPage({ context }: { context: AppContext }) {
           ]}
         />
         {(application.job_description || application.notes) && (
-          <DetailCard
-            title="Notes"
-            items={[
-              ["Job description", application.job_description || "Not provided"],
-              ["Personal notes", application.notes || "Not provided"],
-            ]}
-          />
+          <>
+            <NoteCard title="Job description" text={application.job_description} />
+            <NoteCard title="Personal notes" text={application.notes} />
+          </>
         )}
         <AiResumeTailorPanel
           client={context.client}
@@ -2358,6 +2356,67 @@ function DetailCard({
         ))}
       </dl>
     </section>
+  );
+}
+
+// A full-width detail box (matching DetailCard's surface) whose body is a
+// collapsible text snippet — used to stack Job description over Personal notes.
+function NoteCard({ title, text }: { title: string; text: string | null }) {
+  return (
+    <section className="rounded-xl border border-border bg-card p-5">
+      <h2 className="mb-4 border-b border-border pb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {title}
+      </h2>
+      {text ? (
+        <ExpandableText text={text} />
+      ) : (
+        <p className="text-sm text-muted-foreground">Not provided</p>
+      )}
+    </section>
+  );
+}
+
+// Collapsed ≈ 6 lines. CSS line-clamp gives an ellipsis but can't be
+// height-animated, so the snippet uses a line-aligned max-height clip and
+// eases to the measured full height for a smooth open/close.
+const EXPANDABLE_COLLAPSED_PX = 136;
+
+function ExpandableText({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  const ref = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (el) setOverflows(el.scrollHeight > EXPANDABLE_COLLAPSED_PX + 4);
+  }, [text]);
+
+  const clamp = overflows && !expanded;
+
+  return (
+    <div>
+      <p
+        ref={ref}
+        className="overflow-hidden whitespace-pre-wrap text-sm leading-relaxed text-foreground motion-safe:transition-[max-height] motion-safe:duration-500 motion-safe:ease-in-out"
+        style={{
+          maxHeight: clamp
+            ? `${EXPANDABLE_COLLAPSED_PX}px`
+            : `${ref.current?.scrollHeight ?? EXPANDABLE_COLLAPSED_PX}px`,
+        }}
+      >
+        {text}
+      </p>
+      {overflows && (
+        <button
+          type="button"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((value) => !value)}
+          className="mt-2 text-xs font-medium text-primary transition-colors hover:text-[#e0b850]"
+        >
+          {expanded ? "Show less" : "Read more"}
+        </button>
+      )}
+    </div>
   );
 }
 

@@ -1,5 +1,7 @@
 from datetime import timedelta
 
+from sqlalchemy import select
+
 from app.core.enums import (
     ApplicationStatus,
     EmploymentType,
@@ -180,3 +182,50 @@ def test_team_accountability_requires_membership(
         headers={"X-User-Id": str(outsider.id)},
     )
     assert response.status_code == 403
+
+
+def test_team_accountability_search_filters_members_by_name(
+    api_client, database_session, active_member, second_active_member, shared_workspace
+) -> None:
+    # Fixtures: active_member="Jonathan", second_active_member="Kareem".
+    response = api_client.get(
+        f"/api/v1/workspaces/{shared_workspace.id}/applications/team-accountability",
+        params={"search": "kar"},
+        headers={"X-User-Id": str(active_member.id)},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert [row["owner"]["display_name"] for row in body["items"]] == ["Kareem"]
+    assert body["pagination"]["total_items"] == 1
+
+
+def test_removed_member_disappears_even_with_applications(
+    api_client, database_session, active_member, second_active_member, shared_workspace
+) -> None:
+    # The second member has an application, then is removed from the workspace.
+    database_session.add(
+        _application(
+            shared_workspace.id,
+            second_active_member.id,
+            slug="ghost",
+            status=ApplicationStatus.APPLIED,
+            application_date=application_today(),
+        )
+    )
+    membership = database_session.scalar(
+        select(WorkspaceMembership).where(
+            WorkspaceMembership.workspace_id == shared_workspace.id,
+            WorkspaceMembership.user_id == second_active_member.id,
+        )
+    )
+    membership.removed_at = utc_now()
+    database_session.flush()
+
+    response = api_client.get(
+        f"/api/v1/workspaces/{shared_workspace.id}/applications/team-accountability",
+        headers={"X-User-Id": str(active_member.id)},
+    )
+    assert response.status_code == 200
+    owner_ids = {row["owner"]["id"] for row in response.json()["items"]}
+    assert str(second_active_member.id) not in owner_ids  # removed → gone
+    assert str(active_member.id) in owner_ids  # still an active member

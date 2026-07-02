@@ -12,7 +12,6 @@ from sqlalchemy import (
     func,
     or_,
     select,
-    union,
 )
 from sqlalchemy.orm import Session, aliased
 
@@ -157,6 +156,43 @@ class ApplicationRepository:
         ).tuples()
         return {day: int(count) for day, count in rows}
 
+    def owner_workspace_totals(
+        self, session: Session, workspace_id: UUID, owner_id: UUID
+    ) -> tuple[int, int]:
+        """Return (active, recently_updated) for one owner in one workspace.
+
+        Mirrors ``summarize_totals`` but scoped to a single member, powering the
+        personal dashboard KPI cards.
+        """
+        edited = JobApplication.updated_at >= JobApplication.created_at + timedelta(
+            seconds=1
+        )
+        active, recently_updated = session.execute(
+            select(
+                func.count(JobApplication.id),
+                func.count(case((edited, JobApplication.id))),
+            ).where(
+                JobApplication.workspace_id == workspace_id,
+                JobApplication.owner_id == owner_id,
+                JobApplication.deleted_at.is_(None),
+            )
+        ).one()
+        return int(active or 0), int(recently_updated or 0)
+
+    def owner_total_applications(self, session: Session, owner_id: UUID) -> int:
+        """The owner's all-time active application count across every workspace."""
+        return int(
+            session.scalar(
+                select(func.count())
+                .select_from(JobApplication)
+                .where(
+                    JobApplication.owner_id == owner_id,
+                    JobApplication.deleted_at.is_(None),
+                )
+            )
+            or 0
+        )
+
     def oldest_open_application(
         self, session: Session, workspace_id: UUID, owner_id: UUID
     ) -> JobApplication | None:
@@ -176,10 +212,21 @@ class ApplicationRepository:
     def top_applicants(
         self, session: Session, workspace_id: UUID, limit: int
     ) -> list[tuple[User, int]]:
+        # Only active members are ranked — a removed member's historical
+        # applications still count in workspace totals but drop off this list,
+        # matching the team-accountability member universe.
         total = func.count(JobApplication.id).label("active_total")
         statement = (
             select(User, total)
             .join(User, User.id == JobApplication.owner_id)
+            .join(
+                WorkspaceMembership,
+                and_(
+                    WorkspaceMembership.user_id == User.id,
+                    WorkspaceMembership.workspace_id == workspace_id,
+                    WorkspaceMembership.removed_at.is_(None),
+                ),
+            )
             .where(
                 JobApplication.workspace_id == workspace_id,
                 JobApplication.deleted_at.is_(None),
@@ -222,25 +269,24 @@ class ApplicationRepository:
         order: str,
         page: int,
         page_size: int,
+        search: str | None = None,
     ) -> tuple[list[tuple[User, int, int, int, date | None, int | None]], int]:
         """Per-owner accountability rows via a single GROUP BY (constant cost).
 
-        The owner universe is the union of active members and owners of active
-        applications, matching workspace visibility. Aggregates are computed in
-        one grouped query; pagination and sorting happen in SQL so the response
-        is bounded regardless of member count. Each owner's weekly goal is
-        left-joined from their active membership (NULL when unset or non-member).
+        The owner universe is the workspace's active members (membership drives
+        visibility, so a removed member drops off even if their applications
+        remain). Aggregates are computed in one grouped query; pagination and
+        sorting happen in SQL so the response is bounded regardless of member
+        count. Each owner's weekly goal comes from that same active membership.
         """
-        owner_ids = union(
-            select(WorkspaceMembership.user_id.label("user_id")).where(
+        owner_ids = (
+            select(WorkspaceMembership.user_id.label("user_id"))
+            .where(
                 WorkspaceMembership.workspace_id == workspace_id,
                 WorkspaceMembership.removed_at.is_(None),
-            ),
-            select(JobApplication.owner_id.label("user_id")).where(
-                JobApplication.workspace_id == workspace_id,
-                JobApplication.deleted_at.is_(None),
-            ),
-        ).subquery()
+            )
+            .subquery()
+        )
         active_join = and_(
             JobApplication.owner_id == User.id,
             JobApplication.workspace_id == workspace_id,
@@ -285,6 +331,8 @@ class ApplicationRepository:
             .outerjoin(WorkspaceMembership, goal_join)
             .group_by(User.id, WorkspaceMembership.weekly_goal)
         )
+        if search:
+            statement = statement.where(User.display_name.ilike(f"%{search}%"))
 
         sort_columns: dict[str, ColumnElement[Any]] = {
             "active": active_total,
@@ -311,7 +359,14 @@ class ApplicationRepository:
                 session.execute(statement).tuples()
             )
         ]
-        total = session.scalar(select(func.count()).select_from(owner_ids))
+        total_stmt = (
+            select(func.count())
+            .select_from(owner_ids)
+            .join(User, User.id == owner_ids.c.user_id)
+        )
+        if search:
+            total_stmt = total_stmt.where(User.display_name.ilike(f"%{search}%"))
+        total = session.scalar(total_stmt)
         return rows, int(total or 0)
 
     def find_by_normalized_url(

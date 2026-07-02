@@ -50,6 +50,7 @@ def team_accountability(
     order: Literal["asc", "desc"] = "desc",
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
+    search: Annotated[str | None, Query(max_length=200)] = None,
 ) -> TeamAccountabilityResponse:
     return application_service.team_accountability(
         session,
@@ -58,6 +59,7 @@ def team_accountability(
         order=order,
         page=page,
         page_size=page_size,
+        search=search,
     )
 
 

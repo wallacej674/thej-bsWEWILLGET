@@ -1088,11 +1088,7 @@ function DashboardPage({ context }: { context: AppContext }) {
       unknown: "#6b6253",
     }[arrangement],
   }));
-  const applicationsThisWeek = summary?.current_week ?? 0;
-  const totalApplied = summary
-    ? Object.values(summary.status_counts).reduce((sum, count) => sum + count, 0)
-    : 0;
-
+  // Workspace-wide weekly series drives the "Applications over time" chart caption.
   const weekTotalAt = (index: number) => overTimeRaw[index]?.total ?? 0;
   const weekDelta =
     weekTotalAt(overTimeRaw.length - 1) - weekTotalAt(overTimeRaw.length - 2);
@@ -1101,6 +1097,18 @@ function DashboardPage({ context }: { context: AppContext }) {
     : "This week";
   const weeklyTotals = overTimeRaw.map((point) => point.total);
   const windowTotal = weeklyTotals.reduce((sum, value) => sum + value, 0);
+
+  // The top KPI cards reflect the logged-in member, not the workspace: Active /
+  // Applied this week / Recently updated are their own totals in this workspace,
+  // and Total applied is their all-time count across every workspace.
+  const personalRecentWeeks = myWeek?.recent_weeks ?? [];
+  const personalWeekly = personalRecentWeeks.map((point) => point.total);
+  const personalThisWeek = myWeek?.applied_this_week ?? 0;
+  const personalWeekDelta =
+    personalRecentWeeks.length >= 2
+      ? personalRecentWeeks[personalRecentWeeks.length - 1].total -
+        personalRecentWeeks[personalRecentWeeks.length - 2].total
+      : 0;
   return (
     <div className="mx-auto max-w-[1280px] px-4 py-8 sm:px-6">
       <div className="mb-7">
@@ -1132,9 +1140,11 @@ function DashboardPage({ context }: { context: AppContext }) {
               <Briefcase size={14} className="text-muted-foreground" />
             </div>
             <p className="font-numeric mt-2 text-[28px] font-semibold leading-none text-foreground">
-              {summary?.total_active ?? 0}
+              {myWeek?.total_active ?? 0}
             </p>
-            <p className="mt-2 text-[11px] text-muted-foreground">in this workspace</p>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              your apps in this workspace
+            </p>
           </div>
           <div className={`${PANEL} px-5 py-4`}>
             <div className="flex items-center justify-between">
@@ -1142,21 +1152,23 @@ function DashboardPage({ context }: { context: AppContext }) {
                 Applied this week
               </p>
               <p className="text-[11px]">
-                {weekDelta > 0 ? (
-                  <span className="text-[#9aa05f]">▲ {weekDelta}</span>
-                ) : weekDelta < 0 ? (
-                  <span className="text-[#c2686a]">▼ {Math.abs(weekDelta)}</span>
+                {personalWeekDelta > 0 ? (
+                  <span className="text-[#9aa05f]">▲ {personalWeekDelta}</span>
+                ) : personalWeekDelta < 0 ? (
+                  <span className="text-[#c2686a]">
+                    ▼ {Math.abs(personalWeekDelta)}
+                  </span>
                 ) : (
                   <span className="text-muted-foreground">—</span>
                 )}
               </p>
             </div>
             <p className="font-numeric mt-2 text-[28px] font-semibold leading-none text-foreground">
-              {applicationsThisWeek}
+              {personalThisWeek}
             </p>
             <Sparkline
-              points={weeklyTotals}
-              stroke={weekDelta < 0 ? "#c2686a" : "#9aa05f"}
+              points={personalWeekly}
+              stroke={personalWeekDelta < 0 ? "#c2686a" : "#9aa05f"}
             />
           </div>
           <div className={`${PANEL} px-5 py-4`}>
@@ -1167,9 +1179,11 @@ function DashboardPage({ context }: { context: AppContext }) {
               <Pencil size={14} className="text-muted-foreground" />
             </div>
             <p className="font-numeric mt-2 text-[28px] font-semibold leading-none text-foreground">
-              {summary?.recently_updated ?? 0}
+              {myWeek?.recently_updated ?? 0}
             </p>
-            <p className="mt-2 text-[11px] text-muted-foreground">in the last 7 days</p>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              your edited apps
+            </p>
           </div>
           <div className={`${PANEL} px-5 py-4`}>
             <div className="flex items-center justify-between">
@@ -1179,9 +1193,11 @@ function DashboardPage({ context }: { context: AppContext }) {
               <FileText size={14} className="text-muted-foreground" />
             </div>
             <p className="font-numeric mt-2 text-[28px] font-semibold leading-none text-foreground">
-              {totalApplied}
+              {myWeek?.total_applied_all_time ?? 0}
             </p>
-            <p className="mt-2 text-[11px] text-muted-foreground">all time</p>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              all time · all workspaces
+            </p>
           </div>
         </div>
       </div>
@@ -1367,8 +1383,19 @@ function TeamAccountabilityCard({ context }: { context: AppContext }) {
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<TeamAccountabilitySort>("active");
   const [order, setOrder] = useState<"asc" | "desc">("desc");
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>();
+
+  // Debounce typing, and snap back to the first page whenever the query changes.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1377,7 +1404,7 @@ function TeamAccountabilityCard({ context }: { context: AppContext }) {
       const response = await applicationsApi.teamAccountability(
         context.client,
         context.session.workspace.id,
-        { sort, order, page, pageSize: 10 },
+        { sort, order, page, pageSize: 10, search: debouncedSearch || undefined },
       );
       setRows(response.items);
       setPagination(response.pagination);
@@ -1386,7 +1413,14 @@ function TeamAccountabilityCard({ context }: { context: AppContext }) {
     } finally {
       setLoading(false);
     }
-  }, [context.client, context.session.workspace.id, sort, order, page]);
+  }, [
+    context.client,
+    context.session.workspace.id,
+    sort,
+    order,
+    page,
+    debouncedSearch,
+  ]);
 
   useEffect(() => void load(), [load]);
 
@@ -1406,8 +1440,31 @@ function TeamAccountabilityCard({ context }: { context: AppContext }) {
         Team accountability
       </h2>
       <div className={`${PANEL} overflow-hidden`}>
-        <table className="w-full border-collapse text-sm">
-          <thead>
+        {/* In-card toolbar: search + count sit in the same box as the list. */}
+        <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3">
+          <span className="text-[11px] text-muted-foreground">
+            {pagination.total_items} member
+            {pagination.total_items === 1 ? "" : "s"}
+          </span>
+          <div className="relative">
+            <Search
+              size={13}
+              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+            />
+            <input
+              type="text"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search members"
+              aria-label="Search members"
+              className="h-8 w-40 rounded-lg border border-border bg-input pl-7 pr-2 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40 sm:w-48"
+            />
+          </div>
+        </div>
+        {/* Cap the visible list at ~8 rows; the header stays put while scrolling. */}
+        <div className="scrollbar-slim max-h-[544px] overflow-y-auto">
+          <table className="w-full border-collapse text-sm">
+            <thead className="[&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:border-b [&_th]:border-border [&_th]:bg-card">
             <tr className="border-b border-border text-left text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
               {teamAccountabilityColumns.map((column) => (
                 <th
@@ -1509,7 +1566,8 @@ function TeamAccountabilityCard({ context }: { context: AppContext }) {
               );
             })}
           </tbody>
-        </table>
+          </table>
+        </div>
         {loading ? (
           <div className="px-5 py-6">
             <LoadingState label="Loading team…" />
@@ -1520,7 +1578,7 @@ function TeamAccountabilityCard({ context }: { context: AppContext }) {
           </div>
         ) : rows.length === 0 ? (
           <p className="px-5 py-8 text-center text-sm text-muted-foreground">
-            No members yet.
+            {debouncedSearch ? `No members match “${debouncedSearch}”.` : "No members yet."}
           </p>
         ) : null}
       </div>

@@ -1,8 +1,14 @@
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
-from app.core.enums import ApplicationStatus, EmploymentType, WorkArrangement
+from app.core.enums import (
+    ApplicationStatus,
+    EmploymentType,
+    MembershipRole,
+    WorkArrangement,
+)
 from app.core.time import application_today
 from app.models.application import JobApplication
+from app.models.membership import WorkspaceMembership
 from app.models.user import User
 from app.models.workspace import Workspace
 
@@ -282,3 +288,65 @@ def test_oldest_open_is_null_without_open_applications(
     database_session.flush()
 
     assert _my_week(api_client, shared_workspace, active_member)["oldest_open"] is None
+
+
+def test_workspace_totals_count_only_the_current_user(
+    api_client, database_session, active_member, second_active_member, shared_workspace
+) -> None:
+    fresh = _make_application(
+        shared_workspace, active_member, application_date=application_today(), slug="a"
+    )
+    edited = _make_application(
+        shared_workspace, active_member, application_date=application_today(), slug="b"
+    )
+    # An "edited" row has updated_at meaningfully after created_at.
+    edited.created_at = datetime(2026, 6, 1, tzinfo=UTC)
+    edited.updated_at = datetime(2026, 6, 1, second=30, tzinfo=UTC)
+    other = _make_application(
+        shared_workspace,
+        second_active_member,
+        application_date=application_today(),
+        slug="c",
+    )
+    database_session.add_all([fresh, edited, other])
+    database_session.flush()
+
+    body = _my_week(api_client, shared_workspace, active_member)
+    assert body["total_active"] == 2  # only the current user's, not second member's
+    assert body["recently_updated"] == 1  # only the edited row
+
+
+def test_total_applied_spans_all_of_the_users_workspaces(
+    api_client, database_session, active_member, shared_workspace
+) -> None:
+    other_workspace = Workspace(name="Side Project")
+    database_session.add(other_workspace)
+    database_session.flush()
+    database_session.add(
+        WorkspaceMembership(
+            workspace_id=other_workspace.id,
+            user_id=active_member.id,
+            role=MembershipRole.OWNER,
+        )
+    )
+    database_session.add_all(
+        [
+            _make_application(
+                shared_workspace,
+                active_member,
+                application_date=application_today(),
+                slug="here",
+            ),
+            _make_application(
+                other_workspace,
+                active_member,
+                application_date=application_today(),
+                slug="there",
+            ),
+        ]
+    )
+    database_session.flush()
+
+    body = _my_week(api_client, shared_workspace, active_member)
+    assert body["total_active"] == 1  # this workspace only
+    assert body["total_applied_all_time"] == 2  # both workspaces

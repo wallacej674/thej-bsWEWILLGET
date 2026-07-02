@@ -108,8 +108,10 @@ def test_workspace_member_can_view_active_application_summary(
     # The requesting member deleted nothing, so their recoverable count is zero.
     assert body["deleted"] == 0
     # The bounded summary no longer carries a per-owner array; it exposes a
-    # capped top-applicants list ordered by active count (members with no active
-    # applications are omitted).
+    # capped top-applicants list ordered by active count. Members with no active
+    # applications are omitted, and so are removed members — the former member's
+    # historical application does not surface here even though it still counts in
+    # the workspace-wide totals above.
     assert "by_owner" not in body
     assert body["top_applicants"] == [
         {
@@ -119,14 +121,6 @@ def test_workspace_member_can_view_active_application_summary(
                 "avatar_url": None,
             },
             "count": 2,
-        },
-        {
-            "owner": {
-                "id": str(former_member.id),
-                "display_name": "Former Member",
-                "avatar_url": None,
-            },
-            "count": 1,
         },
     ]
     assert body["status_counts"] == {

@@ -245,6 +245,9 @@ export interface MyWeek {
   day_streak: number;
   recent_weeks: MyWeekPoint[];
   oldest_open: MyWeekOldestOpen | null;
+  total_active: number;
+  recently_updated: number;
+  total_applied_all_time: number;
 }
 
 export interface WorkspaceMemberListResponse {

@@ -318,6 +318,12 @@ class MyWeekResponse(BaseModel):
     day_streak: int
     recent_weeks: list[MyWeekPoint]
     oldest_open: OldestOpenApplication | None
+    # Personal KPI totals for the dashboard cards. total_active/recently_updated
+    # are scoped to this workspace; total_applied_all_time spans every workspace
+    # the member belongs to.
+    total_active: int
+    recently_updated: int
+    total_applied_all_time: int
 
 
 class WeeklyGoalUpdate(BaseModel):

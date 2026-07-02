@@ -299,6 +299,7 @@ class ApplicationService:
         order: str,
         page: int,
         page_size: int,
+        search: str | None = None,
     ) -> TeamAccountabilityResponse:
         if sort not in TEAM_ACCOUNTABILITY_SORTS:
             raise AppError(
@@ -316,6 +317,7 @@ class ApplicationService:
             order=order,
             page=page,
             page_size=page_size,
+            search=(search.strip() or None) if search else None,
         )
         return TeamAccountabilityResponse(
             items=[
@@ -387,6 +389,13 @@ class ApplicationService:
             else None
         )
 
+        total_active, recently_updated = self._repository.owner_workspace_totals(
+            session, workspace_id, user_id
+        )
+        total_applied_all_time = self._repository.owner_total_applications(
+            session, user_id
+        )
+
         return MyWeekResponse(
             weekly_goal=weekly_goal,
             applied_this_week=counts_by_week.get(current_week_start, 0),
@@ -396,6 +405,9 @@ class ApplicationService:
             day_streak=compute_day_streak(set(daily_counts.keys()), today),
             recent_weeks=recent_weeks,
             oldest_open=oldest_open,
+            total_active=total_active,
+            recently_updated=recently_updated,
+            total_applied_all_time=total_applied_all_time,
         )
 
     def set_weekly_goal(

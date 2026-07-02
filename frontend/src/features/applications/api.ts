@@ -133,6 +133,7 @@ export const applicationsApi = {
       order?: "asc" | "desc";
       page?: number;
       pageSize?: number;
+      search?: string;
     } = {},
   ) =>
     client.get<TeamAccountabilityResponse>(
@@ -142,6 +143,7 @@ export const applicationsApi = {
         order: params.order ?? "desc",
         page: params.page ?? 1,
         page_size: params.pageSize ?? 10,
+        ...(params.search ? { search: params.search } : {}),
       },
     ),
   get: (client: ApiClient, workspaceId: string, applicationId: string) =>

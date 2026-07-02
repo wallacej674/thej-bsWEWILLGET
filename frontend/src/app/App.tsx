@@ -4,24 +4,26 @@ import {
   ArrowUpDown,
   Briefcase,
   Building2,
+  CalendarDays,
   CheckCircle,
   Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Clock3,
   ExternalLink,
   FileText,
+  Flame,
   LayoutDashboard,
   LoaderCircle,
   Menu,
   Mail,
+  Pencil,
   Plus,
   RotateCcw,
   Search,
   Shield,
+  Target,
   Trash,
-  TrendingUp,
   User,
   UserPlus,
   UserMinus,
@@ -35,6 +37,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -53,9 +56,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -85,9 +85,12 @@ import type {
   EmploymentType,
   JobApplication,
   JobPostingAutofillFields,
+  MyWeek,
   PaginatedApplications,
   SalaryPeriod,
   SortField,
+  TeamAccountabilityRow,
+  TeamAccountabilitySort,
   WorkArrangement,
   Workspace,
   WorkspaceInvitation,
@@ -210,6 +213,10 @@ function initials(name: string): string {
     .join("")
     .slice(0, 2)
     .toUpperCase();
+}
+
+function clampChars(value: string, max: number): string {
+  return value.length > max ? `${value.slice(0, max).trimEnd()}…` : value;
 }
 
 const avatarColors = [
@@ -567,7 +574,7 @@ function AppShell({ context }: { context: AppContext }) {
   return (
     <div className="dark theme-gold min-h-screen bg-background text-foreground">
       <nav className="sticky top-0 z-50 border-b border-border bg-background">
-        <div className="mx-auto flex h-14 max-w-[1480px] items-center gap-3 px-4 sm:px-6 md:h-16">
+        <div className="mx-auto flex h-14 max-w-[1280px] items-center gap-3 px-4 sm:px-6 md:h-16">
           <Link
             to="/"
             className="flex flex-shrink-0 items-center gap-2.5 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
@@ -749,77 +756,275 @@ function AppShell({ context }: { context: AppContext }) {
   );
 }
 
+// Warm categorical palette — gold + earth tones with a single muted teal as the
+// only cool accent. Deliberately avoids the indigo/emerald/blue defaults.
+const ownerColors = ["#d6a844", "#cc7a4d", "#5f8f8a", "#9aa05f", "#a9774a", "#b08968"];
+
+// Raised surface treatment shared across dashboard modules: a soft drop shadow
+// lifts the tile off the near-black background, and an inset white ring fakes a lit
+// top edge — the standard dark-UI elevation trick — so panels read as distinct tiles
+// instead of dissolving into the page.
+const PANEL =
+  "rounded-xl border border-border bg-card shadow-[0_1px_2px_rgba(0,0,0,0.45)] ring-1 ring-inset ring-white/[0.03]";
+
+// Dependency-free sparkline: maps a short numeric series to a polyline in a fixed
+// viewBox and lets it stretch to the container (preserveAspectRatio="none").
+function Sparkline({
+  points,
+  stroke,
+}: {
+  points: number[];
+  stroke: string;
+}) {
+  if (points.length < 2) return null;
+  const max = Math.max(...points);
+  const min = Math.min(...points);
+  const span = max - min || 1;
+  const stepX = 60 / (points.length - 1);
+  const coords = points
+    .map((value, index) => {
+      const x = index * stepX;
+      const y = 15 - ((value - min) / span) * 14;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  return (
+    <svg
+      className="mt-2 block h-4 w-full"
+      viewBox="0 0 60 16"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      <polyline
+        points={coords}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
+
+// Circular progress toward the weekly goal. Hex values are the gold-theme
+// palette (matching the dashboard's other data visuals); the ring turns olive
+// once the goal is met.
+function GoalRing({ value, goal }: { value: number; goal: number }) {
+  const radius = 34;
+  const circumference = 2 * Math.PI * radius;
+  const progress = goal > 0 ? Math.min(1, value / goal) : 0;
+  const reached = goal > 0 && value >= goal;
+  return (
+    <svg width={92} height={92} viewBox="0 0 92 92" className="shrink-0" aria-hidden="true">
+      <circle cx={46} cy={46} r={radius} fill="none" stroke="#2e2113" strokeWidth={8} />
+      <circle
+        cx={46}
+        cy={46}
+        r={radius}
+        fill="none"
+        stroke={reached ? "#9aa05f" : "#d6a844"}
+        strokeWidth={8}
+        strokeLinecap="round"
+        strokeDasharray={circumference}
+        strokeDashoffset={circumference * (1 - progress)}
+        transform="rotate(-90 46 46)"
+        style={{ transition: "stroke-dashoffset 0.5s ease" }}
+      />
+      <text
+        x={46}
+        y={44}
+        textAnchor="middle"
+        fill="#f4eee1"
+        fontSize={19}
+        fontWeight={600}
+        style={{ fontFamily: "Space Grotesk, system-ui, sans-serif" }}
+      >
+        {value}/{goal}
+      </text>
+      <text x={46} y={59} textAnchor="middle" fill="#8c8170" fontSize={9}>
+        applied
+      </text>
+    </svg>
+  );
+}
+
+// Personal accountability panel: goal ring, weekly + day streaks, a trend
+// sparkline, and a follow-up nudge — with an empty state that invites the
+// member to set a goal, and an inline editor to change it.
+function YourWeekCard({
+  myWeek,
+  onSetGoal,
+}: {
+  myWeek: MyWeek | null;
+  onSetGoal: (goal: number) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("5");
+  const [saving, setSaving] = useState(false);
+
+  if (!myWeek) return <section className={`${PANEL} p-5`} />;
+
+  const startEditing = () => {
+    setDraft(String(myWeek.weekly_goal ?? 5));
+    setEditing(true);
+  };
+
+  const save = async () => {
+    const parsed = Math.round(Number(draft));
+    if (!Number.isFinite(parsed) || parsed < 1 || parsed > 100) return;
+    setSaving(true);
+    try {
+      await onSetGoal(parsed);
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const primaryButton =
+    "inline-flex items-center justify-center gap-2 rounded-lg border border-primary/35 bg-secondary px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/60 hover:bg-[#3a2a17] disabled:cursor-not-allowed disabled:opacity-50";
+
+  return (
+    <section className={`${PANEL} flex flex-col p-5`}>
+      <div className="flex items-center justify-between">
+        <h2 className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+          Your week
+        </h2>
+        {myWeek.weekly_goal != null && !editing && (
+          <button
+            type="button"
+            onClick={startEditing}
+            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-primary"
+          >
+            <Pencil size={12} /> Goal
+          </button>
+        )}
+      </div>
+
+      {editing ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6">
+          <label htmlFor="weekly-goal-input" className="text-xs text-muted-foreground">
+            Applications per week
+          </label>
+          <input
+            id="weekly-goal-input"
+            type="number"
+            min={1}
+            max={100}
+            value={draft}
+            autoFocus
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") void save();
+              if (event.key === "Escape") setEditing(false);
+            }}
+            className="font-numeric w-24 rounded-lg border border-border bg-input px-3 py-2 text-center text-lg text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => void save()}
+              disabled={saving}
+              className={primaryButton}
+            >
+              Save goal
+            </button>
+            {myWeek.weekly_goal != null && (
+              <button
+                type="button"
+                onClick={() => setEditing(false)}
+                className="rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        </div>
+      ) : myWeek.weekly_goal == null ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6 text-center">
+          <Target size={26} className="text-primary/70" />
+          <div>
+            <p className="text-sm font-medium text-foreground">Set your weekly goal</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Track how many applications you aim for each week.
+            </p>
+          </div>
+          <button type="button" onClick={startEditing} className={primaryButton}>
+            Set goal
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="mt-3 flex items-center gap-4">
+            <GoalRing value={myWeek.applied_this_week} goal={myWeek.weekly_goal} />
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 text-sm">
+                <Flame
+                  size={15}
+                  className={myWeek.streak_weeks > 0 ? "text-primary" : "text-muted-foreground"}
+                />
+                <span className="font-medium text-foreground">
+                  {myWeek.streak_weeks > 0
+                    ? `${myWeek.streak_weeks}-week streak`
+                    : "No streak yet"}
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {myWeek.day_streak > 0
+                  ? `${myWeek.day_streak}-day activity streak`
+                  : "Apply today to start a streak"}
+              </p>
+              <div className="mt-2 w-24">
+                <Sparkline
+                  points={myWeek.recent_weeks.map((week) => week.total)}
+                  stroke="#d6a844"
+                />
+              </div>
+            </div>
+          </div>
+          {myWeek.oldest_open && (
+            <Link
+              to={`/applications/${myWeek.oldest_open.application_id}`}
+              className="mt-4 flex items-center gap-2 rounded-lg border border-border bg-input/40 px-3 py-2 text-xs transition-colors hover:border-primary/50"
+            >
+              <ChevronRight size={14} className="shrink-0 text-primary" />
+              <span className="min-w-0 truncate text-muted-foreground">
+                Follow up:{" "}
+                <span className="text-foreground">
+                  {myWeek.oldest_open.company_name}
+                </span>{" "}
+                — {myWeek.oldest_open.job_title}
+              </span>
+            </Link>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
 function DashboardPage({ context }: { context: AppContext }) {
   const [summary, setSummary] = useState<ApplicationSummary | null>(null);
-  const [deletedCount, setDeletedCount] = useState(0);
-  const [teamStats, setTeamStats] = useState<
-    {
-      owner: ApplicationSummary["by_owner"][number]["owner"];
-      active: number;
-      thisWeek: number;
-      rejected: number;
-      lastApplied: string | null;
-    }[]
-  >([]);
+  const [myWeek, setMyWeek] = useState<MyWeek | null>(null);
+  const [goalRefresh, setGoalRefresh] = useState(0);
   const [error, setError] = useState<unknown>();
   const [loading, setLoading] = useState(true);
 
+  // Two bounded requests drive the dashboard: the workspace summary and the
+  // current member's personal "your week" snapshot. Per-member accountability
+  // is loaded separately and paginated by TeamAccountabilityCard.
   const load = useCallback(async () => {
     setLoading(true);
     setError(undefined);
     try {
-      const summaryResponse = await applicationsApi.summary(
-        context.client,
-        context.session.workspace.id,
-      );
-      const latestWeek =
-        summaryResponse.applications_over_time.at(-1)?.by_owner ?? [];
-      const [deletedResponse, ...ownerDetails] = await Promise.all([
-        applicationsApi.deleted(
-          context.client,
-          context.session.workspace.id,
-          1,
-          1,
-        ),
-        ...summaryResponse.by_owner.map(async (ownerCount) => {
-          const [rejected, latest] = await Promise.all([
-            applicationsApi.list(
-              context.client,
-              context.session.workspace.id,
-              {
-                ...defaultFilters,
-                ownerId: ownerCount.owner.id,
-                status: "rejected",
-                pageSize: 1,
-              },
-            ),
-            applicationsApi.list(
-              context.client,
-              context.session.workspace.id,
-              {
-                ...defaultFilters,
-                ownerId: ownerCount.owner.id,
-                sortBy: "application_date",
-                sortOrder: "desc",
-                pageSize: 1,
-              },
-            ),
-          ]);
-          return {
-            owner: ownerCount.owner,
-            active: ownerCount.count,
-            thisWeek:
-              latestWeek.find(
-                (item) => item.owner.id === ownerCount.owner.id,
-              )?.count ?? 0,
-            rejected: rejected.pagination.total_items,
-            lastApplied: latest.items[0]?.application_date ?? null,
-          };
-        }),
+      const [summaryResult, myWeekResult] = await Promise.all([
+        applicationsApi.summary(context.client, context.session.workspace.id),
+        applicationsApi.myWeek(context.client, context.session.workspace.id),
       ]);
-      setSummary(summaryResponse);
-      setDeletedCount(deletedResponse.pagination.total_items);
-      setTeamStats(ownerDetails);
+      setSummary(summaryResult);
+      setMyWeek(myWeekResult);
     } catch (caught) {
       setError(caught);
     } finally {
@@ -828,6 +1033,21 @@ function DashboardPage({ context }: { context: AppContext }) {
   }, [context.client, context.session.workspace.id]);
 
   useEffect(() => void load(), [load]);
+
+  // Saving a goal returns the recomputed snapshot; bumping goalRefresh also
+  // re-pulls the team table so its goal column reflects the new value.
+  const handleSetGoal = useCallback(
+    async (goal: number) => {
+      const updated = await applicationsApi.setWeeklyGoal(
+        context.client,
+        context.session.workspace.id,
+        goal,
+      );
+      setMyWeek(updated);
+      setGoalRefresh((count) => count + 1);
+    },
+    [context.client, context.session.workspace.id],
+  );
 
   if (loading) return <LoadingState label="Loading dashboard…" />;
   if (error) {
@@ -838,36 +1058,21 @@ function DashboardPage({ context }: { context: AppContext }) {
     );
   }
 
-  const counts = summary?.by_owner ?? [];
-  const ownerColors = ["#6366f1", "#10b981", "#f59e0b", "#38bdf8"];
-  const ownerKeys = counts.map((_item, index) => `owner_${index}`);
-  const applicationsOverTime = (summary?.applications_over_time ?? []).map(
-    (point) => {
-      const row: Record<string, string | number> = {
-        week: formatWeekRange(point.week_start),
-      };
-      counts.forEach((ownerCount, index) => {
-        row[ownerKeys[index]] =
-          point.by_owner.find(
-            (item) => item.owner.id === ownerCount.owner.id,
-          )?.count ?? 0;
-      });
-      return row;
-    },
-  );
-  const applicationsByUser = counts.map((item) => ({
-    name: item.owner.display_name,
-    count: item.count,
+  const overTimeRaw = summary?.applications_over_time ?? [];
+  const applicationsOverTime = overTimeRaw.map((point) => ({
+    week: formatWeekRange(point.week_start),
+    total: point.total,
   }));
+  const topApplicants = summary?.top_applicants ?? [];
   const statusMix = (Object.keys(statusLabels) as ApplicationStatus[]).map(
     (status) => ({
       name: statusLabels[status],
       value: summary?.status_counts[status] ?? 0,
       color: {
-        applied: "#3b82f6",
-        rejected: "#ef4444",
-        withdrawn: "#64748b",
-        closed: "#f59e0b",
+        applied: "#d6a844",
+        rejected: "#c2686a",
+        withdrawn: "#8c8170",
+        closed: "#b08953",
       }[status],
     }),
   );
@@ -877,172 +1082,166 @@ function DashboardPage({ context }: { context: AppContext }) {
     name: arrangementLabels[arrangement],
     value: summary?.work_arrangement_counts[arrangement] ?? 0,
     color: {
-      remote: "#10b981",
-      hybrid: "#6366f1",
-      onsite: "#94a3b8",
-      unknown: "#475569",
+      remote: "#5f8f8a",
+      hybrid: "#cc7a4d",
+      onsite: "#9aa05f",
+      unknown: "#6b6253",
     }[arrangement],
   }));
-  const applicationsThisWeek = teamStats.reduce(
-    (total, item) => total + item.thisWeek,
-    0,
-  );
+  // Workspace-wide weekly series drives the "Applications over time" chart caption.
+  const weekTotalAt = (index: number) => overTimeRaw[index]?.total ?? 0;
+  const weekDelta =
+    weekTotalAt(overTimeRaw.length - 1) - weekTotalAt(overTimeRaw.length - 2);
+  const latestWeekLabel = overTimeRaw.length
+    ? formatWeekRange(overTimeRaw[overTimeRaw.length - 1].week_start)
+    : "This week";
+  const weeklyTotals = overTimeRaw.map((point) => point.total);
+  const windowTotal = weeklyTotals.reduce((sum, value) => sum + value, 0);
 
+  // The top KPI cards reflect the logged-in member, not the workspace: Active /
+  // Applied this week / Recently updated are their own totals in this workspace,
+  // and Total applied is their all-time count across every workspace.
+  const personalRecentWeeks = myWeek?.recent_weeks ?? [];
+  const personalWeekly = personalRecentWeeks.map((point) => point.total);
+  const personalThisWeek = myWeek?.applied_this_week ?? 0;
+  const personalWeekDelta =
+    personalRecentWeeks.length >= 2
+      ? personalRecentWeeks[personalRecentWeeks.length - 1].total -
+        personalRecentWeeks[personalRecentWeeks.length - 2].total
+      : 0;
   return (
-    <div className="mx-auto max-w-[1480px] px-4 py-8 sm:px-6">
-      <div className="mb-6">
+    <div className="mx-auto max-w-[1280px] px-4 py-8 sm:px-6">
+      <div className="mb-7">
         <div className="flex items-end justify-between gap-4">
           <div>
-            <p className="text-[0.7rem] font-bold uppercase tracking-[0.16em] text-primary">
-              Dashboard
-            </p>
-            <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-foreground">
+            <p className="text-[0.7rem] font-medium uppercase tracking-[0.18em] text-muted-foreground">
               Overview
+            </p>
+            <h1 className="font-display mt-1.5 text-2xl font-semibold tracking-tight text-foreground">
+              This week at a glance
             </h1>
           </div>
-          <div className="flex flex-none items-center gap-2 rounded-full border border-primary/20 bg-primary/[0.08] px-3.5 py-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-            <span className="text-xs text-[#cfc4af]">
-              {context.session.workspace.name}
-            </span>
-          </div>
+          <span className="flex flex-none items-center gap-1.5 whitespace-nowrap rounded-lg border border-primary/35 bg-secondary px-3 py-1.5 text-xs text-foreground">
+            <CalendarDays size={13} className="text-primary" />
+            {latestWeekLabel}
+          </span>
         </div>
         <div className="mt-4 h-px bg-border" />
       </div>
 
-      <div className="mb-6 flex overflow-hidden rounded-xl border border-border bg-card">
-        <div className="flex flex-1 items-center gap-3 border-r border-border px-5 py-4">
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <FileText size={15} />
+      <div className="mb-7 grid gap-6 lg:grid-cols-[320px_1fr]">
+        <YourWeekCard myWeek={myWeek} onSetGoal={handleSetGoal} />
+        <div className="grid grid-cols-2 gap-4">
+          <div className={`${PANEL} px-5 py-4`}>
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                Active
+              </p>
+              <Briefcase size={14} className="text-muted-foreground" />
+            </div>
+            <p className="font-numeric mt-2 text-[28px] font-semibold leading-none text-foreground">
+              {myWeek?.total_active ?? 0}
+            </p>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              your apps in this workspace
+            </p>
           </div>
-          <div>
-            <p className="text-lg font-bold leading-none text-primary">{summary?.total_active ?? 0}</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">Active applications</p>
+          <div className={`${PANEL} px-5 py-4`}>
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                Applied this week
+              </p>
+              <p className="text-[11px]">
+                {personalWeekDelta > 0 ? (
+                  <span className="text-[#9aa05f]">▲ {personalWeekDelta}</span>
+                ) : personalWeekDelta < 0 ? (
+                  <span className="text-[#c2686a]">
+                    ▼ {Math.abs(personalWeekDelta)}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </p>
+            </div>
+            <p className="font-numeric mt-2 text-[28px] font-semibold leading-none text-foreground">
+              {personalThisWeek}
+            </p>
+            <Sparkline
+              points={personalWeekly}
+              stroke={personalWeekDelta < 0 ? "#c2686a" : "#9aa05f"}
+            />
           </div>
-        </div>
-        <div className="flex flex-1 items-center gap-3 border-r border-border px-5 py-4">
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
-            <TrendingUp size={15} />
+          <div className={`${PANEL} px-5 py-4`}>
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                Recently updated
+              </p>
+              <Pencil size={14} className="text-muted-foreground" />
+            </div>
+            <p className="font-numeric mt-2 text-[28px] font-semibold leading-none text-foreground">
+              {myWeek?.recently_updated ?? 0}
+            </p>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              your edited apps
+            </p>
           </div>
-          <div>
-            <p className="text-lg font-bold leading-none text-emerald-400">{applicationsThisWeek}</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">Applications this week</p>
-          </div>
-        </div>
-        <div className="flex flex-1 items-center gap-3 border-r border-border px-5 py-4">
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
-            <Clock3 size={15} />
-          </div>
-          <div>
-            <p className="text-lg font-bold leading-none text-blue-400">{summary?.recently_updated ?? 0}</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">Recently updated</p>
-          </div>
-        </div>
-        <div className="flex flex-1 items-center gap-3 px-5 py-4">
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-foreground/[0.06] text-muted-foreground">
-            <Trash size={15} />
-          </div>
-          <div>
-            <p className="text-lg font-bold leading-none text-muted-foreground">{deletedCount}</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">My deleted applications</p>
+          <div className={`${PANEL} px-5 py-4`}>
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                Total applied
+              </p>
+              <FileText size={14} className="text-muted-foreground" />
+            </div>
+            <p className="font-numeric mt-2 text-[28px] font-semibold leading-none text-foreground">
+              {myWeek?.total_applied_all_time ?? 0}
+            </p>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              all time · all workspaces
+            </p>
           </div>
         </div>
       </div>
 
-      <section className="mb-10">
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-          Team accountability
-        </h2>
-        <div className="grid gap-5 lg:grid-cols-2">
-          {teamStats.map((item) => {
-            const weeklyShare =
-              applicationsThisWeek === 0
-                ? 0
-                : Math.round((item.thisWeek / applicationsThisWeek) * 100);
-            const isCurrentUser = item.owner.id === context.session.user.id;
-            return (
-              <article
-                key={item.owner.id}
-                className={`rounded-2xl border bg-card p-6 ${
-                  isCurrentUser
-                    ? "border-primary/35"
-                    : "border-border"
-                }`}
-              >
-                <div className="flex items-start gap-4">
-                  <Avatar
-                    id={item.owner.id}
-                    name={item.owner.display_name}
-                    size="lg"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-3">
-                      <h3 className="font-semibold text-foreground">
-                        {item.owner.display_name}
-                      </h3>
-                      {isCurrentUser && (
-                        <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs text-primary">
-                          You
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-6 grid grid-cols-3 text-center">
-                  <AccountabilityStat
-                    value={item.active}
-                    label="Active"
-                    color="text-foreground"
-                  />
-                  <AccountabilityStat
-                    value={item.thisWeek}
-                    label="This week"
-                    color="text-emerald-400"
-                  />
-                  <AccountabilityStat
-                    value={item.rejected}
-                    label="Rejected"
-                    color="text-red-400"
-                  />
-                </div>
-                <div className="mt-6 border-t border-border pt-5">
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Weekly share</span>
-                    <span>{weeklyShare}%</span>
-                  </div>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-secondary">
-                    <div
-                      className="h-full rounded-full bg-primary transition-[width]"
-                      style={{ width: `${weeklyShare}%` }}
-                    />
-                  </div>
-                  <p className="mt-4 text-xs text-muted-foreground">
-                    Last applied:{" "}
-                    <span className="text-foreground">
-                      {item.lastApplied
-                        ? formatDate(item.lastApplied)
-                        : "No applications yet"}
-                    </span>
-                  </p>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </section>
+      <div className="mb-10 grid items-start gap-6 lg:grid-cols-[1.7fr_1fr]">
+        {/* Remount when the member saves a new goal so the goal column re-pulls. */}
+        <TeamAccountabilityCard key={goalRefresh} context={context} />
+        <section>
+          <h2 className="mb-3 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            Recent activity
+          </h2>
+          <div className={`${PANEL} p-5`}>
+            <RecentActivityFeed activities={summary?.recent_activity ?? []} />
+          </div>
+        </section>
+      </div>
 
       <h2 className="mb-4 text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">
         Analytics
       </h2>
-      <div className="grid gap-5 lg:grid-cols-2">
-        <DashboardChartCard title="Applications over time">
+      <div>
+        <DashboardChartCard
+          title="Applications over time"
+          trend={
+            <span className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="font-numeric text-foreground">{windowTotal}</span>
+              total
+              {weekDelta > 0 ? (
+                <span className="text-[#9aa05f]">▲ {weekDelta}</span>
+              ) : weekDelta < 0 ? (
+                <span className="text-[#c2686a]">▼ {Math.abs(weekDelta)}</span>
+              ) : (
+                <span>—</span>
+              )}
+            </span>
+          }
+        >
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={applicationsOverTime}
               margin={{ top: 14, right: 8, left: -20, bottom: 4 }}
             >
               <CartesianGrid
-                stroke="rgba(148,163,184,0.08)"
+                stroke="rgba(140,129,112,0.12)"
                 strokeDasharray="3 4"
                 vertical={false}
               />
@@ -1054,13 +1253,13 @@ function DashboardPage({ context }: { context: AppContext }) {
                 height={58}
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: "#49617f", fontSize: 10 }}
+                tick={{ fill: "#8c8170", fontSize: 10 }}
               />
               <YAxis
                 allowDecimals={false}
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: "#49617f", fontSize: 11 }}
+                tick={{ fill: "#8c8170", fontSize: 11 }}
               />
               <Tooltip
                 contentStyle={chartTooltipStyle}
@@ -1068,131 +1267,71 @@ function DashboardPage({ context }: { context: AppContext }) {
                 labelStyle={{ color: "#a89a80" }}
                 cursor={{ fill: "rgba(214,168,68,0.06)" }}
               />
-              {ownerKeys.map((key, index) => (
-                <Bar
-                  key={key}
-                  dataKey={key}
-                  name={counts[index]?.owner.display_name}
-                  fill={ownerColors[index % ownerColors.length]}
-                  radius={[3, 3, 0, 0]}
-                  maxBarSize={16}
-                />
-              ))}
-            </BarChart>
-          </ResponsiveContainer>
-          <ChartLegend
-            items={counts.map((item, index) => ({
-              label: item.owner.display_name,
-              color: ownerColors[index % ownerColors.length],
-            }))}
-          />
-        </DashboardChartCard>
-
-        <DashboardChartCard title="Applications by user">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={applicationsByUser}
-              layout="vertical"
-              margin={{ top: 14, right: 8, left: 4, bottom: 4 }}
-            >
-              <CartesianGrid
-                stroke="rgba(148,163,184,0.08)"
-                strokeDasharray="3 4"
-                horizontal={false}
+              <Bar
+                dataKey="total"
+                name="Applications"
+                fill="#d6a844"
+                radius={[3, 3, 0, 0]}
+                maxBarSize={28}
               />
-              <XAxis
-                type="number"
-                allowDecimals={false}
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: "#49617f", fontSize: 11 }}
-              />
-              <YAxis
-                type="category"
-                dataKey="name"
-                width={92}
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: "#9eb6d4", fontSize: 12 }}
-              />
-              <Tooltip
-                contentStyle={chartTooltipStyle}
-                itemStyle={{ color: "#f4eee1" }}
-                labelStyle={{ color: "#a89a80" }}
-                cursor={{ fill: "rgba(214,168,68,0.06)" }}
-              />
-              <Bar dataKey="count" fill="#6366f1" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </DashboardChartCard>
 
-        <DashboardDonutCard title="Status mix" data={statusMix} />
-        <DashboardDonutCard
-          title="Work arrangement mix"
-          data={arrangementMix}
-        />
+        <section className={`${PANEL} mt-6 grid gap-x-8 gap-y-6 p-6 md:grid-cols-3`}>
+          <div>
+            <h3 className="mb-4 text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
+              Status
+            </h3>
+            <BarGaugeRows
+              rows={statusMix.map((item) => ({
+                label: item.name,
+                value: item.value,
+                color: item.color,
+              }))}
+            />
+          </div>
+          <div>
+            <h3 className="mb-4 text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
+              Work arrangement
+            </h3>
+            <BarGaugeRows
+              rows={arrangementMix.map((item) => ({
+                label: item.name,
+                value: item.value,
+                color: item.color,
+              }))}
+            />
+          </div>
+          <div>
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <h3 className="text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
+                Top applicants
+              </h3>
+              <Link
+                to="/applications"
+                className="text-[10px] font-medium uppercase tracking-[0.08em] text-[#e0b850] transition-colors hover:text-primary"
+              >
+                View all
+              </Link>
+            </div>
+            {topApplicants.length > 0 ? (
+              <BarGaugeRows
+                rows={topApplicants.map((item, index) => ({
+                  label: item.owner.display_name,
+                  value: item.count,
+                  color: ownerColors[index % ownerColors.length],
+                }))}
+              />
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                No applications yet.
+              </p>
+            )}
+          </div>
+        </section>
       </div>
 
-      <section className="mt-7">
-        <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-          Recent activity
-        </h2>
-        <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
-          {(summary?.recent_activity ?? []).length === 0 ? (
-            <div className="px-6 py-12 text-center text-sm text-muted-foreground">
-              Activity will appear after applications are added or updated.
-            </div>
-          ) : (
-            summary?.recent_activity.map((activity) => (
-              <Link
-                key={`${activity.application_id}-${activity.occurred_at}`}
-                to={`/applications/${activity.application_id}`}
-                className="flex min-h-20 items-center gap-4 px-6 py-4 transition-colors hover:bg-white/[0.025]"
-              >
-                <Avatar
-                  id={activity.owner.id}
-                  name={activity.owner.display_name}
-                  size="md"
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm text-muted-foreground">
-                    <span className="font-semibold text-foreground">
-                      {activity.owner.display_name}
-                    </span>{" "}
-                    <span className="text-muted-foreground">{activity.action}</span>{" "}
-                    <span className="font-medium text-foreground">
-                      {activity.job_title}
-                    </span>{" "}
-                    <span className="text-muted-foreground">
-                      at {activity.company_name}
-                    </span>
-                    {activity.action === "updated" && (
-                      <span className="ml-2">
-                        <StatusPill status={activity.status} />
-                      </span>
-                    )}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {formatRelativeTime(activity.occurred_at)}
-                  </p>
-                </div>
-                <span
-                  className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${
-                    activity.action === "added"
-                      ? "bg-emerald-500"
-                      : activity.status === "rejected"
-                        ? "bg-red-500"
-                        : activity.status === "closed"
-                          ? "bg-amber-500"
-                          : "bg-blue-500"
-                  }`}
-                  aria-hidden="true"
-                />
-              </Link>
-            ))
-          )}
-        </div>
-      </section>
     </div>
   );
 }
@@ -1205,131 +1344,402 @@ const chartTooltipStyle = {
   fontSize: "12px",
 };
 
-function AccountabilityStat({
-  value,
-  label,
-  color,
-}: {
-  value: number;
-  label: string;
-  color: string;
-}) {
-  return (
-    <div>
-      <p className={`text-2xl font-bold ${color}`}>{value}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{label}</p>
-    </div>
-  );
-}
-
 function DashboardChartCard({
   title,
+  trend,
   children,
 }: {
   title: string;
+  trend?: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <section className="relative h-[355px] rounded-2xl border border-border bg-card p-6 pb-12">
-      <h2 className="mb-3 text-base font-semibold text-foreground">{title}</h2>
+    <section className={`${PANEL} relative h-[355px] p-6 pb-12`}>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="font-display text-base font-semibold text-foreground">{title}</h2>
+        {trend}
+      </div>
       <div className="h-[255px]">{children}</div>
     </section>
   );
 }
 
-function ChartLegend({
-  items,
-}: {
-  items: { label: string; color: string }[];
-}) {
+const teamAccountabilityColumns: {
+  key: TeamAccountabilitySort;
+  label: string;
+  align: "left" | "center";
+}[] = [
+  { key: "name", label: "Member", align: "left" },
+  { key: "active", label: "Active", align: "center" },
+  { key: "this_week", label: "This wk", align: "center" },
+  { key: "rejected", label: "Rejected", align: "center" },
+];
+
+export function TeamAccountabilityCard({ context }: { context: AppContext }) {
+  const [rows, setRows] = useState<TeamAccountabilityRow[]>([]);
+  const [pagination, setPagination] = useState<
+    PaginatedApplications["pagination"]
+  >({ page: 1, page_size: 10, total_items: 0, total_pages: 0 });
+  const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<TeamAccountabilitySort>("active");
+  const [order, setOrder] = useState<"asc" | "desc">("desc");
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<unknown>();
+  const latestRequest = useRef(0);
+
+  // Debounce typing, and snap back to the first page whenever the query changes.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const load = useCallback(async () => {
+    const requestId = ++latestRequest.current;
+    setLoading(true);
+    setError(undefined);
+    try {
+      const response = await applicationsApi.teamAccountability(
+        context.client,
+        context.session.workspace.id,
+        { sort, order, page, pageSize: 10, search: debouncedSearch || undefined },
+      );
+      if (requestId !== latestRequest.current) return;
+      setRows(response.items);
+      setPagination(response.pagination);
+    } catch (caught) {
+      if (requestId !== latestRequest.current) return;
+      setError(caught);
+    } finally {
+      if (requestId === latestRequest.current) setLoading(false);
+    }
+  }, [
+    context.client,
+    context.session.workspace.id,
+    sort,
+    order,
+    page,
+    debouncedSearch,
+  ]);
+
+  useEffect(() => {
+    void load();
+    return () => {
+      // Invalidate work from the previous query or an unmounted card.
+      latestRequest.current += 1;
+    };
+  }, [load]);
+
+  const sortBy = (key: TeamAccountabilitySort) => {
+    if (key === sort) {
+      setOrder((current) => (current === "asc" ? "desc" : "asc"));
+    } else {
+      setSort(key);
+      setOrder(key === "name" ? "asc" : "desc");
+    }
+    setPage(1);
+  };
+
   return (
-    <div className="absolute bottom-6 left-6 flex flex-wrap gap-x-6 gap-y-2">
-      {items.map((item) => (
-        <span
-          key={item.label}
-          className="inline-flex items-center gap-2 text-xs text-muted-foreground"
-        >
-          <span
-            className="h-2.5 w-2.5 rounded-full"
-            style={{ backgroundColor: item.color }}
-          />
-          {item.label}
-        </span>
-      ))}
+    <section>
+      <h2 className="mb-3 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+        Team accountability
+      </h2>
+      <div className={`${PANEL} overflow-hidden`}>
+        {/* In-card toolbar: search + count sit in the same box as the list. */}
+        <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3">
+          <span className="text-[11px] text-muted-foreground">
+            {pagination.total_items} member
+            {pagination.total_items === 1 ? "" : "s"}
+          </span>
+          <div className="relative">
+            <Search
+              size={13}
+              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+            />
+            <input
+              type="text"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search members"
+              aria-label="Search members"
+              className="h-8 w-40 rounded-lg border border-border bg-input pl-7 pr-2 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40 sm:w-48"
+            />
+          </div>
+        </div>
+        {/* Cap the visible list at ~8 rows; the header stays put while scrolling. */}
+        <div className="scrollbar-slim max-h-[544px] overflow-y-auto">
+          <table className="w-full border-collapse text-sm">
+            <thead className="[&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:border-b [&_th]:border-border [&_th]:bg-card">
+            <tr className="border-b border-border text-left text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+              {teamAccountabilityColumns.map((column) => (
+                <th
+                  key={column.key}
+                  className={`px-4 py-3 font-medium ${
+                    column.align === "center" ? "text-center" : "px-5"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => sortBy(column.key)}
+                    className={`inline-flex items-center gap-1 whitespace-nowrap text-[10px] font-medium uppercase leading-none tracking-[0.08em] transition-colors hover:text-foreground ${
+                      sort === column.key ? "text-foreground" : ""
+                    }`}
+                  >
+                    {column.label}
+                    <ChevronDown
+                      size={12}
+                      aria-hidden="true"
+                      className={`transition-all duration-200 ${
+                        sort === column.key
+                          ? `opacity-100 ${order === "asc" ? "rotate-180" : ""}`
+                          : "opacity-0"
+                      }`}
+                    />
+                  </button>
+                </th>
+              ))}
+              <th className="w-[34%] px-5 py-3 font-medium">Weekly goal</th>
+            </tr>
+          </thead>
+          {/* Keyed by the sort so a re-sort remounts the rows and replays the
+              fade/slide-in — the visible feedback when a header is clicked. */}
+          <tbody key={`${sort}-${order}-${page}`} className="divide-y divide-border">
+            {rows.map((item) => {
+              const goal = item.weekly_goal;
+              const hasGoal = goal != null && goal > 0;
+              const goalProgress = hasGoal
+                ? Math.min(100, Math.round((item.this_week / goal) * 100))
+                : 0;
+              const isCurrentUser = item.owner.id === context.session.user.id;
+              return (
+                <tr
+                  key={item.owner.id}
+                  className="animate-in fade-in-0 slide-in-from-bottom-1 duration-300 transition-colors hover:bg-[#211910]"
+                >
+                  <td className="px-5 py-3.5">
+                    <div className="flex items-center gap-3">
+                      <Avatar id={item.owner.id} name={item.owner.display_name} />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate font-medium text-foreground">
+                            {item.owner.display_name}
+                          </span>
+                          {isCurrentUser && (
+                            <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
+                              You
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-0.5 whitespace-nowrap text-[11px] text-muted-foreground">
+                          {item.last_applied
+                            ? `Last applied ${formatDate(item.last_applied)}`
+                            : "No applications yet"}
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="font-numeric px-4 py-3.5 text-center text-foreground">
+                    {item.active}
+                  </td>
+                  <td className="font-numeric px-4 py-3.5 text-center text-[#9aa05f]">
+                    {item.this_week}
+                  </td>
+                  <td className="font-numeric px-4 py-3.5 text-center text-[#c2686a]">
+                    {item.rejected}
+                  </td>
+                  <td className="px-5 py-3.5">
+                    {hasGoal ? (
+                      <div className="flex items-center gap-3">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-secondary">
+                          <div
+                            className="h-full rounded-full bg-primary transition-[width]"
+                            style={{ width: `${goalProgress}%` }}
+                          />
+                        </div>
+                        <span className="font-numeric whitespace-nowrap text-xs text-muted-foreground">
+                          <span className="text-foreground">{item.this_week}</span>{" "}
+                          / {goal}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        No goal set
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          </table>
+        </div>
+        {loading ? (
+          <div className="px-5 py-6">
+            <LoadingState label="Loading team…" />
+          </div>
+        ) : error ? (
+          <div className="px-5 py-6">
+            <ErrorState error={error} onRetry={load} />
+          </div>
+        ) : rows.length === 0 ? (
+          <p className="px-5 py-8 text-center text-sm text-muted-foreground">
+            {debouncedSearch ? `No members match “${debouncedSearch}”.` : "No members yet."}
+          </p>
+        ) : null}
+      </div>
+      {pagination.total_pages > 1 && (
+        <PaginationBar
+          pagination={pagination}
+          onPage={setPage}
+          pageSize={pagination.page_size}
+          noun="member"
+        />
+      )}
+    </section>
+  );
+}
+
+function BarGaugeRows({
+  rows,
+}: {
+  rows: { label: string; value: number; color: string }[];
+}) {
+  const max = Math.max(...rows.map((row) => row.value), 1);
+  const total = rows.reduce((sum, row) => sum + row.value, 0);
+  return (
+    <div className="flex flex-col gap-3">
+      {rows.map((row) => {
+        const empty = row.value === 0;
+        const share = total > 0 ? Math.round((row.value / total) * 100) : 0;
+        return (
+          <div key={row.label} className="flex items-center gap-3 text-xs">
+            <span
+              className={`w-20 shrink-0 truncate ${
+                empty ? "text-muted-foreground" : "text-[#cdbfa3]"
+              }`}
+            >
+              {row.label}
+            </span>
+            <div className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">
+              <div
+                className="h-full rounded-full transition-[width]"
+                style={{
+                  width: `${(row.value / max) * 100}%`,
+                  backgroundColor: row.color,
+                }}
+              />
+            </div>
+            <span
+              className={`font-numeric w-5 shrink-0 text-right ${
+                empty ? "text-[#6b6253]" : "text-foreground"
+              }`}
+            >
+              {row.value}
+            </span>
+            <span className="font-numeric w-9 shrink-0 text-right text-[11px] text-muted-foreground">
+              {share}%
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function DashboardDonutCard({
-  title,
-  data,
+function activityDayBucket(occurredAt: string): string {
+  const then = new Date(occurredAt).getTime();
+  const now = new Date();
+  const startOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  ).getTime();
+  if (then >= startOfToday) return "Today";
+  if (then >= startOfToday - 86_400_000) return "Yesterday";
+  return "Earlier";
+}
+
+function RecentActivityFeed({
+  activities,
 }: {
-  title: string;
-  data: { name: string; value: number; color: string }[];
+  activities: ApplicationSummary["recent_activity"];
 }) {
+  if (activities.length === 0) {
+    return (
+      <p className="py-10 text-center text-sm text-muted-foreground">
+        Activity appears as applications are added or updated.
+      </p>
+    );
+  }
+  const groups: { bucket: string; items: typeof activities }[] = [];
+  for (const activity of activities) {
+    const bucket = activityDayBucket(activity.occurred_at);
+    const last = groups[groups.length - 1];
+    if (last && last.bucket === bucket) last.items.push(activity);
+    else groups.push({ bucket, items: [activity] });
+  }
   return (
-    <section className="h-[260px] rounded-2xl border border-border bg-card p-6">
-      <h2 className="text-base font-semibold text-foreground">{title}</h2>
-      <div className="mt-3 grid h-[180px] grid-cols-[170px_1fr] items-center gap-4">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={data}
-              dataKey="value"
-              nameKey="name"
-              innerRadius={46}
-              outerRadius={70}
-              stroke="none"
-              strokeWidth={0}
-            >
-              {data.map((item) => (
-                <Cell key={item.name} fill={item.color} />
-              ))}
-            </Pie>
-            <Tooltip
-              content={({ active, payload }) => {
-                if (!active || !payload?.length) return null;
-                const item = payload[0];
-                return (
-                  <div className="rounded-lg border border-border bg-popover px-3 py-2 shadow-xl">
-                    <div className="flex items-center gap-2 text-xs">
-                      <span
-                        className="h-2.5 w-2.5 rounded-full"
-                        style={{
-                          backgroundColor:
-                            typeof item.payload?.color === "string"
-                              ? item.payload.color
-                              : "#d6a844",
-                        }}
-                      />
-                      <span className="text-muted-foreground">{item.name}</span>
-                      <strong className="text-foreground">{item.value}</strong>
+    <div className="flex flex-col gap-5">
+      {groups.map((group) => (
+        <div key={group.bucket}>
+          <div className="mb-3 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+            {group.bucket}
+          </div>
+          <div className="relative flex flex-col gap-4 pl-8">
+            <div className="absolute bottom-1 left-[11px] top-1 w-px bg-border" />
+            {group.items.map((activity) => {
+              const added = activity.action === "added";
+              const Icon = added ? Plus : Pencil;
+              return (
+                <Link
+                  key={`${activity.application_id}-${activity.occurred_at}`}
+                  to={`/applications/${activity.application_id}`}
+                  className="group relative flex items-start justify-between gap-3"
+                >
+                  <span
+                    className={`absolute left-[-32px] top-0 flex h-6 w-6 items-center justify-center rounded-full border-2 border-card ${
+                      added
+                        ? "bg-[#9aa05f]/15 text-[#9aa05f]"
+                        : "bg-primary/15 text-[#e0b850]"
+                    }`}
+                    aria-hidden="true"
+                  >
+                    <Icon size={12} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13px] leading-snug text-muted-foreground">
+                      <span className="font-medium text-foreground">
+                        {activity.owner.display_name}
+                      </span>{" "}
+                      {activity.action}{" "}
+                      <span className="font-medium text-foreground transition-colors group-hover:text-primary">
+                        {activity.job_title}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+                      <span className="truncate">{activity.company_name}</span>
+                      {activity.action === "updated" && (
+                        <span className="shrink-0">
+                          <StatusPill status={activity.status} />
+                        </span>
+                      )}
                     </div>
                   </div>
-                );
-              }}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-        <div className="space-y-3">
-          {data.map((item) => (
-            <div
-              key={item.name}
-              className="flex items-center justify-between gap-4 text-sm"
-            >
-              <span className="inline-flex items-center gap-2 text-muted-foreground">
-                <span
-                  className="h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: item.color }}
-                />
-                {item.name}
-              </span>
-              <span className="font-semibold text-foreground">{item.value}</span>
-            </div>
-          ))}
+                  <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground">
+                    {formatRelativeTime(activity.occurred_at)}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
         </div>
-      </div>
-    </section>
+      ))}
+    </div>
   );
 }
 
@@ -1471,7 +1881,7 @@ function ApplicationsPage({ context }: { context: AppContext }) {
             label="Owner"
             value={filters.ownerId}
             onChange={(value) => update({ ownerId: value })}
-            options={(summary?.by_owner ?? []).map((item) => ({
+            options={(summary?.top_applicants ?? []).map((item) => ({
               value: item.owner.id,
               label: item.owner.display_name,
             }))}
@@ -1652,18 +2062,18 @@ function ApplicationTable({
   return (
     <>
       <div className="hidden overflow-x-auto lg:block">
-        <table className="min-w-[1180px] w-full">
+        <table className="min-w-[1180px] w-full table-fixed">
           <thead className="border-b border-border bg-white/[0.015] text-left text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
             <tr>
-              <th className="w-[12%] px-5 py-4 font-semibold">Company</th>
-              <th className="w-[21%] px-4 py-4 font-semibold">Role</th>
-              <th className="w-[12%] px-4 py-4 font-semibold">Owner</th>
-              <th className="w-[14%] px-4 py-4 font-semibold">Location</th>
-              <th className="w-[11%] px-4 py-4 font-semibold">Arrangement</th>
+              <th className="w-[13%] px-5 py-4 font-semibold">Company</th>
+              <th className="w-[18%] px-4 py-4 font-semibold">Role</th>
+              <th className="w-[11%] px-4 py-4 font-semibold">Owner</th>
+              <th className="w-[11%] px-4 py-4 font-semibold">Location</th>
+              <th className="w-[10%] px-4 py-4 font-semibold">Arrangement</th>
               <th className="w-[9%] px-4 py-4 font-semibold">Type</th>
-              <th className="w-[10%] px-4 py-4 font-semibold">Status</th>
-              <th className="w-[10%] px-4 py-4 font-semibold">Applied</th>
-              <th className="px-5 py-4 text-right font-semibold">Actions</th>
+              <th className="w-[9%] px-4 py-4 font-semibold">Status</th>
+              <th className="w-[9%] px-4 py-4 font-semibold">Applied</th>
+              <th className="w-[10%] px-4 py-4 text-right font-semibold">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -1677,10 +2087,16 @@ function ApplicationTable({
                     href={application.job_posting_url}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-foreground hover:text-primary"
+                    title={application.company_name}
+                    className="inline-flex items-start gap-1.5 text-sm font-semibold text-foreground hover:text-primary"
                   >
-                    {application.company_name}
-                    <ExternalLink size={11} className="text-muted-foreground" />
+                    <span className="line-clamp-3 break-words">
+                      {clampChars(application.company_name, 60)}
+                    </span>
+                    <ExternalLink
+                      size={11}
+                      className="mt-1 shrink-0 text-muted-foreground"
+                    />
                   </a>
                 </td>
                 <td className="px-4 py-4">
@@ -1717,7 +2133,7 @@ function ApplicationTable({
                 <td className="whitespace-nowrap px-4 py-4 text-xs text-muted-foreground">
                   {formatDate(application.application_date)}
                 </td>
-                <td className="px-5 py-4">
+                <td className="px-4 py-4">
                   <ApplicationActions
                     applicationOwnerId={application.owner.id}
                     canModerate={canModerate}
@@ -1741,9 +2157,10 @@ function ApplicationTable({
               <div>
                 <Link
                   to={`/applications/${application.id}`}
+                  title={application.company_name}
                   className="font-medium text-foreground"
                 >
-                  {application.company_name}
+                  {clampChars(application.company_name, 60)}
                 </Link>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {application.job_title}
@@ -1780,16 +2197,18 @@ function PaginationBar({
   onPage,
   pageSize,
   onPageSize,
+  noun = "application",
 }: {
   pagination: PaginatedApplications["pagination"];
   onPage: (page: number) => void;
   pageSize: number;
   onPageSize?: (size: number) => void;
+  noun?: string;
 }) {
   return (
     <div className="mt-4 flex flex-col items-center justify-between gap-3 sm:flex-row">
       <p className="text-xs text-muted-foreground">
-        {pagination.total_items} application
+        {pagination.total_items} {noun}
         {pagination.total_items === 1 ? "" : "s"}
       </p>
       <div className="flex items-center gap-2">
@@ -1894,19 +2313,19 @@ function ApplicationDetailPage({ context }: { context: AppContext }) {
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
       <Link
         to="/applications"
-        className="mb-6 inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300"
+        className="mb-6 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft size={12} /> Applications
       </Link>
       <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
         <div>
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-100">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
               {application.company_name}
             </h1>
             <StatusPill status={application.status} />
           </div>
-          <p className="mt-1 text-slate-500">{application.job_title}</p>
+          <p className="mt-1 text-muted-foreground">{application.job_title}</p>
         </div>
         {(owned || canModerate) && (
           <div className="flex gap-2">
@@ -1916,7 +2335,7 @@ function ApplicationDetailPage({ context }: { context: AppContext }) {
               </Link>
             )}
             <button
-              className="rounded-lg border border-red-500/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-500/10"
+              className="rounded-lg border border-[#e0625a]/30 px-4 py-2 text-sm font-medium text-[#e0625a] hover:bg-[#e0625a]/10"
               onClick={() => void remove()}
             >
               Delete
@@ -1925,8 +2344,8 @@ function ApplicationDetailPage({ context }: { context: AppContext }) {
         )}
       </div>
       {!owned && (
-        <div className="mb-5 flex items-start gap-3 rounded-xl border border-indigo-500/15 bg-indigo-500/5 p-4 text-sm text-slate-400">
-          <Shield size={15} className="mt-0.5 flex-shrink-0 text-indigo-400" />
+        <div className="mb-5 flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/[0.06] p-4 text-sm text-[#cdbfa3]">
+          <Shield size={15} className="mt-0.5 flex-shrink-0 text-[#e0b850]" />
           <span>
             This record belongs to {application.owner.display_name}. You can
             view it but cannot edit it.
@@ -1957,7 +2376,7 @@ function ApplicationDetailPage({ context }: { context: AppContext }) {
                 href={application.job_posting_url}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 text-indigo-400 hover:text-indigo-300"
+                className="inline-flex items-center gap-1 text-[#e0b850] hover:text-primary"
               >
                 Open posting <ExternalLink size={12} />
               </a>,
@@ -1965,19 +2384,15 @@ function ApplicationDetailPage({ context }: { context: AppContext }) {
           ]}
         />
         {(application.job_description || application.notes) && (
-          <DetailCard
-            title="Notes"
-            items={[
-              ["Job description", application.job_description || "Not provided"],
-              ["Personal notes", application.notes || "Not provided"],
-            ]}
-          />
+          <>
+            <NoteCard title="Job description" text={application.job_description} />
+            <NoteCard title="Personal notes" text={application.notes} />
+          </>
         )}
         <AiResumeTailorPanel
           client={context.client}
           workspaceId={context.session.workspace.id}
           application={application}
-          currentUserId={context.session.user.id}
         />
       </div>
     </div>
@@ -1992,23 +2407,96 @@ function DetailCard({
   items: [string, ReactNode][];
 }) {
   return (
-    <section className="rounded-xl border border-white/[0.08] bg-[#111827] p-5">
-      <h2 className="mb-4 border-b border-white/[0.06] pb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+    <section className="rounded-xl border border-border bg-card p-5">
+      <h2 className="mb-4 border-b border-border pb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         {title}
       </h2>
       <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
         {items.map(([label, value]) => (
           <div key={label}>
-            <dt className="mb-1 text-[11px] uppercase tracking-wider text-slate-600">
+            <dt className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">
               {label}
             </dt>
-            <dd className="whitespace-pre-wrap text-sm leading-relaxed text-slate-300">
+            <dd className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
               {value}
             </dd>
           </div>
         ))}
       </dl>
     </section>
+  );
+}
+
+// A full-width detail box (matching DetailCard's surface) whose body is a
+// collapsible text snippet — used to stack Job description over Personal notes.
+function NoteCard({ title, text }: { title: string; text: string | null }) {
+  return (
+    <section className="rounded-xl border border-border bg-card p-5">
+      <h2 className="mb-4 border-b border-border pb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {title}
+      </h2>
+      {text ? (
+        <ExpandableText text={text} />
+      ) : (
+        <p className="text-sm text-muted-foreground">Not provided</p>
+      )}
+    </section>
+  );
+}
+
+// Collapsed ≈ 6 lines. CSS line-clamp gives an ellipsis but can't be
+// height-animated, so the snippet uses a line-aligned max-height clip and
+// eases to the measured full height for a smooth open/close.
+const EXPANDABLE_COLLAPSED_PX = 136;
+
+export function ExpandableText({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  const [contentHeight, setContentHeight] = useState(EXPANDABLE_COLLAPSED_PX);
+  const ref = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const measure = () => {
+      const height = el.scrollHeight;
+      setContentHeight(height);
+      setOverflows(height > EXPANDABLE_COLLAPSED_PX + 4);
+    };
+
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [text]);
+
+  const clamp = overflows && !expanded;
+
+  return (
+    <div>
+      <p
+        ref={ref}
+        className="overflow-hidden whitespace-pre-wrap text-sm leading-relaxed text-foreground motion-safe:transition-[max-height] motion-safe:duration-500 motion-safe:ease-in-out"
+        style={{
+          maxHeight: `${clamp ? EXPANDABLE_COLLAPSED_PX : contentHeight}px`,
+        }}
+      >
+        {text}
+      </p>
+      {overflows && (
+        <button
+          type="button"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((value) => !value)}
+          className="mt-2 text-xs font-medium text-primary transition-colors hover:text-[#e0b850]"
+        >
+          {expanded ? "Show less" : "Read more"}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -2891,12 +3379,21 @@ function DeletedPage({ context }: { context: AppContext }) {
   );
 }
 
-function WorkspacePage({ context }: { context: AppContext }) {
+export function WorkspacePage({ context }: { context: AppContext }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
+  const [memberPagination, setMemberPagination] = useState<
+    PaginatedApplications["pagination"]
+  >({ page: 1, page_size: 20, total_items: 0, total_pages: 0 });
+  const [memberCount, setMemberCount] = useState(0);
+  const [memberSearch, setMemberSearch] = useState("");
+  const [debouncedMemberSearch, setDebouncedMemberSearch] = useState("");
+  const [memberPage, setMemberPage] = useState(1);
   const [invitations, setInvitations] = useState<WorkspaceInvitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>();
+  const latestMemberRequest = useRef(0);
+  const loadedInvitationWorkspace = useRef<string | null>(null);
   const [showCreate, setShowCreate] = useState(
     () => searchParams.get("create") === "1",
   );
@@ -2912,32 +3409,72 @@ function WorkspacePage({ context }: { context: AppContext }) {
     }
   }, [searchParams, setSearchParams]);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedMemberSearch(memberSearch.trim());
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [memberSearch]);
+
   const load = useCallback(async () => {
+    const requestId = ++latestMemberRequest.current;
+    const workspaceId = context.session.workspace.id;
+    const shouldLoadInvitations =
+      isOwner && loadedInvitationWorkspace.current !== workspaceId;
+    if (shouldLoadInvitations) loadedInvitationWorkspace.current = workspaceId;
     setLoading(true);
     try {
       const [memberResponse, invitationResponse] = await Promise.all([
-        workspaceApi.members(
-          context.client,
-          context.session.workspace.id,
-        ),
-        isOwner
+        workspaceApi.members(context.client, context.session.workspace.id, {
+          search: debouncedMemberSearch || undefined,
+          page: memberPage,
+          pageSize: 20,
+        }),
+        shouldLoadInvitations
           ? workspaceApi.invitations(
               context.client,
               context.session.workspace.id,
+              { pageSize: 100 },
             )
-          : Promise.resolve({ items: [] }),
+          : Promise.resolve(null),
       ]);
+      if (
+        invitationResponse &&
+        loadedInvitationWorkspace.current === workspaceId
+      ) {
+        setInvitations(invitationResponse.items);
+      }
+      if (requestId !== latestMemberRequest.current) return;
       setMembers(memberResponse.items);
-      setInvitations(invitationResponse.items);
+      setMemberPagination(memberResponse.pagination);
+      setMemberCount(memberResponse.member_count);
       setError(undefined);
     } catch (caught) {
+      if (
+        shouldLoadInvitations &&
+        loadedInvitationWorkspace.current === workspaceId
+      ) {
+        loadedInvitationWorkspace.current = null;
+      }
+      if (requestId !== latestMemberRequest.current) return;
       setError(caught);
     } finally {
-      setLoading(false);
+      if (requestId === latestMemberRequest.current) setLoading(false);
     }
-  }, [context.client, context.session.workspace.id, isOwner]);
+  }, [
+    context.client,
+    context.session.workspace.id,
+    isOwner,
+    debouncedMemberSearch,
+    memberPage,
+  ]);
 
-  useEffect(() => void load(), [load]);
+  useEffect(() => {
+    void load();
+    return () => {
+      latestMemberRequest.current += 1;
+    };
+  }, [load]);
 
   const createWorkspace = async (event: FormEvent) => {
     event.preventDefault();
@@ -2973,7 +3510,7 @@ function WorkspacePage({ context }: { context: AppContext }) {
         inviteEmail,
       );
       setInviteEmail("");
-      await load();
+      setInvitations((current) => [...current, invitation]);
       toast.success(`Invitation sent to ${invitation.email}.`);
     } catch (caught) {
       toast.error(
@@ -3153,8 +3690,7 @@ function WorkspacePage({ context }: { context: AppContext }) {
                 Members
               </h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                {members.length} active{" "}
-                {members.length === 1 ? "member" : "members"}
+                {memberCount} active {memberCount === 1 ? "member" : "members"}
               </p>
             </div>
             {isOwner && (
@@ -3190,10 +3726,32 @@ function WorkspacePage({ context }: { context: AppContext }) {
               </form>
             )}
           </div>
+          <label className="relative mb-3 block">
+            <span className="sr-only">Search members</span>
+            <Search
+              className="absolute left-3 top-2.5 text-muted-foreground"
+              size={14}
+            />
+            <input
+              value={memberSearch}
+              onChange={(event) => {
+                setMemberSearch(event.target.value);
+                setMemberPage(1);
+              }}
+              placeholder="Search members by name or email"
+              className="w-full rounded-lg border border-border bg-input py-2 pl-9 pr-3 text-xs text-foreground placeholder:text-[#6b6253] focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/15"
+            />
+          </label>
           {loading ? (
             <LoadingState label="Loading workspace members..." />
           ) : error ? (
             <ErrorState error={error} onRetry={load} />
+          ) : members.length === 0 ? (
+            <p className="rounded-xl border border-border bg-input px-4 py-8 text-center text-sm text-muted-foreground">
+              {memberSearch.trim()
+                ? "No members match your search."
+                : "No members yet."}
+            </p>
           ) : (
             <div className="space-y-2">
               {members.map((member) => {
@@ -3297,6 +3855,14 @@ function WorkspacePage({ context }: { context: AppContext }) {
                 </div>
               ))}
             </div>
+          )}
+          {memberPagination.total_pages > 1 && (
+            <PaginationBar
+              pagination={memberPagination}
+              onPage={setMemberPage}
+              pageSize={memberPagination.page_size}
+              noun="member"
+            />
           )}
         </div>
 
@@ -3550,14 +4116,14 @@ export function LegacyDevelopmentIdentityApp() {
   }
   if (loading) {
     return (
-      <div className="dark min-h-screen bg-[#0c1120] text-slate-200">
+      <div className="dark theme-gold min-h-screen bg-background text-foreground">
         <LoadingState label="Discovering your workspace…" />
       </div>
     );
   }
   if (error || !session) {
     return (
-      <div className="dark flex min-h-screen items-center justify-center bg-[#0c1120] p-6 text-slate-200">
+      <div className="dark theme-gold flex min-h-screen items-center justify-center bg-background p-6 text-foreground">
         <div className="w-full max-w-lg">
           <ErrorState error={error ?? new Error("Session could not be loaded.")} />
           <button
@@ -3651,7 +4217,7 @@ function AuthenticatedApp({
 
   if (auth.status === "initializing") {
     return (
-      <div className="dark min-h-screen bg-[#0c1120] text-slate-200">
+      <div className="dark theme-gold min-h-screen bg-background text-foreground">
         <LoadingState label="Restoring your secure session…" />
       </div>
     );
@@ -3659,7 +4225,7 @@ function AuthenticatedApp({
 
   if (auth.status === "recoverable-error") {
     return (
-      <div className="dark flex min-h-screen items-center justify-center bg-[#0c1120] p-6 text-slate-200">
+      <div className="dark theme-gold flex min-h-screen items-center justify-center bg-background p-6 text-foreground">
         <div className="w-full max-w-lg">
           <ErrorState
             error={auth.error ?? new Error("Session could not be restored.")}
@@ -3691,7 +4257,7 @@ function AuthenticatedApp({
 
   if (!auth.user || !auth.workspace) {
     return (
-      <div className="dark min-h-screen bg-[#0c1120] text-slate-200">
+      <div className="dark theme-gold min-h-screen bg-background text-foreground">
         <LoadingState label="Loading your workspace…" />
       </div>
     );

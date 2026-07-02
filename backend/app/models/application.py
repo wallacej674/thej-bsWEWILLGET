@@ -9,6 +9,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Numeric,
     String,
     Text,
@@ -65,6 +66,24 @@ class JobApplication(Base):
             "owner_id",
             "normalized_job_posting_url",
             name="uq_application_workspace_owner_normalized_url",
+        ),
+        # Composite indexes backing the workspace-scoped dashboard aggregates and
+        # per-owner accountability rollups at 100+ members.
+        Index(
+            "ix_job_applications_workspace_owner_status",
+            "workspace_id",
+            "owner_id",
+            "status",
+        ),
+        Index(
+            "ix_job_applications_workspace_application_date",
+            "workspace_id",
+            "application_date",
+        ),
+        Index(
+            "ix_job_applications_workspace_updated_at",
+            "workspace_id",
+            "updated_at",
         ),
     )
 

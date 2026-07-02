@@ -54,7 +54,14 @@ def test_workspace_members_include_identity_and_role(
                 "role": "member",
                 "joined_at": response.json()["items"][1]["joined_at"],
             },
-        ]
+        ],
+        "pagination": {
+            "page": 1,
+            "page_size": 20,
+            "total_items": 2,
+            "total_pages": 1,
+        },
+        "member_count": 2,
     }
 
 

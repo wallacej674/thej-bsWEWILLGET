@@ -99,11 +99,14 @@ def test_application_owner_can_generate_and_fetch_resume_tailor_analysis(
     assert fetched.json()["id"] == body["id"]
 
 
-def test_workspace_member_cannot_generate_or_view_another_users_analysis(
+def test_workspace_member_can_tailor_resume_for_another_members_application(
     api_client, active_member, second_active_member, shared_workspace, fake_ai_provider
 ) -> None:
+    # A member may tailor their own resume against any application they can see
+    # in the workspace. The analysis is keyed per (application, user), so it is
+    # the member's own artifact and stays separate from the owner's.
     application = create_application(api_client, shared_workspace.id, active_member.id)
-    upload_resume(api_client, active_member.id)
+    upload_resume(api_client, second_active_member.id)
     path = (
         f"/api/v1/workspaces/{shared_workspace.id}/applications/"
         f"{application['id']}/ai/resume-tailor"
@@ -112,11 +115,15 @@ def test_workspace_member_cannot_generate_or_view_another_users_analysis(
     response = api_client.post(
         path, headers={"X-User-Id": str(second_active_member.id)}
     )
-    fetched = api_client.get(path, headers={"X-User-Id": str(second_active_member.id)})
+    assert response.status_code == 200
 
-    assert response.status_code == 403
-    assert response.json()["error"]["code"] == "application_ownership_required"
-    assert fetched.status_code == 403
+    fetched = api_client.get(path, headers={"X-User-Id": str(second_active_member.id)})
+    assert fetched.status_code == 200
+    assert fetched.json()["id"] == response.json()["id"]
+
+    # Per-user isolation: the application owner has no analysis of their own.
+    owner_fetch = api_client.get(path, headers={"X-User-Id": str(active_member.id)})
+    assert owner_fetch.status_code == 404
 
 
 def test_resume_tailor_requires_job_description_and_resume(

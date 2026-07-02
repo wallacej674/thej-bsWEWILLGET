@@ -1,6 +1,7 @@
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, Query, Response, status
 
 from app.api.dependencies.current_user import CurrentUser, DatabaseSession
 from app.api.dependencies.workspace_access import WorkspaceAccess
@@ -51,8 +52,17 @@ def list_workspace_members(
     workspace_id: UUID,
     _membership: WorkspaceAccess,
     session: DatabaseSession,
+    search: Annotated[str | None, Query(max_length=200)] = None,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> WorkspaceMemberListResponse:
-    return workspace_service.list_members(session, workspace_id)
+    return workspace_service.list_members(
+        session,
+        workspace_id,
+        search=search.strip() or None if search else None,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.patch(
@@ -100,8 +110,18 @@ def list_workspace_invitations(
     workspace_id: UUID,
     membership: WorkspaceAccess,
     session: DatabaseSession,
+    search: Annotated[str | None, Query(max_length=320)] = None,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> WorkspaceInvitationListResponse:
-    return workspace_service.list_pending_invitations(session, workspace_id, membership)
+    return workspace_service.list_pending_invitations(
+        session,
+        workspace_id,
+        membership,
+        search=search.strip() or None if search else None,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.delete(

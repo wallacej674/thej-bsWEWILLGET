@@ -267,3 +267,36 @@
 .nav-tab:hover .nav-hover-underline::after {
   transform: scaleX(1);
 }
+
+/* Dashboard typography direction: tabular mono figures + grotesk display headings. */
+.font-numeric {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.font-display {
+  font-family: "Space Grotesk", system-ui, sans-serif;
+}
+
+/* Slim, theme-tinted scrollbar for in-card scroll regions (replaces the chunky
+   default). Thumb is a quiet border tone that brightens to muted-foreground on
+   hover; the track is transparent. */
+.scrollbar-slim {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.scrollbar-slim::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scrollbar-slim::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-slim::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 9999px;
+}
+.scrollbar-slim::-webkit-scrollbar-thumb:hover {
+  background-color: var(--muted-foreground);
+}

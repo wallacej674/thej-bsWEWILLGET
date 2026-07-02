@@ -50,8 +50,8 @@ class AiAnalysisService:
         application_id: UUID,
         current_user: User,
     ) -> ResumeTailorAnalysisResponse:
-        application = self._require_owned_active_application(
-            session, workspace_id, application_id, current_user
+        application = self._require_active_application(
+            session, workspace_id, application_id
         )
         analysis = self._analyses.get_resume_tailor_analysis(
             session, application.id, current_user.id, PROMPT_VERSION
@@ -72,8 +72,8 @@ class AiAnalysisService:
         current_user: User,
         provider: AiProvider,
     ) -> ResumeTailorAnalysisResponse:
-        application = self._require_owned_active_application(
-            session, workspace_id, application_id, current_user
+        application = self._require_active_application(
+            session, workspace_id, application_id
         )
         if not application.job_description or not application.job_description.strip():
             raise AppError(
@@ -144,22 +144,19 @@ class AiAnalysisService:
         session.refresh(analysis)
         return ResumeTailorAnalysisResponse.from_analysis(analysis)
 
-    def _require_owned_active_application(
+    def _require_active_application(
         self,
         session: Session,
         workspace_id: UUID,
         application_id: UUID,
-        current_user: User,
     ) -> JobApplication:
+        # Any active member of the workspace may run resume tailoring against a
+        # visible application. The analysis is keyed per (application, user), so
+        # it is the requesting member's own artifact and never mutates the
+        # application or another member's analysis.
         application = self._applications.get_in_workspace(
             session, workspace_id, application_id
         )
         if application is None or application.deleted_at is not None:
             raise AppError(404, "application_not_found", "Application was not found.")
-        if application.owner_id != current_user.id:
-            raise AppError(
-                403,
-                "application_ownership_required",
-                "Only the application owner may perform this action.",
-            )
         return application

@@ -11,7 +11,7 @@ import type {
 function ErrorMessage({ error }: { error: string | undefined }) {
   if (!error) return null;
   return (
-    <p role="alert" className="rounded-lg border border-rose-400/20 bg-rose-400/10 p-3 text-sm text-rose-200">
+    <p role="alert" className="rounded-lg border border-[#e0625a]/25 bg-[#e0625a]/10 p-3 text-sm text-[#f0a9a3]">
       {error}
     </p>
   );
@@ -21,21 +21,17 @@ export function AiResumeTailorPanel({
   client,
   workspaceId,
   application,
-  currentUserId,
 }: {
   client: ApiClient;
   workspaceId: string;
   application: JobApplication;
-  currentUserId: string;
 }) {
-  const owned = application.owner.id === currentUserId;
   const [analysis, setAnalysis] = useState<ResumeTailorAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string>();
 
   useEffect(() => {
-    if (!owned) return;
     let cancelled = false;
     setLoading(true);
     setError(undefined);
@@ -62,9 +58,7 @@ export function AiResumeTailorPanel({
     return () => {
       cancelled = true;
     };
-  }, [application.id, client, owned, workspaceId]);
-
-  if (!owned) return null;
+  }, [application.id, client, workspaceId]);
 
   const generate = async () => {
     if (generating) return;
@@ -100,13 +94,13 @@ export function AiResumeTailorPanel({
     !application.job_description || !application.job_description.trim();
 
   return (
-    <section className="rounded-xl border border-indigo-400/15 bg-[#111827] p-5">
+    <section className="rounded-xl border border-border bg-card p-5">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
         <div>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-indigo-300">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-[#e0b850]">
             AI Resume Tailor
           </h2>
-          <p className="mt-2 text-sm leading-6 text-slate-400">
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
             Compare your uploaded resume against this job description and get
             role-specific resume guidance.
           </p>
@@ -115,7 +109,7 @@ export function AiResumeTailorPanel({
           type="button"
           onClick={() => void generate()}
           disabled={generating || loading || missingJobDescription}
-          className="inline-flex min-h-10 items-center justify-center rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex min-h-10 items-center justify-center rounded-lg border border-primary/35 bg-secondary px-4 py-2 text-sm font-semibold text-foreground transition hover:border-primary/60 hover:bg-[#3a2a17] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {generating ? "Analyzing..." : analysis ? "Regenerate" : "Tailor resume with AI"}
         </button>
@@ -128,7 +122,7 @@ export function AiResumeTailorPanel({
       ) : null}
 
       {loading ? (
-        <p role="status" className="mt-4 text-sm text-slate-500">
+        <p role="status" className="mt-4 text-sm text-muted-foreground">
           Checking for existing AI analysis...
         </p>
       ) : null}
@@ -137,17 +131,17 @@ export function AiResumeTailorPanel({
         <ErrorMessage error={error} />
         {analysis ? (
           <>
-            <div className="rounded-xl border border-white/[0.06] bg-[#0c1120] p-4">
+            <div className="rounded-xl border border-border bg-[#14100a] p-4">
               <div className="flex flex-wrap items-center gap-4">
                 <div>
-                  <p className="text-[11px] uppercase tracking-wider text-slate-500">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
                     Match score
                   </p>
-                  <p className="mt-1 text-3xl font-bold text-slate-100">
+                  <p className="font-numeric mt-1 text-3xl font-semibold text-[#e0b850]">
                     {analysis.result.match_score}%
                   </p>
                 </div>
-                <p className="max-w-xl text-sm leading-6 text-slate-400">
+                <p className="max-w-xl text-sm leading-6 text-muted-foreground">
                   Generated with {analysis.provider_name} / {analysis.model_name}.
                   Review suggestions before adding them to your resume.
                 </p>
@@ -193,7 +187,7 @@ export function AiResumeTailorPanel({
             />
           </>
         ) : !loading ? (
-          <p className="rounded-lg border border-white/[0.06] bg-[#0c1120] p-4 text-sm text-slate-500">
+          <p className="rounded-lg border border-border bg-[#14100a] p-4 text-sm text-muted-foreground">
             No AI analysis yet. Upload a resume from Profile, make sure this
             application has a job description, then run the tailor.
           </p>
@@ -207,14 +201,14 @@ function ResultSection({ title, items }: { title: string; items: string[] }) {
   if (items.length === 0) return null;
   return (
     <div>
-      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         {title}
       </h3>
       <div className="mt-2 flex flex-wrap gap-2">
         {items.map((item) => (
           <span
             key={item}
-            className="rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1 text-xs text-slate-300"
+            className="rounded-full border border-border bg-secondary px-3 py-1 text-xs text-[#cdbfa3]"
           >
             {item}
           </span>
@@ -234,20 +228,20 @@ function CopyBlock({
   onCopy: () => void;
 }) {
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-[#0c1120] p-4">
+    <div className="rounded-xl border border-border bg-[#14100a] p-4">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           {title}
         </h3>
         <button
           type="button"
           onClick={onCopy}
-          className="rounded border border-white/10 px-2 py-1 text-xs text-slate-300 hover:bg-white/[0.06]"
+          className="rounded border border-border px-2 py-1 text-xs text-[#cdbfa3] hover:bg-secondary"
         >
           Copy
         </button>
       </div>
-      <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-300">
+      <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-foreground">
         {value}
       </p>
     </div>
@@ -264,20 +258,20 @@ function CopyList({
   onCopy: () => void;
 }) {
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-[#0c1120] p-4">
+    <div className="rounded-xl border border-border bg-[#14100a] p-4">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           {title}
         </h3>
         <button
           type="button"
           onClick={onCopy}
-          className="rounded border border-white/10 px-2 py-1 text-xs text-slate-300 hover:bg-white/[0.06]"
+          className="rounded border border-border px-2 py-1 text-xs text-[#cdbfa3] hover:bg-secondary"
         >
           Copy all
         </button>
       </div>
-      <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-300">
+      <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-foreground">
         {items.map((item) => (
           <li key={item}>{item}</li>
         ))}

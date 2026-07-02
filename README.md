@@ -93,8 +93,16 @@ uv run python -m app.db.seed --with-sample-applications
 uv run uvicorn app.main:app --reload
 ```
 
-The seed command prints the Jonathan and Kareem UUIDs. In a second terminal,
-configure and start the frontend:
+The seed command prints the Jonathan and Kareem UUIDs.
+
+To validate large-workspace behaviour (Milestone 6), seed a workspace with many
+members and applications. It prints the new workspace and owner UUIDs:
+
+```powershell
+uv run python -m app.db.seed_scale --members 150 --apps-per-member 3
+```
+
+In a second terminal, configure and start the frontend:
 
 ```powershell
 cd frontend

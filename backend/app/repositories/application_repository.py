@@ -1,7 +1,18 @@
-from datetime import date
+from datetime import date, timedelta
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Select, and_, asc, desc, func, or_, select, union
+from sqlalchemy import (
+    ColumnElement,
+    Select,
+    and_,
+    asc,
+    case,
+    desc,
+    func,
+    or_,
+    select,
+)
 from sqlalchemy.orm import Session, aliased
 
 from app.core.enums import ApplicationStatus, EmploymentType, WorkArrangement
@@ -9,10 +20,224 @@ from app.models.application import JobApplication
 from app.models.membership import WorkspaceMembership
 from app.models.user import User
 
+# Sort keys accepted by the team-accountability endpoint, mapped per-call to the
+# aggregate column they order by. Kept here so the route/service can validate
+# input against a single source of truth.
+TEAM_ACCOUNTABILITY_SORTS = ("active", "this_week", "rejected", "last_applied", "name")
+
 
 class ApplicationRepository:
-    def list_active_for_dashboard(
+    def summarize_totals(
+        self,
+        session: Session,
+        workspace_id: UUID,
+        user_id: UUID,
+        week_start: date,
+        next_week_start: date,
+    ) -> tuple[int, int, int, int]:
+        """Return (total_active, current_week, recently_updated, deleted).
+
+        Constant cost regardless of member or application count: two aggregate
+        queries, no per-row materialization.
+        """
+        edited = JobApplication.updated_at >= JobApplication.created_at + timedelta(
+            seconds=1
+        )
+        in_week = and_(
+            JobApplication.application_date >= week_start,
+            JobApplication.application_date < next_week_start,
+        )
+        total_active, current_week, recently_updated = session.execute(
+            select(
+                func.count(JobApplication.id),
+                func.count(case((in_week, JobApplication.id))),
+                func.count(case((edited, JobApplication.id))),
+            ).where(
+                JobApplication.workspace_id == workspace_id,
+                JobApplication.deleted_at.is_(None),
+            )
+        ).one()
+        deleted = session.scalar(
+            select(func.count())
+            .select_from(JobApplication)
+            .where(
+                JobApplication.workspace_id == workspace_id,
+                JobApplication.deleted_at.is_not(None),
+                JobApplication.deleted_by_user_id == user_id,
+            )
+        )
+        return (
+            int(total_active or 0),
+            int(current_week or 0),
+            int(recently_updated or 0),
+            int(deleted or 0),
+        )
+
+    def summarize_status_counts(
         self, session: Session, workspace_id: UUID
+    ) -> dict[ApplicationStatus, int]:
+        rows = session.execute(
+            select(JobApplication.status, func.count(JobApplication.id))
+            .where(
+                JobApplication.workspace_id == workspace_id,
+                JobApplication.deleted_at.is_(None),
+            )
+            .group_by(JobApplication.status)
+        ).tuples()
+        counts = {status: 0 for status in ApplicationStatus}
+        for status, count in rows:
+            counts[status] = int(count)
+        return counts
+
+    def summarize_work_arrangement_counts(
+        self, session: Session, workspace_id: UUID
+    ) -> dict[WorkArrangement, int]:
+        rows = session.execute(
+            select(JobApplication.work_arrangement, func.count(JobApplication.id))
+            .where(
+                JobApplication.workspace_id == workspace_id,
+                JobApplication.deleted_at.is_(None),
+            )
+            .group_by(JobApplication.work_arrangement)
+        ).tuples()
+        counts = {arrangement: 0 for arrangement in WorkArrangement}
+        for arrangement, count in rows:
+            counts[arrangement] = int(count)
+        return counts
+
+    def applications_over_time(
+        self,
+        session: Session,
+        workspace_id: UUID,
+        window_start: date,
+        window_end: date,
+    ) -> dict[date, int]:
+        """Daily active-application counts within [window_start, window_end).
+
+        Bounded by the number of distinct application dates in the window (at
+        most one row per day); the service buckets these into weekly totals.
+        """
+        rows = session.execute(
+            select(JobApplication.application_date, func.count(JobApplication.id))
+            .where(
+                JobApplication.workspace_id == workspace_id,
+                JobApplication.deleted_at.is_(None),
+                JobApplication.application_date >= window_start,
+                JobApplication.application_date < window_end,
+            )
+            .group_by(JobApplication.application_date)
+        ).tuples()
+        return {day: int(count) for day, count in rows}
+
+    def owner_daily_counts(
+        self,
+        session: Session,
+        workspace_id: UUID,
+        owner_id: UUID,
+        window_end: date,
+    ) -> dict[date, int]:
+        """Daily active-application counts for one owner before ``window_end``.
+
+        The full history keeps weekly and daily streaks exact. The query still
+        returns at most one row per distinct application date.
+        """
+        rows = session.execute(
+            select(JobApplication.application_date, func.count(JobApplication.id))
+            .where(
+                JobApplication.workspace_id == workspace_id,
+                JobApplication.owner_id == owner_id,
+                JobApplication.deleted_at.is_(None),
+                JobApplication.application_date < window_end,
+            )
+            .group_by(JobApplication.application_date)
+        ).tuples()
+        return {day: int(count) for day, count in rows}
+
+    def owner_workspace_totals(
+        self, session: Session, workspace_id: UUID, owner_id: UUID
+    ) -> tuple[int, int]:
+        """Return (active, recently_updated) for one owner in one workspace.
+
+        Mirrors ``summarize_totals`` but scoped to a single member, powering the
+        personal dashboard KPI cards.
+        """
+        edited = JobApplication.updated_at >= JobApplication.created_at + timedelta(
+            seconds=1
+        )
+        active, recently_updated = session.execute(
+            select(
+                func.count(JobApplication.id),
+                func.count(case((edited, JobApplication.id))),
+            ).where(
+                JobApplication.workspace_id == workspace_id,
+                JobApplication.owner_id == owner_id,
+                JobApplication.deleted_at.is_(None),
+            )
+        ).one()
+        return int(active or 0), int(recently_updated or 0)
+
+    def owner_total_applications(self, session: Session, owner_id: UUID) -> int:
+        """The owner's all-time active application count across every workspace."""
+        return int(
+            session.scalar(
+                select(func.count())
+                .select_from(JobApplication)
+                .where(
+                    JobApplication.owner_id == owner_id,
+                    JobApplication.deleted_at.is_(None),
+                )
+            )
+            or 0
+        )
+
+    def oldest_open_application(
+        self, session: Session, workspace_id: UUID, owner_id: UUID
+    ) -> JobApplication | None:
+        """The owner's oldest still-open (applied) application, if any."""
+        return session.scalar(
+            select(JobApplication)
+            .where(
+                JobApplication.workspace_id == workspace_id,
+                JobApplication.owner_id == owner_id,
+                JobApplication.deleted_at.is_(None),
+                JobApplication.status == ApplicationStatus.APPLIED,
+            )
+            .order_by(asc(JobApplication.application_date), JobApplication.id)
+            .limit(1)
+        )
+
+    def top_applicants(
+        self, session: Session, workspace_id: UUID, limit: int
+    ) -> list[tuple[User, int]]:
+        # Only active members are ranked — a removed member's historical
+        # applications still count in workspace totals but drop off this list,
+        # matching the team-accountability member universe.
+        total = func.count(JobApplication.id).label("active_total")
+        statement = (
+            select(User, total)
+            .join(User, User.id == JobApplication.owner_id)
+            .join(
+                WorkspaceMembership,
+                and_(
+                    WorkspaceMembership.user_id == User.id,
+                    WorkspaceMembership.workspace_id == workspace_id,
+                    WorkspaceMembership.removed_at.is_(None),
+                ),
+            )
+            .where(
+                JobApplication.workspace_id == workspace_id,
+                JobApplication.deleted_at.is_(None),
+            )
+            .group_by(User.id)
+            .order_by(desc(total), User.display_name, User.id)
+            .limit(limit)
+        )
+        return [
+            (owner, int(count)) for owner, count in session.execute(statement).tuples()
+        ]
+
+    def list_recent_activity(
+        self, session: Session, workspace_id: UUID, limit: int
     ) -> list[tuple[JobApplication, User]]:
         statement: Select[tuple[JobApplication, User]] = (
             select(JobApplication, User)
@@ -26,52 +251,120 @@ class ApplicationRepository:
                 desc(JobApplication.created_at),
                 JobApplication.id,
             )
+            .limit(limit)
         )
         return list(session.execute(statement).tuples())
 
-    def summarize_active(
+    def team_accountability(
         self,
         session: Session,
         workspace_id: UUID,
-        month_start: date,
-        next_month_start: date,
-    ) -> tuple[list[tuple[User, int]], int]:
-        summary_owner_ids = union(
-            select(WorkspaceMembership.user_id.label("user_id")).where(
+        *,
+        week_start: date,
+        next_week_start: date,
+        sort: str,
+        order: str,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+    ) -> tuple[list[tuple[User, int, int, int, date | None, int | None]], int]:
+        """Per-owner accountability rows via a single GROUP BY (constant cost).
+
+        The owner universe is the workspace's active members (membership drives
+        visibility, so a removed member drops off even if their applications
+        remain). Aggregates are computed in one grouped query; pagination and
+        sorting happen in SQL so the response is bounded regardless of member
+        count. Each owner's weekly goal comes from that same active membership.
+        """
+        owner_ids = (
+            select(WorkspaceMembership.user_id.label("user_id"))
+            .where(
                 WorkspaceMembership.workspace_id == workspace_id,
                 WorkspaceMembership.removed_at.is_(None),
-            ),
-            select(JobApplication.owner_id.label("user_id")).where(
-                JobApplication.workspace_id == workspace_id,
-                JobApplication.deleted_at.is_(None),
-            ),
-        ).subquery()
-        active_application_join = and_(
+            )
+            .subquery()
+        )
+        active_join = and_(
             JobApplication.owner_id == User.id,
             JobApplication.workspace_id == workspace_id,
             JobApplication.deleted_at.is_(None),
         )
-        owner_statement = (
-            select(User, func.count(JobApplication.id))
-            .select_from(summary_owner_ids)
-            .join(User, User.id == summary_owner_ids.c.user_id)
-            .outerjoin(JobApplication, active_application_join)
-            .group_by(User.id)
-            .order_by(User.display_name, User.id)
-        )
-        owner_rows = [
-            (owner, int(owner_total))
-            for owner, owner_total in session.execute(owner_statement).tuples()
-        ]
-        current_month = session.scalar(
-            select(func.count(JobApplication.id)).where(
-                JobApplication.workspace_id == workspace_id,
-                JobApplication.deleted_at.is_(None),
-                JobApplication.application_date >= month_start,
-                JobApplication.application_date < next_month_start,
+        active_total = func.count(JobApplication.id).label("active_total")
+        this_week_total = func.count(
+            case(
+                (
+                    and_(
+                        JobApplication.application_date >= week_start,
+                        JobApplication.application_date < next_week_start,
+                    ),
+                    JobApplication.id,
+                )
             )
+        ).label("this_week_total")
+        rejected_total = func.count(
+            case(
+                (JobApplication.status == ApplicationStatus.REJECTED, JobApplication.id)
+            )
+        ).label("rejected_total")
+        last_applied = func.max(JobApplication.application_date).label("last_applied")
+        goal_join = and_(
+            WorkspaceMembership.user_id == User.id,
+            WorkspaceMembership.workspace_id == workspace_id,
+            WorkspaceMembership.removed_at.is_(None),
         )
-        return owner_rows, current_month or 0
+
+        statement = (
+            select(
+                User,
+                active_total,
+                this_week_total,
+                rejected_total,
+                last_applied,
+                WorkspaceMembership.weekly_goal,
+            )
+            .select_from(owner_ids)
+            .join(User, User.id == owner_ids.c.user_id)
+            .outerjoin(JobApplication, active_join)
+            .outerjoin(WorkspaceMembership, goal_join)
+            .group_by(User.id, WorkspaceMembership.weekly_goal)
+        )
+        if search:
+            statement = statement.where(User.display_name.ilike(f"%{search}%"))
+
+        sort_columns: dict[str, ColumnElement[Any]] = {
+            "active": active_total,
+            "this_week": this_week_total,
+            "rejected": rejected_total,
+            "last_applied": last_applied,
+        }
+        if sort == "name":
+            name_order = (
+                asc(User.display_name) if order == "asc" else desc(User.display_name)
+            )
+            statement = statement.order_by(name_order, User.id)
+        else:
+            column = sort_columns[sort]
+            primary = asc(column) if order == "asc" else desc(column)
+            statement = statement.order_by(
+                primary.nulls_last(), User.display_name, User.id
+            )
+
+        statement = statement.offset((page - 1) * page_size).limit(page_size)
+        rows: list[tuple[User, int, int, int, date | None, int | None]] = [
+            (owner, int(active), int(this_week), int(rejected), last, weekly_goal)
+            for owner, active, this_week, rejected, last, weekly_goal in (
+                session.execute(statement).tuples()
+            )
+        ]
+        total_stmt = (
+            select(func.count())
+            .select_from(owner_ids)
+            .join(User, User.id == owner_ids.c.user_id)
+        )
+        if search:
+            total_stmt = total_stmt.where(User.display_name.ilike(f"%{search}%"))
+        total = session.scalar(total_stmt)
+        return rows, int(total or 0)
 
     def find_by_normalized_url(
         self,

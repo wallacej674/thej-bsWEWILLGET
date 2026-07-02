@@ -7,6 +7,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Integer,
     String,
     UniqueConstraint,
     func,
@@ -37,6 +38,10 @@ class WorkspaceMembership(Base):
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
     role: Mapped[MembershipRole] = mapped_column(String(20), nullable=False)
+    # Per-member weekly application target. NULL means the member has not set a
+    # goal yet, which the dashboard renders as an invitation to set one rather
+    # than as a zero target.
+    weekly_goal: Mapped[int | None] = mapped_column(Integer, nullable=True)
     removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

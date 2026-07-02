@@ -57,20 +57,23 @@ describe("AiResumeTailorPanel", () => {
     });
   });
 
-  it("does not render for non-owners", () => {
-    const client = { get: vi.fn() };
+  it("renders for any workspace member, including non-owners", () => {
+    const client = {
+      get: vi
+        .fn()
+        .mockRejectedValue(new ApiError(404, "ai_analysis_not_found", "Not found.")),
+    };
 
     render(
       <AiResumeTailorPanel
         client={client as never}
         workspaceId="workspace-1"
         application={application}
-        currentUserId="other-user"
       />,
     );
 
-    expect(screen.queryByText("AI Resume Tailor")).not.toBeInTheDocument();
-    expect(client.get).not.toHaveBeenCalled();
+    expect(screen.getByText("AI Resume Tailor")).toBeInTheDocument();
+    expect(client.get).toHaveBeenCalled();
   });
 
   it("generates and renders structured AI resume analysis", async () => {
@@ -86,7 +89,6 @@ describe("AiResumeTailorPanel", () => {
         client={client as never}
         workspaceId="workspace-1"
         application={application}
-        currentUserId="user-1"
       />,
     );
 
@@ -120,7 +122,6 @@ describe("AiResumeTailorPanel", () => {
         client={client as never}
         workspaceId="workspace-1"
         application={application}
-        currentUserId="user-1"
       />,
     );
 

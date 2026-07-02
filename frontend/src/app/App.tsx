@@ -1375,7 +1375,7 @@ const teamAccountabilityColumns: {
   { key: "rejected", label: "Rejected", align: "center" },
 ];
 
-function TeamAccountabilityCard({ context }: { context: AppContext }) {
+export function TeamAccountabilityCard({ context }: { context: AppContext }) {
   const [rows, setRows] = useState<TeamAccountabilityRow[]>([]);
   const [pagination, setPagination] = useState<
     PaginatedApplications["pagination"]
@@ -1387,6 +1387,7 @@ function TeamAccountabilityCard({ context }: { context: AppContext }) {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>();
+  const latestRequest = useRef(0);
 
   // Debounce typing, and snap back to the first page whenever the query changes.
   useEffect(() => {
@@ -1398,6 +1399,7 @@ function TeamAccountabilityCard({ context }: { context: AppContext }) {
   }, [search]);
 
   const load = useCallback(async () => {
+    const requestId = ++latestRequest.current;
     setLoading(true);
     setError(undefined);
     try {
@@ -1406,12 +1408,14 @@ function TeamAccountabilityCard({ context }: { context: AppContext }) {
         context.session.workspace.id,
         { sort, order, page, pageSize: 10, search: debouncedSearch || undefined },
       );
+      if (requestId !== latestRequest.current) return;
       setRows(response.items);
       setPagination(response.pagination);
     } catch (caught) {
+      if (requestId !== latestRequest.current) return;
       setError(caught);
     } finally {
-      setLoading(false);
+      if (requestId === latestRequest.current) setLoading(false);
     }
   }, [
     context.client,
@@ -1422,7 +1426,13 @@ function TeamAccountabilityCard({ context }: { context: AppContext }) {
     debouncedSearch,
   ]);
 
-  useEffect(() => void load(), [load]);
+  useEffect(() => {
+    void load();
+    return () => {
+      // Invalidate work from the previous query or an unmounted card.
+      latestRequest.current += 1;
+    };
+  }, [load]);
 
   const sortBy = (key: TeamAccountabilitySort) => {
     if (key === sort) {
@@ -2439,14 +2449,28 @@ function NoteCard({ title, text }: { title: string; text: string | null }) {
 // eases to the measured full height for a smooth open/close.
 const EXPANDABLE_COLLAPSED_PX = 136;
 
-function ExpandableText({ text }: { text: string }) {
+export function ExpandableText({ text }: { text: string }) {
   const [expanded, setExpanded] = useState(false);
   const [overflows, setOverflows] = useState(false);
+  const [contentHeight, setContentHeight] = useState(EXPANDABLE_COLLAPSED_PX);
   const ref = useRef<HTMLParagraphElement>(null);
 
   useEffect(() => {
     const el = ref.current;
-    if (el) setOverflows(el.scrollHeight > EXPANDABLE_COLLAPSED_PX + 4);
+    if (!el) return;
+
+    const measure = () => {
+      const height = el.scrollHeight;
+      setContentHeight(height);
+      setOverflows(height > EXPANDABLE_COLLAPSED_PX + 4);
+    };
+
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [text]);
 
   const clamp = overflows && !expanded;
@@ -2457,9 +2481,7 @@ function ExpandableText({ text }: { text: string }) {
         ref={ref}
         className="overflow-hidden whitespace-pre-wrap text-sm leading-relaxed text-foreground motion-safe:transition-[max-height] motion-safe:duration-500 motion-safe:ease-in-out"
         style={{
-          maxHeight: clamp
-            ? `${EXPANDABLE_COLLAPSED_PX}px`
-            : `${ref.current?.scrollHeight ?? EXPANDABLE_COLLAPSED_PX}px`,
+          maxHeight: `${clamp ? EXPANDABLE_COLLAPSED_PX : contentHeight}px`,
         }}
       >
         {text}
@@ -3357,7 +3379,7 @@ function DeletedPage({ context }: { context: AppContext }) {
   );
 }
 
-function WorkspacePage({ context }: { context: AppContext }) {
+export function WorkspacePage({ context }: { context: AppContext }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [memberPagination, setMemberPagination] = useState<
@@ -3365,10 +3387,13 @@ function WorkspacePage({ context }: { context: AppContext }) {
   >({ page: 1, page_size: 20, total_items: 0, total_pages: 0 });
   const [memberCount, setMemberCount] = useState(0);
   const [memberSearch, setMemberSearch] = useState("");
+  const [debouncedMemberSearch, setDebouncedMemberSearch] = useState("");
   const [memberPage, setMemberPage] = useState(1);
   const [invitations, setInvitations] = useState<WorkspaceInvitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>();
+  const latestMemberRequest = useRef(0);
+  const loadedInvitationWorkspace = useRef<string | null>(null);
   const [showCreate, setShowCreate] = useState(
     () => searchParams.get("create") === "1",
   );
@@ -3384,42 +3409,72 @@ function WorkspacePage({ context }: { context: AppContext }) {
     }
   }, [searchParams, setSearchParams]);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedMemberSearch(memberSearch.trim());
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [memberSearch]);
+
   const load = useCallback(async () => {
+    const requestId = ++latestMemberRequest.current;
+    const workspaceId = context.session.workspace.id;
+    const shouldLoadInvitations =
+      isOwner && loadedInvitationWorkspace.current !== workspaceId;
+    if (shouldLoadInvitations) loadedInvitationWorkspace.current = workspaceId;
     setLoading(true);
     try {
       const [memberResponse, invitationResponse] = await Promise.all([
         workspaceApi.members(context.client, context.session.workspace.id, {
-          search: memberSearch.trim() || undefined,
+          search: debouncedMemberSearch || undefined,
           page: memberPage,
           pageSize: 20,
         }),
-        isOwner
+        shouldLoadInvitations
           ? workspaceApi.invitations(
               context.client,
               context.session.workspace.id,
               { pageSize: 100 },
             )
-          : Promise.resolve({ items: [] as WorkspaceInvitation[] }),
+          : Promise.resolve(null),
       ]);
+      if (
+        invitationResponse &&
+        loadedInvitationWorkspace.current === workspaceId
+      ) {
+        setInvitations(invitationResponse.items);
+      }
+      if (requestId !== latestMemberRequest.current) return;
       setMembers(memberResponse.items);
       setMemberPagination(memberResponse.pagination);
       setMemberCount(memberResponse.member_count);
-      setInvitations(invitationResponse.items);
       setError(undefined);
     } catch (caught) {
+      if (
+        shouldLoadInvitations &&
+        loadedInvitationWorkspace.current === workspaceId
+      ) {
+        loadedInvitationWorkspace.current = null;
+      }
+      if (requestId !== latestMemberRequest.current) return;
       setError(caught);
     } finally {
-      setLoading(false);
+      if (requestId === latestMemberRequest.current) setLoading(false);
     }
   }, [
     context.client,
     context.session.workspace.id,
     isOwner,
-    memberSearch,
+    debouncedMemberSearch,
     memberPage,
   ]);
 
-  useEffect(() => void load(), [load]);
+  useEffect(() => {
+    void load();
+    return () => {
+      latestMemberRequest.current += 1;
+    };
+  }, [load]);
 
   const createWorkspace = async (event: FormEvent) => {
     event.preventDefault();
@@ -3455,7 +3510,7 @@ function WorkspacePage({ context }: { context: AppContext }) {
         inviteEmail,
       );
       setInviteEmail("");
-      await load();
+      setInvitations((current) => [...current, invitation]);
       toast.success(`Invitation sent to ${invitation.email}.`);
     } catch (caught) {
       toast.error(

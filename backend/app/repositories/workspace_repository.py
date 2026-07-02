@@ -80,6 +80,20 @@ class WorkspaceRepository:
         )
         return list(session.execute(statement).tuples()), int(total or 0)
 
+    def lock_workspace_for_admission(
+        self, session: Session, workspace_id: UUID
+    ) -> bool:
+        """Serialize membership admissions for one active workspace."""
+        locked_workspace_id = session.scalar(
+            select(Workspace.id)
+            .where(
+                Workspace.id == workspace_id,
+                Workspace.deleted_at.is_(None),
+            )
+            .with_for_update()
+        )
+        return locked_workspace_id is not None
+
     def count_active_members(self, session: Session, workspace_id: UUID) -> int:
         total = session.scalar(
             select(func.count())

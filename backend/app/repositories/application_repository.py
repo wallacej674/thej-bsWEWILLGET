@@ -134,14 +134,12 @@ class ApplicationRepository:
         session: Session,
         workspace_id: UUID,
         owner_id: UUID,
-        window_start: date,
         window_end: date,
     ) -> dict[date, int]:
-        """Daily active-application counts for one owner within the window.
+        """Daily active-application counts for one owner before ``window_end``.
 
-        Bounded by the number of distinct application dates the owner has in
-        the window; the service buckets these into weeks and walks them for the
-        weekly and day streaks.
+        The full history keeps weekly and daily streaks exact. The query still
+        returns at most one row per distinct application date.
         """
         rows = session.execute(
             select(JobApplication.application_date, func.count(JobApplication.id))
@@ -149,7 +147,6 @@ class ApplicationRepository:
                 JobApplication.workspace_id == workspace_id,
                 JobApplication.owner_id == owner_id,
                 JobApplication.deleted_at.is_(None),
-                JobApplication.application_date >= window_start,
                 JobApplication.application_date < window_end,
             )
             .group_by(JobApplication.application_date)

@@ -49,10 +49,8 @@ SUMMARY_WEEK_WINDOW = 8
 TOP_APPLICANTS_LIMIT = 8
 RECENT_ACTIVITY_LIMIT = 5
 
-# Bounds for the personal "your week" snapshot. Streaks are computed within this
-# window (a longer run is capped at the window); the sparkline shows the most
-# recent weeks.
-MY_WEEK_STREAK_WINDOW = 26
+# The personal snapshot reports exact streaks from full application history,
+# while the response sparkline remains bounded to the most recent weeks.
 MY_WEEK_RECENT_WEEKS = 8
 
 
@@ -349,10 +347,9 @@ class ApplicationService:
         today = application_today()
         current_week_start = _week_start_of(today)
         next_week_start = current_week_start + timedelta(days=7)
-        window_start = current_week_start - timedelta(weeks=MY_WEEK_STREAK_WINDOW - 1)
 
         daily_counts = self._repository.owner_daily_counts(
-            session, workspace_id, user_id, window_start, next_week_start
+            session, workspace_id, user_id, next_week_start
         )
         counts_by_week: dict[date, int] = {}
         for day, count in daily_counts.items():

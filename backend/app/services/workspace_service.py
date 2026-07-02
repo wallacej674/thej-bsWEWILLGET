@@ -236,29 +236,7 @@ class WorkspaceService:
                 "workspace_invitation_not_found",
                 "Workspace invitation was not found.",
             )
-        membership = session.scalar(
-            select(WorkspaceMembership).where(
-                WorkspaceMembership.workspace_id == workspace.id,
-                WorkspaceMembership.user_id == user.id,
-            )
-        )
-        # Joining (new membership or re-activating a removed one) grows the active
-        # roster, so it must respect the hard cap. An already-active membership is
-        # idempotent and exempt.
-        if membership is None or membership.removed_at is not None:
-            self._enforce_member_cap(session, workspace.id)
-        if membership is None:
-            session.add(
-                WorkspaceMembership(
-                    workspace_id=workspace.id,
-                    user_id=user.id,
-                    role=MembershipRole.MEMBER,
-                )
-            )
-        else:
-            membership.role = MembershipRole.MEMBER
-            membership.removed_at = None
-            membership.updated_at = utc_now()
+        self._admit_invited_member(session, workspace.id, user.id)
         invitation.accepted_at = utc_now()
         session.commit()
         return WorkspaceSummary(
@@ -402,6 +380,41 @@ class WorkspaceService:
         workspace.deleted_at = utc_now()
         workspace.updated_at = utc_now()
         session.commit()
+
+    def _admit_invited_member(
+        self,
+        session: Session,
+        workspace_id: UUID,
+        user_id: UUID,
+    ) -> None:
+        """Atomically create or reactivate one invited membership."""
+        if not self._repository.lock_workspace_for_admission(session, workspace_id):
+            raise AppError(
+                404,
+                "workspace_invitation_not_found",
+                "Workspace invitation was not found.",
+            )
+        membership = session.scalar(
+            select(WorkspaceMembership).where(
+                WorkspaceMembership.workspace_id == workspace_id,
+                WorkspaceMembership.user_id == user_id,
+            )
+        )
+        if membership is None or membership.removed_at is not None:
+            self._enforce_member_cap(session, workspace_id)
+        if membership is None:
+            session.add(
+                WorkspaceMembership(
+                    workspace_id=workspace_id,
+                    user_id=user_id,
+                    role=MembershipRole.MEMBER,
+                )
+            )
+            return
+
+        membership.role = MembershipRole.MEMBER
+        membership.removed_at = None
+        membership.updated_at = utc_now()
 
     def _require_owner(self, membership: WorkspaceMembership) -> None:
         if membership.role != MembershipRole.OWNER:

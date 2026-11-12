@@ -1,11 +1,9 @@
 import {
   AlertCircle,
   ArrowLeft,
-  ArrowUpDown,
   Briefcase,
   Building2,
   CheckCircle,
-  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -26,7 +24,6 @@ import {
   Users,
   X,
 } from "lucide-react";
-import * as RadixSelect from "@radix-ui/react-select";
 import {
   type FormEvent,
   type ReactNode,
@@ -51,7 +48,10 @@ import {
 import { Toaster, toast } from "sonner";
 
 import { ApiError, createApiClient } from "../api/client";
-import { ApplicationActions } from "../features/applications/ApplicationActions";
+import { DarkSelect } from "./components/DarkSelect";
+import { ThemeToggle } from "./theme/ThemeToggle";
+import { useTheme } from "./theme/themeStore";
+import { CompanyWall } from "../features/applications/wall/CompanyWall";
 import {
   applicationsApi,
   sessionApi,
@@ -198,10 +198,6 @@ function formatSalary(application: JobApplication): string {
     : range;
 }
 
-function clampChars(value: string, max: number): string {
-  return value.length > max ? `${value.slice(0, max).trimEnd()}…` : value;
-}
-
 function Avatar({
   id,
   name,
@@ -218,7 +214,7 @@ function Avatar({
   };
   return (
     <span
-      className={`${sizes[size]} inline-flex flex-shrink-0 items-center justify-center rounded-full font-semibold text-[#1a130b]`}
+      className={`${sizes[size]} inline-flex flex-shrink-0 items-center justify-center rounded-full font-semibold text-white`}
       style={{ backgroundColor: avatarColor(id) }}
       aria-hidden="true"
     >
@@ -229,32 +225,16 @@ function Avatar({
 
 function StatusPill({ status }: { status: ApplicationStatus }) {
   const colors: Record<ApplicationStatus, string> = {
-    applied: "border-primary/30 bg-primary/[0.12] text-[#e0b850]",
-    rejected: "border-[#e0625a]/30 bg-[#e0625a]/[0.12] text-[#e0625a]",
+    applied: "border-primary/30 bg-primary/[0.12] text-primary",
+    rejected: "border-destructive/30 bg-destructive/[0.12] text-destructive",
     withdrawn: "border-border bg-secondary text-muted-foreground",
-    closed: "border-[#6f5f3e]/45 bg-[#6f5f3e]/20 text-[#b9a677]",
+    closed: "border-warning/45 bg-warning/20 text-warning",
   };
   return (
     <span
       className={`inline-flex rounded border px-2 py-0.5 text-xs font-medium ${colors[status]}`}
     >
       {statusLabels[status]}
-    </span>
-  );
-}
-
-function ArrangementPill({ value }: { value: WorkArrangement }) {
-  return (
-    <span className="inline-flex rounded border border-border bg-secondary px-2 py-0.5 text-xs font-medium text-[#bcae93]">
-      {arrangementLabels[value]}
-    </span>
-  );
-}
-
-function EmploymentPill({ value }: { value: EmploymentType }) {
-  return (
-    <span className="inline-flex max-w-20 rounded border border-border bg-secondary px-2 py-0.5 text-xs font-medium leading-tight text-[#bcae93]">
-      {employmentLabels[value]}
     </span>
   );
 }
@@ -276,110 +256,6 @@ function PageHeader({
       </div>
       {action}
     </div>
-  );
-}
-
-const emptySelectValue = "__applytogether_empty__";
-
-function DarkSelect({
-  value,
-  onChange,
-  options,
-  ariaLabel,
-  className = "",
-  contentClassName = "",
-  header,
-  footer,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  options: { value: string; label: string }[];
-  ariaLabel: string;
-  className?: string;
-  contentClassName?: string;
-  header?: ReactNode;
-  footer?: (close: () => void) => ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-  const normalizedValue = value === "" ? emptySelectValue : value;
-  const selectedLabel =
-    options.find((option) => option.value === value)?.label ?? "";
-  const triggerLabel = selectedLabel ? `${ariaLabel}: ${selectedLabel}` : ariaLabel;
-
-  return (
-    <RadixSelect.Root
-      open={open}
-      onOpenChange={setOpen}
-      value={normalizedValue}
-      onValueChange={(nextValue) =>
-        onChange(nextValue === emptySelectValue ? "" : nextValue)
-      }
-    >
-      <RadixSelect.Trigger
-        aria-label={triggerLabel}
-        className={`inline-flex min-h-8 w-full items-center justify-between gap-2 overflow-hidden rounded-lg border border-border bg-input px-3 py-2 text-left text-xs text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.025)] transition-colors hover:border-primary/40 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 data-[state=open]:border-primary/35 data-[state=open]:bg-secondary ${className}`}
-      >
-        <span
-          aria-hidden="true"
-          title={selectedLabel}
-          className="min-w-0 flex-1"
-          style={{
-            display: "block",
-            flexBasis: 0,
-            flexGrow: 1,
-            flexShrink: 1,
-            minWidth: 0,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {selectedLabel}
-        </span>
-        <RadixSelect.Icon className="shrink-0 text-muted-foreground">
-          <ChevronDown size={14} />
-        </RadixSelect.Icon>
-      </RadixSelect.Trigger>
-      <RadixSelect.Portal>
-        <RadixSelect.Content
-          position="popper"
-          sideOffset={6}
-          collisionPadding={12}
-          className={`dark theme-gold z-[100] min-w-[var(--radix-select-trigger-width)] max-w-[280px] overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-foreground shadow-[0_18px_50px_rgba(0,0,0,0.55)] ${contentClassName}`}
-        >
-          {header ? (
-            <div className="px-3 pb-1 pt-1.5 text-[10px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
-              {header}
-            </div>
-          ) : null}
-          <RadixSelect.Viewport>
-            {options.map((option) => {
-              const optionValue =
-                option.value === "" ? emptySelectValue : option.value;
-              return (
-                <RadixSelect.Item
-                  key={optionValue}
-                  value={optionValue}
-                  className="relative flex min-w-0 cursor-pointer select-none items-center rounded-lg py-2 pl-3 pr-8 text-xs outline-none transition-colors data-[highlighted]:bg-primary/15 data-[highlighted]:text-primary data-[state=checked]:text-foreground"
-                >
-                  <RadixSelect.ItemText>
-                    <span className="block truncate">{option.label}</span>
-                  </RadixSelect.ItemText>
-                  <RadixSelect.ItemIndicator className="absolute right-2.5 text-primary">
-                    <Check size={13} />
-                  </RadixSelect.ItemIndicator>
-                </RadixSelect.Item>
-              );
-            })}
-          </RadixSelect.Viewport>
-          {footer ? (
-            <div className="mt-1 border-t border-border pt-1">
-              {footer(() => setOpen(false))}
-            </div>
-          ) : null}
-        </RadixSelect.Content>
-      </RadixSelect.Portal>
-    </RadixSelect.Root>
   );
 }
 
@@ -426,19 +302,19 @@ function ErrorState({
     error instanceof Error ? error.message : "Something unexpected happened.";
   return (
     <div
-      className="rounded-xl border border-red-500/20 bg-red-500/5 p-5"
+      className="rounded-xl border border-destructive/20 bg-destructive/5 p-5"
       role="alert"
     >
       <div className="flex items-start gap-3">
-        <AlertCircle className="mt-0.5 flex-shrink-0 text-red-400" size={16} />
+        <AlertCircle className="mt-0.5 flex-shrink-0 text-destructive" size={16} />
         <div className="flex-1">
-          <h2 className="text-sm font-semibold text-red-300">
+          <h2 className="text-sm font-semibold text-destructive">
             Couldn’t load this view
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">{message}</p>
           {onRetry && (
             <button
-              className="mt-3 rounded-lg border border-red-500/20 px-3 py-1.5 text-xs font-medium text-red-300 hover:bg-red-500/10"
+              className="mt-3 rounded-lg border border-destructive/20 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10"
               onClick={onRetry}
             >
               Try again
@@ -466,7 +342,7 @@ function PrimaryButton({
       type={type}
       disabled={disabled}
       onClick={onClick}
-      className="inline-flex items-center justify-center gap-2 rounded-lg border border-primary/35 bg-secondary px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/60 hover:bg-[#3a2a17] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-50"
+      className="inline-flex items-center justify-center gap-2 rounded-lg border border-primary bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:border-primary/90 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-50"
     >
       {children}
     </button>
@@ -481,18 +357,18 @@ function IdentityGate({
   onSelect: (id: string) => void;
 }) {
   return (
-    <div className="dark flex min-h-screen items-center justify-center bg-[#0c1120] p-6">
-      <div className="w-full max-w-lg rounded-2xl border border-white/[0.08] bg-[#111827] p-7 shadow-2xl shadow-black/30">
-        <div className="mb-6 flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-600">
+    <div className="flex min-h-screen items-center justify-center bg-background p-6">
+      <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-7 shadow-2xl shadow-black/30">
+        <div className="mb-6 flex h-11 w-11 items-center justify-center rounded-xl bg-primary">
           <Briefcase className="text-white" size={20} />
         </div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-400">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
           Development identity
         </p>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-100">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">
           Who are you testing as?
         </h1>
-        <p className="mt-2 text-sm leading-relaxed text-slate-500">
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
           ApplyTogether uses the seeded backend UUIDs during Milestone 2. This
           selector disappears when production authentication replaces it.
         </p>
@@ -501,7 +377,7 @@ function IdentityGate({
             {identities.map((identity) => (
               <button
                 key={identity.id}
-                className="flex items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.03] p-4 text-left text-slate-300 transition hover:border-indigo-500/30 hover:bg-indigo-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                className="flex items-center gap-3 rounded-xl border border-border bg-secondary/50 p-4 text-left text-subtle transition hover:border-primary/30 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 onClick={() => onSelect(identity.id)}
               >
                 <Avatar id={identity.id} name={identity.label} size="md" />
@@ -509,7 +385,7 @@ function IdentityGate({
                   <span className="block text-sm font-semibold">
                     {identity.label}
                   </span>
-                  <span className="mt-0.5 block text-xs text-slate-600">
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
                     Seeded user
                   </span>
                 </span>
@@ -517,7 +393,7 @@ function IdentityGate({
             ))}
           </div>
         ) : (
-          <div className="mt-6 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-200">
+          <div className="mt-6 rounded-xl border border-warning/20 bg-warning/5 p-4 text-sm text-warning">
             Add the UUIDs printed by the backend seed command to{" "}
             <code>frontend/.env</code>, using the names in{" "}
             <code>.env.example</code>.
@@ -539,14 +415,14 @@ function AppShell({ context }: { context: AppContext }) {
   ];
 
   return (
-    <div className="dark theme-gold min-h-screen bg-background text-foreground">
-      <nav className="sticky top-0 z-50 border-b border-border bg-background">
+    <div className="min-h-screen bg-background text-foreground">
+      <nav className="sticky top-0 z-50 border-b border-border bg-card">
         <div className="mx-auto flex h-14 max-w-[1280px] items-center gap-3 px-4 sm:px-6 md:h-16">
           <Link
             to="/"
             className="flex flex-shrink-0 items-center gap-2.5 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
-            <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-md bg-[#060504]">
+            <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-md bg-black">
               <img src={logoUrl} alt="" className="h-full w-full object-contain p-0.5" />
             </span>
             <span className="hidden text-base font-semibold tracking-tight text-foreground sm:block">
@@ -575,7 +451,7 @@ function AppShell({ context }: { context: AppContext }) {
                 <Link
                   to="/workspace?create=1"
                   onClick={close}
-                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-[#e0b850] transition-colors hover:bg-primary/15"
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/15"
                 >
                   <Plus size={13} /> Create workspace
                 </Link>
@@ -611,11 +487,12 @@ function AppShell({ context }: { context: AppContext }) {
           </div>
           <Link
             to="/applications/new"
-            className="ml-auto hidden shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-primary/35 bg-secondary px-3.5 py-2 text-sm font-medium text-foreground transition hover:border-primary/60 hover:bg-[#3a2a17] md:flex"
+            className="ml-auto hidden shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-primary bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground transition hover:border-primary/90 hover:bg-primary/90 md:flex"
           >
             <Plus size={13} /> Add application
           </Link>
-          <div className="ml-auto md:ml-0">
+          <div className="ml-auto flex items-center gap-2 md:ml-0">
+            <ThemeToggle />
             <InvitationInbox
               client={context.client}
               onAccepted={async () => {
@@ -624,14 +501,14 @@ function AppShell({ context }: { context: AppContext }) {
             />
           </div>
           {context.developmentIdentity ? (
-            <label className="hidden text-xs text-amber-300 lg:block">
+            <label className="hidden text-xs text-warning lg:block">
               <span className="sr-only">Active developer identity</span>
               <select
                 value={context.developmentIdentity.selectedUserId}
                 onChange={(event) =>
                   context.developmentIdentity?.switchIdentity(event.target.value)
                 }
-                className="max-w-28 rounded-lg border border-amber-500/20 bg-amber-500/5 px-2 py-1.5 text-xs text-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
+                className="max-w-28 rounded-lg border border-warning/20 bg-warning/5 px-2 py-1.5 text-xs text-warning focus:outline-none focus:ring-2 focus:ring-warning/40"
               >
                 {context.developmentIdentity.identities.map((identity) => (
                   <option key={identity.id} value={identity.id}>
@@ -647,19 +524,19 @@ function AppShell({ context }: { context: AppContext }) {
               name={context.session.user.display_name}
               size="md"
             />
-            <span className="hidden max-w-28 truncate text-sm text-foreground xl:block">
+            <span className="hidden max-w-28 truncate text-sm text-foreground 2xl:block">
               {context.session.user.display_name}
             </span>
             <button
               type="button"
               onClick={() => void context.logout()}
-              className="shrink-0 whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-medium text-muted-foreground transition hover:bg-white/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="shrink-0 whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-medium text-muted-foreground transition hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               Log out
             </button>
           </div>
           <button
-            className="rounded p-1.5 text-muted-foreground hover:bg-white/5 md:hidden"
+            className="rounded p-1.5 text-muted-foreground hover:bg-secondary md:hidden"
             onClick={() => setMobileOpen((open) => !open)}
             aria-label="Toggle navigation"
             aria-expanded={mobileOpen}
@@ -728,7 +605,7 @@ function AppShell({ context }: { context: AppContext }) {
 // top edge — the standard dark-UI elevation trick — so panels read as distinct tiles
 // instead of dissolving into the page.
 const PANEL =
-  "rounded-xl border border-border bg-card shadow-[0_1px_2px_rgba(0,0,0,0.45)] ring-1 ring-inset ring-white/[0.03]";
+  "rounded-xl border border-border bg-card shadow-[var(--shadow-panel)] ring-1 ring-inset ring-white/[0.03]";
 
 // Team rows loaded for the dashboard's member rings (sorted by this week).
 const DASHBOARD_TEAM_SAMPLE = 50;
@@ -971,7 +848,7 @@ export function TeamAccountabilityCard({ context }: { context: AppContext }) {
               return (
                 <tr
                   key={item.owner.id}
-                  className="animate-in fade-in-0 slide-in-from-bottom-1 duration-300 transition-colors hover:bg-[#211910]"
+                  className="animate-in fade-in-0 slide-in-from-bottom-1 duration-300 transition-colors hover:bg-muted"
                 >
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
@@ -998,10 +875,10 @@ export function TeamAccountabilityCard({ context }: { context: AppContext }) {
                   <td className="font-numeric px-4 py-3.5 text-center text-foreground">
                     {item.active}
                   </td>
-                  <td className="font-numeric px-4 py-3.5 text-center text-[#9aa05f]">
+                  <td className="font-numeric px-4 py-3.5 text-center text-success">
                     {item.this_week}
                   </td>
-                  <td className="font-numeric px-4 py-3.5 text-center text-[#c2686a]">
+                  <td className="font-numeric px-4 py-3.5 text-center text-destructive">
                     {item.rejected}
                   </td>
                   <td className="px-5 py-3.5">
@@ -1092,6 +969,8 @@ function searchParamsFromFilters(filters: ApplicationFilters): URLSearchParams {
   return params;
 }
 
+// Loads the workspace's applications for the URL's filters and renders them
+// as the company wall. Deleting asks first and moves the record to Deleted.
 function ApplicationsPage({ context }: { context: AppContext }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const filters = useMemo(
@@ -1102,18 +981,15 @@ function ApplicationsPage({ context }: { context: AppContext }) {
   const [summary, setSummary] = useState<ApplicationSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>();
+  const workspaceId = context.session.workspace.id;
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(undefined);
     try {
       const [list, nextSummary] = await Promise.all([
-        applicationsApi.list(
-          context.client,
-          context.session.workspace.id,
-          filters,
-        ),
-        applicationsApi.summary(context.client, context.session.workspace.id),
+        applicationsApi.list(context.client, workspaceId, filters),
+        applicationsApi.summary(context.client, workspaceId),
       ]);
       setResult(list);
       setSummary(nextSummary);
@@ -1122,360 +998,67 @@ function ApplicationsPage({ context }: { context: AppContext }) {
     } finally {
       setLoading(false);
     }
-  }, [context.client, context.session.workspace.id, filters]);
+  }, [context.client, workspaceId, filters]);
 
   useEffect(() => void load(), [load]);
 
-  const update = (changes: Partial<ApplicationFilters>, resetPage = true) => {
-    setSearchParams(
-      searchParamsFromFilters({
-        ...filters,
-        ...changes,
-        page: resetPage ? 1 : (changes.page ?? filters.page),
-      }),
-    );
-  };
-
-  return (
-    <div className="mx-auto max-w-[1480px] px-4 py-8 sm:px-6">
-      <PageHeader
-        title="Applications"
-        description="Search and manage the live records in your shared workspace."
-        action={
-          <Link to="/applications/new">
-            <PrimaryButton>
-              <Plus size={15} /> Add application
-            </PrimaryButton>
-          </Link>
-        }
-      />
-      <div className="mb-4 rounded-xl border border-border bg-card p-4">
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-6">
-          <label className="relative lg:col-span-2">
-            <span className="sr-only">Search company or job title</span>
-            <Search
-              className="absolute left-3 top-2.5 text-muted-foreground"
-              size={14}
-            />
-            <input
-              value={filters.search}
-              onChange={(event) => update({ search: event.target.value })}
-              placeholder="Search company or role"
-              className="w-full rounded-lg border border-border bg-input py-2 pl-9 pr-3 text-xs text-foreground placeholder:text-[#6b6253] focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/15"
-            />
-          </label>
-          <FilterSelect
-            label="Owner"
-            value={filters.ownerId}
-            onChange={(value) => update({ ownerId: value })}
-            options={(summary?.top_applicants ?? []).map((item) => ({
-              value: item.owner.id,
-              label: item.owner.display_name,
-            }))}
-          />
-          <FilterSelect
-            label="Status"
-            value={filters.status}
-            onChange={(value) =>
-              update({ status: value as ApplicationStatus | "" })
-            }
-            options={Object.entries(statusLabels).map(([value, label]) => ({
-              value,
-              label,
-            }))}
-          />
-          <FilterSelect
-            label="Arrangement"
-            value={filters.workArrangement}
-            onChange={(value) =>
-              update({ workArrangement: value as WorkArrangement | "" })
-            }
-            options={Object.entries(arrangementLabels).map(([value, label]) => ({
-              value,
-              label,
-            }))}
-          />
-          <FilterSelect
-            label="Employment"
-            value={filters.employmentType}
-            onChange={(value) =>
-              update({ employmentType: value as EmploymentType | "" })
-            }
-            options={Object.entries(employmentLabels).map(([value, label]) => ({
-              value,
-              label,
-            }))}
-          />
-        </div>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
-          <div className="flex items-center gap-2">
-            <ArrowUpDown size={13} className="text-muted-foreground" />
-            <FilterSelect
-              label="Sort"
-              value={filters.sortBy}
-              includeAll={false}
-              onChange={(value) => update({ sortBy: value as SortField })}
-              options={[
-                { value: "application_date", label: "Application date" },
-                { value: "updated_at", label: "Last updated" },
-                { value: "company_name", label: "Company" },
-                { value: "job_title", label: "Job title" },
-              ]}
-            />
-            <button
-              className="rounded-lg border border-border bg-input px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
-              onClick={() =>
-                update({
-                  sortOrder: filters.sortOrder === "asc" ? "desc" : "asc",
-                })
-              }
-            >
-              {filters.sortOrder === "asc" ? "Ascending" : "Descending"}
-            </button>
-          </div>
-          <button
-            className="text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => setSearchParams(searchParamsFromFilters(defaultFilters))}
-          >
-            Clear filters
-          </button>
-        </div>
-      </div>
-      {loading ? (
-        <LoadingState label="Loading applications…" />
-      ) : error ? (
-        <ErrorState error={error} onRetry={load} />
-      ) : result && result.items.length > 0 ? (
-        <>
-          <div className="overflow-hidden rounded-xl border border-border bg-card">
-            <ApplicationTable
-              applications={result.items}
-              currentUserId={context.session.user.id}
-              canModerate={["owner", "admin"].includes(
-                context.session.workspace.role,
-              )}
-              context={context}
-              onDelete={load}
-            />
-          </div>
-          <PaginationBar
-            pagination={result.pagination}
-            onPage={(page) => update({ page }, false)}
-            pageSize={filters.pageSize}
-            onPageSize={(pageSize) => update({ pageSize })}
-          />
-        </>
-      ) : (
-        <EmptyState
-          title="No matching applications"
-          description="Try clearing a filter, or add an application to this workspace."
-          action={
-            <Link to="/applications/new">
-              <PrimaryButton>Add application</PrimaryButton>
-            </Link>
-          }
-        />
-      )}
-    </div>
+  const update = useCallback(
+    (changes: Partial<ApplicationFilters>, resetPage = true) => {
+      setSearchParams(
+        searchParamsFromFilters({
+          ...filters,
+          ...changes,
+          page: resetPage ? 1 : (changes.page ?? filters.page),
+        }),
+      );
+    },
+    [filters, setSearchParams],
   );
-}
 
-function FilterSelect({
-  label,
-  value,
-  onChange,
-  options,
-  includeAll = true,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: { value: string; label: string }[];
-  includeAll?: boolean;
-}) {
-  const selectOptions = [
-    ...(includeAll
-      ? [{ value: "", label: `All ${label.toLowerCase()}` }]
-      : []),
-    ...options,
-  ];
-
-  return (
-    <DarkSelect
-      ariaLabel={label}
-      value={value}
-      onChange={onChange}
-      options={selectOptions}
-    />
-  );
-}
-
-function ApplicationTable({
-  applications,
-  currentUserId,
-  canModerate,
-  context,
-  onDelete,
-}: {
-  applications: JobApplication[];
-  currentUserId: string;
-  canModerate: boolean;
-  context: AppContext;
-  onDelete: () => void;
-}) {
-  const navigate = useNavigate();
-
-  const remove = async (application: JobApplication) => {
+  const remove = async (application: JobApplication): Promise<boolean> => {
     if (
       !window.confirm(
         `Move ${application.company_name} — ${application.job_title} to Deleted? You can restore it later.`,
       )
     ) {
-      return;
+      return false;
     }
     try {
-      await applicationsApi.delete(
-        context.client,
-        context.session.workspace.id,
-        application.id,
-      );
+      await applicationsApi.delete(context.client, workspaceId, application.id);
       toast.success("Application moved to Deleted.");
-      onDelete();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Delete failed.");
+      void load();
+      return true;
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : "Delete failed.");
+      return false;
     }
   };
 
   return (
-    <>
-      <div className="hidden overflow-x-auto lg:block">
-        <table className="min-w-[1180px] w-full table-fixed">
-          <thead className="border-b border-border bg-white/[0.015] text-left text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-            <tr>
-              <th className="w-[13%] px-5 py-4 font-semibold">Company</th>
-              <th className="w-[18%] px-4 py-4 font-semibold">Role</th>
-              <th className="w-[11%] px-4 py-4 font-semibold">Owner</th>
-              <th className="w-[11%] px-4 py-4 font-semibold">Location</th>
-              <th className="w-[10%] px-4 py-4 font-semibold">Arrangement</th>
-              <th className="w-[9%] px-4 py-4 font-semibold">Type</th>
-              <th className="w-[9%] px-4 py-4 font-semibold">Status</th>
-              <th className="w-[9%] px-4 py-4 font-semibold">Applied</th>
-              <th className="w-[10%] px-4 py-4 text-right font-semibold">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {applications.map((application) => (
-              <tr
-                key={application.id}
-                className="h-[82px] transition-colors hover:bg-[#211910]"
-              >
-                <td className="px-5 py-4">
-                  <a
-                    href={application.job_posting_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    title={application.company_name}
-                    className="inline-flex items-start gap-1.5 text-sm font-semibold text-foreground hover:text-primary"
-                  >
-                    <span className="line-clamp-3 break-words">
-                      {clampChars(application.company_name, 60)}
-                    </span>
-                    <ExternalLink
-                      size={11}
-                      className="mt-1 shrink-0 text-muted-foreground"
-                    />
-                  </a>
-                </td>
-                <td className="px-4 py-4">
-                  <Link
-                    to={`/applications/${application.id}`}
-                    className="text-sm text-[#cdbfa3] hover:text-primary"
-                  >
-                    {application.job_title}
-                  </Link>
-                </td>
-                <td className="px-4 py-4">
-                  <div className="flex items-center gap-2.5 text-xs text-muted-foreground">
-                    <Avatar
-                      id={application.owner.id}
-                      name={application.owner.display_name}
-                    />
-                    {application.owner.display_name}
-                  </div>
-                </td>
-                <td className="px-4 py-4">
-                  <span className="block max-w-40 truncate text-xs text-muted-foreground">
-                    {application.location}
-                  </span>
-                </td>
-                <td className="px-4 py-4">
-                  <ArrangementPill value={application.work_arrangement} />
-                </td>
-                <td className="px-4 py-4">
-                  <EmploymentPill value={application.employment_type} />
-                </td>
-                <td className="px-4 py-4">
-                  <StatusPill status={application.status} />
-                </td>
-                <td className="whitespace-nowrap px-4 py-4 text-xs text-muted-foreground">
-                  {formatDate(application.application_date)}
-                </td>
-                <td className="px-4 py-4">
-                  <ApplicationActions
-                    applicationOwnerId={application.owner.id}
-                    canModerate={canModerate}
-                    currentUserId={currentUserId}
-                    onView={() => navigate(`/applications/${application.id}`)}
-                    onEdit={() =>
-                      navigate(`/applications/${application.id}/edit`)
-                    }
-                    onDelete={() => void remove(application)}
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="divide-y divide-border lg:hidden">
-        {applications.map((application) => (
-          <article key={application.id} className="p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <Link
-                  to={`/applications/${application.id}`}
-                  title={application.company_name}
-                  className="font-medium text-foreground"
-                >
-                  {clampChars(application.company_name, 60)}
-                </Link>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {application.job_title}
-                </p>
-              </div>
-              <StatusPill status={application.status} />
-            </div>
-            <div className="mt-4 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Avatar
-                  id={application.owner.id}
-                  name={application.owner.display_name}
-                />
-                {application.owner.display_name}
-              </div>
-              <ApplicationActions
-                applicationOwnerId={application.owner.id}
-                canModerate={canModerate}
-                currentUserId={currentUserId}
-                onView={() => navigate(`/applications/${application.id}`)}
-                onEdit={() => navigate(`/applications/${application.id}/edit`)}
-                onDelete={() => void remove(application)}
-              />
-            </div>
-          </article>
-        ))}
-      </div>
-    </>
+    <CompanyWall
+      applications={result?.items ?? null}
+      pagination={result?.pagination ?? null}
+      loading={loading}
+      error={error ? <ErrorState error={error} onRetry={load} /> : null}
+      filters={filters}
+      facets={
+        summary
+          ? {
+              statusCounts: summary.status_counts,
+              owners: summary.top_applicants.map((item) => item.owner),
+              total: Object.values(summary.status_counts).reduce(
+                (sum, count) => sum + count,
+                0,
+              ),
+            }
+          : null
+      }
+      userId={context.session.user.id}
+      canModerate={["owner", "admin"].includes(context.session.workspace.role)}
+      onFiltersChange={update}
+      onClearFilters={() => setSearchParams(searchParamsFromFilters(defaultFilters))}
+      onDelete={remove}
+    />
   );
 }
 
@@ -1622,7 +1205,7 @@ function ApplicationDetailPage({ context }: { context: AppContext }) {
               </Link>
             )}
             <button
-              className="rounded-lg border border-[#e0625a]/30 px-4 py-2 text-sm font-medium text-[#e0625a] hover:bg-[#e0625a]/10"
+              className="rounded-lg border border-destructive/30 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10"
               onClick={() => void remove()}
             >
               Delete
@@ -1631,8 +1214,8 @@ function ApplicationDetailPage({ context }: { context: AppContext }) {
         )}
       </div>
       {!owned && (
-        <div className="mb-5 flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/[0.06] p-4 text-sm text-[#cdbfa3]">
-          <Shield size={15} className="mt-0.5 flex-shrink-0 text-[#e0b850]" />
+        <div className="mb-5 flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/[0.06] p-4 text-sm text-subtle">
+          <Shield size={15} className="mt-0.5 flex-shrink-0 text-primary" />
           <span>
             This record belongs to {application.owner.display_name}. You can
             view it but cannot edit it.
@@ -1663,7 +1246,7 @@ function ApplicationDetailPage({ context }: { context: AppContext }) {
                 href={application.job_posting_url}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 text-[#e0b850] hover:text-primary"
+                className="inline-flex items-center gap-1 text-primary hover:text-primary"
               >
                 Open posting <ExternalLink size={12} />
               </a>,
@@ -1778,7 +1361,7 @@ export function ExpandableText({ text }: { text: string }) {
           type="button"
           aria-expanded={expanded}
           onClick={() => setExpanded((value) => !value)}
-          className="mt-2 text-xs font-medium text-primary transition-colors hover:text-[#e0b850]"
+          className="mt-2 text-xs font-medium text-primary transition-colors hover:text-primary"
         >
           {expanded ? "Show less" : "Read more"}
         </button>
@@ -2090,7 +1673,7 @@ export function ApplicationFormPage({
         {formError && (
           <div
             role="alert"
-            className="rounded-xl border border-[#e0625a]/25 bg-[#e0625a]/10 p-4 text-sm text-[#f0a9a3]"
+            className="rounded-xl border border-destructive/25 bg-destructive/10 p-4 text-sm text-destructive"
           >
             {formError}
           </div>
@@ -2115,7 +1698,7 @@ export function ApplicationFormPage({
                     type="button"
                     onClick={() => void autofill()}
                     disabled={autofilling || submitting}
-                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-sm font-medium text-amber-100 transition hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-4 py-2 text-sm font-medium text-warning transition hover:bg-warning/15 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {autofilling && (
                       <LoaderCircle className="animate-spin" size={14} />
@@ -2129,8 +1712,8 @@ export function ApplicationFormPage({
                   aria-live="polite"
                   className={`mt-3 rounded-lg border p-3 text-sm ${
                     autofillNotice.kind === "success"
-                      ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-100"
-                      : "border-amber-400/25 bg-amber-400/10 text-amber-100"
+                      ? "border-success/20 bg-success/10 text-success"
+                      : "border-warning/25 bg-warning/10 text-warning"
                   }`}
                 >
                   <p>{autofillNotice.message}</p>
@@ -2334,7 +1917,7 @@ function FormField({
   return (
     <label className={wide ? "sm:col-span-2" : ""} htmlFor={name}>
       <span className="mb-1.5 block text-xs font-medium text-muted-foreground">
-        {label} {required && <span className="text-[#e0625a]">*</span>}
+        {label} {required && <span className="text-destructive">*</span>}
       </span>
       <input
         id={name}
@@ -2348,14 +1931,14 @@ function FormField({
         aria-invalid={Boolean(error)}
         aria-describedby={error ? errorId : undefined}
         onChange={(event) => onChange(event.target.value)}
-        className={`w-full rounded-lg border bg-input px-3 py-2 text-sm text-foreground placeholder:text-[#6b6253] focus:outline-none ${
+        className={`w-full rounded-lg border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none ${
           error
-            ? "border-[#e0625a]/50 focus:border-[#e0625a]"
+            ? "border-destructive/50 focus:border-destructive"
             : "border-border focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
         }`}
       />
       {error && (
-        <span id={errorId} className="mt-1 block text-xs text-[#f0a9a3]">
+        <span id={errorId} className="mt-1 block text-xs text-destructive">
           {error}
         </span>
       )}
@@ -2391,9 +1974,9 @@ function FormSelect({
           value: optionValue,
           label: optionLabel,
         }))}
-        className={error ? "border-[#e0625a]/40" : ""}
+        className={error ? "border-destructive/40" : ""}
       />
-      {error && <span className="mt-1 block text-xs text-[#f0a9a3]">{error}</span>}
+      {error && <span className="mt-1 block text-xs text-destructive">{error}</span>}
     </label>
   );
 }
@@ -2550,7 +2133,7 @@ function DeletedPage({ context }: { context: AppContext }) {
           result && result.pagination.total_items > 0 && !selecting ? (
             <button
               onClick={() => setSelecting(true)}
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-[#e0625a]/25 bg-[#e0625a]/[0.08] px-3.5 py-2 text-xs font-semibold text-[#e0625a] transition-colors hover:bg-[#e0625a]/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e0625a]/50"
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-destructive/25 bg-destructive/[0.08] px-3.5 py-2 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/50"
             >
               <Trash size={14} /> Permanently delete
             </button>
@@ -2558,7 +2141,7 @@ function DeletedPage({ context }: { context: AppContext }) {
         }
       />
       {selecting && result && (
-        <div className="mb-4 flex flex-col justify-between gap-3 rounded-xl border border-[#e0625a]/25 bg-gradient-to-r from-[#e0625a]/[0.08] to-transparent p-4 sm:flex-row sm:items-center">
+        <div className="mb-4 flex flex-col justify-between gap-3 rounded-xl border border-destructive/25 bg-gradient-to-r from-destructive/[0.08] to-transparent p-4 sm:flex-row sm:items-center">
           <div>
             <p className="text-sm font-semibold text-foreground">
               Select applications to delete forever
@@ -2572,7 +2155,7 @@ function DeletedPage({ context }: { context: AppContext }) {
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={toggleSelectAll}
-              className="rounded-lg border border-border bg-secondary px-3 py-2 text-xs font-medium text-[#cdbfa3] transition-colors hover:bg-[#3a2a17]"
+              className="rounded-lg border border-border bg-secondary px-3 py-2 text-xs font-medium text-subtle transition-colors hover:bg-accent"
             >
               {selectAll ? "Clear all" : "Select all"}
             </button>
@@ -2585,7 +2168,7 @@ function DeletedPage({ context }: { context: AppContext }) {
             <button
               disabled={deleting || (!selectAll && selectedIds.size === 0)}
               onClick={() => void permanentlyDelete()}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[#e0625a] px-3 py-2 text-xs font-semibold text-[#14100a] transition-colors hover:bg-[#e0625a]/90 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-destructive px-3 py-2 text-xs font-semibold text-primary-foreground transition-colors hover:bg-destructive/90 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {deleting ? (
                 <LoaderCircle size={13} className="animate-spin" />
@@ -2610,7 +2193,7 @@ function DeletedPage({ context }: { context: AppContext }) {
                 className={`flex flex-col justify-between gap-4 p-5 transition-colors sm:flex-row sm:items-center ${
                   selecting &&
                   (selectAll || selectedIds.has(application.id))
-                    ? "bg-[#e0625a]/[0.06]"
+                    ? "bg-destructive/[0.06]"
                     : ""
                 }`}
               >
@@ -2621,7 +2204,7 @@ function DeletedPage({ context }: { context: AppContext }) {
                       aria-label={`Select ${application.company_name} ${application.job_title}`}
                       checked={selectAll || selectedIds.has(application.id)}
                       onChange={() => toggleApplication(application.id)}
-                      className="mt-1 h-4 w-4 shrink-0 cursor-pointer rounded border-border bg-input accent-[#e0625a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e0625a]/50"
+                      className="mt-1 h-4 w-4 shrink-0 cursor-pointer rounded border-border bg-input accent-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/50"
                     />
                   )}
                   <div className="min-w-0">
@@ -2642,7 +2225,7 @@ function DeletedPage({ context }: { context: AppContext }) {
                 {!selecting && (
                   <button
                     onClick={() => void restore(application)}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-medium text-[#e0b850] hover:bg-primary/15"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-medium text-primary hover:bg-primary/15"
                   >
                     <RotateCcw size={13} /> Restore application
                   </button>
@@ -2905,7 +2488,7 @@ export function WorkspacePage({ context }: { context: AppContext }) {
         action={
           <button
             onClick={() => setShowCreate((visible) => !visible)}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-primary/35 bg-secondary px-3.5 py-2 text-xs font-semibold text-foreground transition-colors hover:border-primary/60 hover:bg-[#3a2a17]"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-primary bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground transition-colors hover:border-primary/90 hover:bg-primary/90"
           >
             <Plus size={14} /> Create workspace
           </button>
@@ -2916,7 +2499,7 @@ export function WorkspacePage({ context }: { context: AppContext }) {
           onSubmit={(event) => void createWorkspace(event)}
           className="mb-4 grid gap-4 rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/[0.07] to-card p-5 sm:grid-cols-[auto_1fr_auto] sm:items-center"
         >
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-primary/25 bg-primary/15 text-[#e0b850]">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-primary/25 bg-primary/15 text-primary">
             <Building2 size={19} />
           </div>
           <label className="min-w-0">
@@ -2929,7 +2512,7 @@ export function WorkspacePage({ context }: { context: AppContext }) {
               onChange={(event) => setWorkspaceName(event.target.value)}
               maxLength={200}
               placeholder="Example: Product search"
-              className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-[#6b6253] focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/15"
+              className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/15"
             />
           </label>
           <div className="flex items-center gap-2 sm:self-end">
@@ -2942,7 +2525,7 @@ export function WorkspacePage({ context }: { context: AppContext }) {
             </button>
             <button
               disabled={creating || !workspaceName.trim()}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-primary/35 bg-secondary px-3 py-2 text-xs font-semibold text-foreground hover:border-primary/60 hover:bg-[#3a2a17] disabled:opacity-40"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-primary bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground hover:border-primary/90 hover:bg-primary/90 disabled:opacity-40"
             >
               {creating && <LoaderCircle size={13} className="animate-spin" />}
               Create
@@ -2950,9 +2533,9 @@ export function WorkspacePage({ context }: { context: AppContext }) {
           </div>
         </form>
       )}
-      <section className="rounded-2xl border border-border bg-card p-6 shadow-[0_18px_50px_rgba(0,0,0,0.18)]">
+      <section className="rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-raised)]">
         <div className="flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#d6a844] to-[#a9774a] text-[#14100a] shadow-lg shadow-black/30">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 text-primary-foreground shadow-lg shadow-black/30">
             <Briefcase size={20} />
           </div>
           <div>
@@ -2960,7 +2543,7 @@ export function WorkspacePage({ context }: { context: AppContext }) {
               {context.session.workspace.name}
             </h2>
             <div className="mt-1.5 flex items-center gap-2">
-              <span className="inline-flex rounded border border-primary/30 bg-primary/15 px-2 py-0.5 text-[11px] font-medium capitalize text-[#e0b850]">
+              <span className="inline-flex rounded border border-primary/30 bg-primary/15 px-2 py-0.5 text-[11px] font-medium capitalize text-primary">
                 {context.session.workspace.role}
               </span>
               <span className="text-xs text-muted-foreground">
@@ -2996,12 +2579,12 @@ export function WorkspacePage({ context }: { context: AppContext }) {
                     value={inviteEmail}
                     onChange={(event) => setInviteEmail(event.target.value)}
                     placeholder="guest@example.com"
-                    className="w-full rounded-lg border border-border bg-input py-2 pl-8 pr-3 text-xs text-foreground placeholder:text-[#6b6253] focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/15"
+                    className="w-full rounded-lg border border-border bg-input py-2 pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/15"
                   />
                 </label>
                 <button
                   disabled={inviting || !inviteEmail.trim()}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-[#e0b850] hover:bg-primary/15 disabled:opacity-40"
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/15 disabled:opacity-40"
                 >
                   {inviting ? (
                     <LoaderCircle size={13} className="animate-spin" />
@@ -3026,7 +2609,7 @@ export function WorkspacePage({ context }: { context: AppContext }) {
                 setMemberPage(1);
               }}
               placeholder="Search members by name or email"
-              className="w-full rounded-lg border border-border bg-input py-2 pl-9 pr-3 text-xs text-foreground placeholder:text-[#6b6253] focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/15"
+              className="w-full rounded-lg border border-border bg-input py-2 pl-9 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/15"
             />
           </label>
           {loading ? (
@@ -3091,14 +2674,14 @@ export function WorkspacePage({ context }: { context: AppContext }) {
                           />
                         </div>
                       ) : (
-                        <span className="rounded-md border border-border bg-secondary px-2 py-1 text-[11px] font-medium capitalize text-[#bcae93]">
+                        <span className="rounded-md border border-border bg-secondary px-2 py-1 text-[11px] font-medium capitalize text-subtle">
                           {member.role}
                         </span>
                       )}
                       {canManage && (
                         <button
                           onClick={() => void removeMember(member)}
-                          className="inline-flex items-center gap-1.5 rounded-md border border-[#e0625a]/20 px-2.5 py-1 text-[11px] font-medium text-[#e0625a] transition-colors hover:bg-[#e0625a]/10"
+                          className="inline-flex items-center gap-1.5 rounded-md border border-destructive/20 px-2.5 py-1 text-[11px] font-medium text-destructive transition-colors hover:bg-destructive/10"
                         >
                           <UserMinus size={12} /> Remove
                         </button>
@@ -3110,10 +2693,10 @@ export function WorkspacePage({ context }: { context: AppContext }) {
               {invitations.map((invitation) => (
                 <div
                   key={invitation.id}
-                  className="flex items-center justify-between gap-4 rounded-xl border border-dashed border-amber-500/15 bg-amber-500/[0.025] px-4 py-3"
+                  className="flex items-center justify-between gap-4 rounded-xl border border-dashed border-warning/15 bg-warning/[0.025] px-4 py-3"
                 >
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-500/10 text-amber-400">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-warning/10 text-warning">
                       <Mail size={14} />
                     </div>
                     <div className="min-w-0">
@@ -3126,7 +2709,7 @@ export function WorkspacePage({ context }: { context: AppContext }) {
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="rounded-md border border-amber-500/15 bg-amber-500/[0.06] px-2 py-1 text-[11px] font-medium text-amber-400">
+                    <span className="rounded-md border border-warning/15 bg-warning/[0.06] px-2 py-1 text-[11px] font-medium text-warning">
                       Awaiting acceptance
                     </span>
                     <button
@@ -3134,7 +2717,7 @@ export function WorkspacePage({ context }: { context: AppContext }) {
                       aria-label={`Revoke invitation to ${invitation.email}`}
                       title="Revoke invitation"
                       onClick={() => void revokeInvitation(invitation)}
-                      className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:border-[#e0625a]/25 hover:bg-[#e0625a]/10 hover:text-[#e0625a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e0625a]/50"
+                      className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition hover:border-destructive/25 hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/50"
                     >
                       <X size={13} />
                     </button>
@@ -3166,7 +2749,7 @@ export function WorkspacePage({ context }: { context: AppContext }) {
       </section>
 
       {isOwner && (
-        <section className="mt-4 flex flex-col justify-between gap-4 rounded-2xl border border-[#e0625a]/20 bg-[#e0625a]/[0.04] p-5 sm:flex-row sm:items-center">
+        <section className="mt-4 flex flex-col justify-between gap-4 rounded-2xl border border-destructive/20 bg-destructive/[0.04] p-5 sm:flex-row sm:items-center">
           <div>
             <h2 className="text-sm font-semibold text-foreground">
               Delete workspace
@@ -3178,7 +2761,7 @@ export function WorkspacePage({ context }: { context: AppContext }) {
           </div>
           <button
             onClick={() => void deleteWorkspace()}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-[#e0625a]/30 bg-[#e0625a]/10 px-4 py-2 text-xs font-semibold text-[#e0625a] transition-colors hover:bg-[#e0625a]/15"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/15"
           >
             <Trash size={14} /> Delete workspace
           </button>
@@ -3233,7 +2816,7 @@ function ProfilePage({ context }: { context: AppContext }) {
             <h2 className="text-xl font-semibold text-foreground">
               {context.session.user.display_name}
             </h2>
-            <div className="mt-2 flex items-center gap-2 text-xs font-medium text-[#e0b850]">
+            <div className="mt-2 flex items-center gap-2 text-xs font-medium text-primary">
               <CheckCircle size={13} /> Signed in
             </div>
           </div>
@@ -3245,8 +2828,8 @@ function ProfilePage({ context }: { context: AppContext }) {
               Changing your password signs this account out on every device.
             </p>
           </div>
-          {error ? <p role="alert" className="text-sm text-[#f0a9a3]">{error}</p> : null}
-          <label className="block text-sm text-[#cfc4af]">
+          {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+          <label className="block text-sm text-subtle">
             Current password
             <input
               type="password"
@@ -3257,7 +2840,7 @@ function ProfilePage({ context }: { context: AppContext }) {
               className="mt-1.5 w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
             />
           </label>
-          <label className="block text-sm text-[#cfc4af]">
+          <label className="block text-sm text-subtle">
             New password
             <input
               type="password"
@@ -3273,8 +2856,8 @@ function ProfilePage({ context }: { context: AppContext }) {
           </PrimaryButton>
         </form>
         {context.developmentIdentity ? (
-          <div className="mt-6 rounded-xl border border-amber-500/15 bg-amber-500/[0.04] p-4">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-amber-400">
+          <div className="mt-6 rounded-xl border border-warning/15 bg-warning/[0.04] p-4">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-warning">
               <Shield size={13} /> Developer-only identity adapter
             </div>
             <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
@@ -3403,18 +2986,18 @@ export function LegacyDevelopmentIdentityApp() {
   }
   if (loading) {
     return (
-      <div className="dark theme-gold min-h-screen bg-background text-foreground">
+      <div className="min-h-screen bg-background text-foreground">
         <LoadingState label="Discovering your workspace…" />
       </div>
     );
   }
   if (error || !session) {
     return (
-      <div className="dark theme-gold flex min-h-screen items-center justify-center bg-background p-6 text-foreground">
+      <div className="flex min-h-screen items-center justify-center bg-background p-6 text-foreground">
         <div className="w-full max-w-lg">
           <ErrorState error={error ?? new Error("Session could not be loaded.")} />
           <button
-            className="mt-4 text-sm text-indigo-400"
+            className="mt-4 text-sm text-primary"
             onClick={() => {
               identityStore.clear();
               setSelectedUserId(null);
@@ -3504,7 +3087,7 @@ function AuthenticatedApp({
 
   if (auth.status === "initializing") {
     return (
-      <div className="dark theme-gold min-h-screen bg-background text-foreground">
+      <div className="min-h-screen bg-background text-foreground">
         <LoadingState label="Restoring your secure session…" />
       </div>
     );
@@ -3512,7 +3095,7 @@ function AuthenticatedApp({
 
   if (auth.status === "recoverable-error") {
     return (
-      <div className="dark theme-gold flex min-h-screen items-center justify-center bg-background p-6 text-foreground">
+      <div className="flex min-h-screen items-center justify-center bg-background p-6 text-foreground">
         <div className="w-full max-w-lg">
           <ErrorState
             error={auth.error ?? new Error("Session could not be restored.")}
@@ -3544,7 +3127,7 @@ function AuthenticatedApp({
 
   if (!auth.user || !auth.workspace) {
     return (
-      <div className="dark theme-gold min-h-screen bg-background text-foreground">
+      <div className="min-h-screen bg-background text-foreground">
         <LoadingState label="Loading your workspace…" />
       </div>
     );
@@ -3646,15 +3229,18 @@ function SecureIntegratedApp() {
 }
 
 export default function App() {
+  const theme = useTheme();
   return (
     <BrowserRouter>
       <Toaster
         position="top-right"
+        theme={theme}
         toastOptions={{
           style: {
-            background: "#141c2e",
-            border: "1px solid rgba(255,255,255,0.08)",
-            color: "#e2e8f0",
+            background: "var(--popover)",
+            border: "1px solid var(--border)",
+            color: "var(--popover-foreground)",
+            boxShadow: "var(--shadow-raised)",
             fontSize: "13px",
           },
         }}

@@ -28,10 +28,10 @@
 @keyframes dashboard-glow {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(154, 160, 95, 0);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 0%, transparent);
   }
   50% {
-    box-shadow: 0 0 14px 3px rgba(154, 160, 95, 0.55);
+    box-shadow: 0 0 14px 3px color-mix(in srgb, var(--success) 45%, transparent);
   }
 }
 
@@ -46,125 +46,124 @@
   }
 }
 
+/*
+ * Business palette. Light is the default: white cards on a cool light-grey
+ * page with a corporate-blue accent. `.dark` (set on <html> by the theme
+ * toggle) switches to near-black surfaces with the same blue accent.
+ * Components read only these tokens; nothing hard-codes a hex colour.
+ */
 :root {
   --font-size: 16px;
-  --background: #ffffff;
-  --foreground: oklch(0.145 0 0);
+  --background: #f6f7f9;
+  --foreground: #0f172a;
   --card: #ffffff;
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: #030213;
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.95 0.0058 264.53);
-  --secondary-foreground: #030213;
-  --muted: #ececf0;
-  --muted-foreground: #717182;
-  --accent: #e9ebef;
-  --accent-foreground: #030213;
-  --destructive: #d4183d;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  /* Secondary text: quieter than foreground, stronger than muted. */
+  --subtle: #475569;
+  --accent: #e8eef8;
+  --accent-foreground: #0f172a;
+  --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --border: rgba(0, 0, 0, 0.1);
-  --input: transparent;
-  --input-background: #f3f3f5;
-  --switch-background: #cbced4;
+  --success: #15803d;
+  --warning: #b45309;
+  --border: #e2e8f0;
+  --input: #ffffff;
+  --input-background: #ffffff;
+  --switch-background: #cbd5e1;
+  --ring: #2563eb;
+  /* Empty part of rings, bars and progress tracks. */
+  --track: #e2e8f0;
+  --shadow-panel: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
+  --shadow-raised: 0 12px 32px -12px rgba(15, 23, 42, 0.18);
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+
+  --status-applied: #2563eb;
+  --status-rejected: #dc2626;
+  --status-withdrawn: #64748b;
+  --status-closed: #b45309;
+  --arrangement-remote: #0891b2;
+  --arrangement-hybrid: #7c3aed;
+  --arrangement-onsite: #15803d;
+  --arrangement-unknown: #94a3b8;
+
+  --chart-1: #2563eb;
+  --chart-2: #0891b2;
+  --chart-3: #7c3aed;
+  --chart-4: #15803d;
+  --chart-5: #dc2626;
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #030213;
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0f172a;
+  --sidebar-primary: #2563eb;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f1f5f9;
+  --sidebar-accent-foreground: #0f172a;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #2563eb;
+  color-scheme: light;
 }
 
 .dark {
-  --background: #0c1120;
-  --foreground: #e2e8f0;
-  --card: #111827;
-  --card-foreground: #e2e8f0;
-  --popover: #141c2e;
-  --popover-foreground: #e2e8f0;
-  --primary: #6366f1;
+  --background: #09090b;
+  --foreground: #f4f4f5;
+  --card: #131316;
+  --card-foreground: #f4f4f5;
+  --popover: #18181b;
+  --popover-foreground: #f4f4f5;
+  --primary: #3b82f6;
   --primary-foreground: #ffffff;
-  --secondary: #1e293b;
-  --secondary-foreground: #94a3b8;
-  --muted: #1a2332;
-  --muted-foreground: #64748b;
-  --accent: #6366f1;
-  --accent-foreground: #ffffff;
-  --destructive: #ef4444;
-  --destructive-foreground: #ffffff;
-  --border: rgba(255, 255, 255, 0.08);
-  --input: #1e293b;
-  --ring: #6366f1;
-  --font-weight-medium: 500;
-  --font-weight-normal: 400;
-  --chart-1: #6366f1;
-  --chart-2: #10b981;
-  --chart-3: #f59e0b;
-  --chart-4: #8b5cf6;
-  --chart-5: #ef4444;
-  --sidebar: #0f1729;
-  --sidebar-foreground: #e2e8f0;
-  --sidebar-primary: #6366f1;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1e293b;
-  --sidebar-accent-foreground: #e2e8f0;
-  --sidebar-border: rgba(255, 255, 255, 0.08);
-  --sidebar-ring: #6366f1;
-  color-scheme: dark;
-}
+  --secondary: #1c1c20;
+  --secondary-foreground: #f4f4f5;
+  --muted: #18181b;
+  --muted-foreground: #a1a1aa;
+  --subtle: #d4d4d8;
+  --accent: #1e2533;
+  --accent-foreground: #f4f4f5;
+  --destructive: #f87171;
+  --destructive-foreground: #09090b;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --border: #27272a;
+  --input: #18181b;
+  --input-background: #18181b;
+  --switch-background: #3f3f46;
+  --ring: #3b82f6;
+  --track: #27272a;
+  --shadow-panel: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-raised: 0 16px 40px -16px rgba(0, 0, 0, 0.85);
 
-/*
- * Warm "gold" scheme, scoped to elements carrying BOTH `dark` and `theme-gold`.
- * Higher specificity than `.dark`, so it overrides the indigo dark tokens only
- * where opted in. Pages are migrated to this palette one at a time; once every
- * page opts in, these values move into `.dark` and this block is removed.
- * Palette source: the ApplyTogether login page.
- */
-.dark.theme-gold {
-  --background: #14100a;
-  --foreground: #f4eee1;
-  --card: #1a130b;
-  --card-foreground: #f2ece0;
-  --popover: #1e1810;
-  --popover-foreground: #f4eee1;
-  --primary: #d6a844;
-  --primary-foreground: #14100a;
-  --secondary: #2e2113;
-  --secondary-foreground: #f4eee1;
-  --muted: #1e1810;
-  --muted-foreground: #8c8170;
-  --accent: #2e2113;
-  --accent-foreground: #f4eee1;
-  --destructive: #e0625a;
-  --destructive-foreground: #14100a;
-  --border: #352b1c;
-  --input: #1e1810;
-  --ring: #d6a844;
-  --chart-1: #d6a844;
-  --chart-2: #e0b850;
-  --chart-3: #a89a80;
-  --chart-4: #8c8170;
-  --chart-5: #e0625a;
-  --sidebar: #1a130b;
-  --sidebar-foreground: #f4eee1;
-  --sidebar-primary: #d6a844;
-  --sidebar-primary-foreground: #14100a;
-  --sidebar-accent: #2e2113;
-  --sidebar-accent-foreground: #f4eee1;
-  --sidebar-border: #352b1c;
-  --sidebar-ring: #d6a844;
+  --status-applied: #60a5fa;
+  --status-rejected: #f87171;
+  --status-withdrawn: #a1a1aa;
+  --status-closed: #fbbf24;
+  --arrangement-remote: #22d3ee;
+  --arrangement-hybrid: #a78bfa;
+  --arrangement-onsite: #4ade80;
+  --arrangement-unknown: #71717a;
+
+  --chart-1: #3b82f6;
+  --chart-2: #22d3ee;
+  --chart-3: #a78bfa;
+  --chart-4: #4ade80;
+  --chart-5: #f87171;
+  --sidebar: #131316;
+  --sidebar-foreground: #f4f4f5;
+  --sidebar-primary: #3b82f6;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1c1c20;
+  --sidebar-accent-foreground: #f4f4f5;
+  --sidebar-border: #27272a;
+  --sidebar-ring: #3b82f6;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -189,6 +188,10 @@
   --color-input-background: var(--input-background);
   --color-switch-background: var(--switch-background);
   --color-ring: var(--ring);
+  --color-subtle: var(--subtle);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-track: var(--track);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -269,7 +272,7 @@
   }
 }
 
-/* Animated gold hover underline for non-active nav tabs.
+/* Animated accent hover underline for non-active nav tabs.
    Two lines (top + bottom) wipe in from opposite sides on hover. */
 .nav-hover-underline {
   position: relative;
@@ -283,7 +286,7 @@
   left: 0;
   width: 100%;
   height: 2px;
-  background: linear-gradient(to right, var(--primary), #e0b850);
+  background: var(--primary);
   transform: scaleX(0);
   transition: transform 0.4s ease-out;
 }

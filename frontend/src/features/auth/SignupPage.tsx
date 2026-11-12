@@ -306,7 +306,7 @@ function Field({
       {error || helper ? (
         <span
           id={messageId}
-          className={`mt-1.5 block text-xs ${error ? "text-[#f0a9a3]" : "text-muted-foreground"}`}
+          className={`mt-1.5 block text-xs ${error ? "text-destructive" : "text-muted-foreground"}`}
         >
           {error ?? helper}
         </span>

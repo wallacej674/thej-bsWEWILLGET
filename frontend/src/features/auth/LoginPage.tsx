@@ -70,7 +70,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       {searchParams.get("verified") === "true" ? (
         <div
           role="status"
-          className="mb-5 rounded-xl border border-primary/25 bg-primary/[0.08] px-4 py-3 text-sm text-[#e7cf99]"
+          className="mb-5 rounded-xl border border-primary/25 bg-primary/[0.08] px-4 py-3 text-sm text-primary"
         >
           Email verified. Sign in to continue.
         </div>
@@ -81,7 +81,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           id={errorId}
           role="alert"
           aria-live="polite"
-          className="mb-5 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-[#f0a9a3]"
+          className="mb-5 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
         >
           {error}
         </div>
@@ -122,7 +122,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             type="button"
             aria-label={showPassword ? "Hide password" : "Show password"}
             onClick={() => setShowPassword((visible) => !visible)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md px-1.5 py-1 text-[0.8rem] font-semibold text-primary transition hover:text-[#e8c976] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md px-1.5 py-1 text-[0.8rem] font-semibold text-primary transition hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
           >
             {showPassword ? "Hide" : "Show"}
           </button>

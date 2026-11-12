@@ -99,10 +99,10 @@ export function greeting(now: Date = new Date()): string {
 export type Pace = "hit" | "on" | "behind" | "none";
 
 export const PACE_META: Record<Pace, { label: string; text: string; color: string }> = {
-  hit: { label: "Goal hit", text: "text-[#c3c88a]", color: "#9aa05f" },
-  on: { label: "On pace", text: "text-[#e0b850]", color: "#d6a844" },
-  behind: { label: "Behind", text: "text-[#e09a9b]", color: "#c2686a" },
-  none: { label: "No goal", text: "text-muted-foreground", color: "#8c8170" },
+  hit: { label: "Goal hit", text: "text-success", color: "#16a34a" },
+  on: { label: "On pace", text: "text-primary", color: "#2563eb" },
+  behind: { label: "Behind", text: "text-destructive", color: "#dc2626" },
+  none: { label: "No goal", text: "text-muted-foreground", color: "#94a3b8" },
 };
 
 /**
@@ -128,17 +128,17 @@ export function weekSentence(me: MyWeek): string {
 // --- Breakdown palettes ----------------------------------------------------
 
 export const STATUS_META: Record<ApplicationStatus, { label: string; color: string }> = {
-  applied: { label: "Applied", color: "#d6a844" },
-  rejected: { label: "Rejected", color: "#c2686a" },
-  withdrawn: { label: "Withdrawn", color: "#8c8170" },
-  closed: { label: "Closed", color: "#b08953" },
+  applied: { label: "Applied", color: "#3b82f6" },
+  rejected: { label: "Rejected", color: "#ef4444" },
+  withdrawn: { label: "Withdrawn", color: "#94a3b8" },
+  closed: { label: "Closed", color: "#f59e0b" },
 };
 
 export const ARRANGEMENT_META: Record<WorkArrangement, { label: string; color: string }> = {
-  remote: { label: "Remote", color: "#5f8f8a" },
-  hybrid: { label: "Hybrid", color: "#cc7a4d" },
-  onsite: { label: "Onsite", color: "#9aa05f" },
-  unknown: { label: "Unknown", color: "#6b6253" },
+  remote: { label: "Remote", color: "#06b6d4" },
+  hybrid: { label: "Hybrid", color: "#8b5cf6" },
+  onsite: { label: "Onsite", color: "#22c55e" },
+  unknown: { label: "Unknown", color: "#94a3b8" },
 };
 
 // --- Derived view model ----------------------------------------------------

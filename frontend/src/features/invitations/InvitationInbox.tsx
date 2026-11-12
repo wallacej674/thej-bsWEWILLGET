@@ -100,7 +100,7 @@ export function InvitationInbox({
       {open ? (
         <section
           aria-label="Workspace invitation inbox"
-          className="absolute right-0 top-10 z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border bg-popover shadow-[0_24px_70px_rgba(0,0,0,0.55)]"
+          className="absolute right-0 top-10 z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border bg-popover shadow-[var(--shadow-raised)]"
         >
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <div>
@@ -135,7 +135,7 @@ export function InvitationInbox({
                 <button
                   type="button"
                   onClick={() => void load()}
-                  className="mt-3 text-xs font-semibold text-primary hover:text-[#e0b850]"
+                  className="mt-3 text-xs font-semibold text-primary hover:text-primary"
                 >
                   Try again
                 </button>
@@ -183,7 +183,7 @@ export function InvitationInbox({
                           aria-label="Accept invitation"
                           disabled={acting}
                           onClick={() => void accept(invitation)}
-                          className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-md bg-primary px-2 text-xs font-semibold text-primary-foreground transition hover:bg-[#e0b850] active:scale-[0.98] disabled:opacity-50"
+                          className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-md bg-primary px-2 text-xs font-semibold text-primary-foreground transition hover:bg-primary/90 active:scale-[0.98] disabled:opacity-50"
                         >
                           {acting ? (
                             <LoaderCircle size={12} className="animate-spin" />

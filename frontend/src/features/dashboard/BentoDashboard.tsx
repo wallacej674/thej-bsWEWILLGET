@@ -30,7 +30,7 @@ import {
   weekRange,
   weekSentence,
 } from "./dashboardModel";
-import { EASE_OUT, EYEBROW, PANEL, SECONDARY_BUTTON } from "./dashboardStyles";
+import { EASE_OUT, EYEBROW, PANEL, PRIMARY_BUTTON } from "./dashboardStyles";
 import { CountUp, SpotlightTile } from "./motion";
 
 const MAX_RINGS = 8;
@@ -40,7 +40,7 @@ function MemberAvatar({ id, name, size }: { id: string; name: string; size: numb
   return (
     <span
       aria-hidden="true"
-      className="inline-flex flex-none items-center justify-center rounded-full font-semibold text-[#1a130b]"
+      className="inline-flex flex-none items-center justify-center rounded-full font-semibold text-white"
       style={{
         width: size,
         height: size,
@@ -54,8 +54,8 @@ function MemberAvatar({ id, name, size }: { id: string; name: string; size: numb
 }
 
 function Delta({ value }: { value: number }) {
-  if (value > 0) return <span className="text-[#9aa05f]">▲ {value}</span>;
-  if (value < 0) return <span className="text-[#c2686a]">▼ {Math.abs(value)}</span>;
+  if (value > 0) return <span className="text-success">▲ {value}</span>;
+  if (value < 0) return <span className="text-destructive">▼ {Math.abs(value)}</span>;
   return <span className="text-muted-foreground">— no change</span>;
 }
 
@@ -115,7 +115,7 @@ function GoalEditor({
           type="button"
           onClick={() => void save()}
           disabled={saving}
-          className={SECONDARY_BUTTON}
+          className={PRIMARY_BUTTON}
         >
           {saving ? "Saving…" : "Save goal"}
         </button>
@@ -128,7 +128,7 @@ function GoalEditor({
         </button>
       </div>
       {error ? (
-        <p role="alert" className="mt-2 text-xs text-[#f0a9a3]">
+        <p role="alert" className="mt-2 text-xs text-destructive">
           {error}
         </p>
       ) : null}
@@ -213,7 +213,7 @@ function ActivityRotator({ activities }: { activities: ApplicationSummary["recen
               aria-current={dot === current}
               onClick={() => setIndex(dot)}
               className={`h-1.5 rounded-full transition-all duration-300 ${
-                dot === current ? "w-6 bg-primary" : "w-1.5 bg-white/15 hover:bg-white/30"
+                dot === current ? "w-6 bg-primary" : "w-1.5 bg-foreground/15 hover:bg-foreground/30"
               }`}
             />
           ))}
@@ -273,7 +273,7 @@ function MemberRing({
             cy={size / 2}
             r={radius}
             fill="none"
-            stroke="#2e2113"
+            style={{ stroke: "var(--track)" }}
             strokeWidth={stroke}
           />
           <motion.circle
@@ -306,7 +306,7 @@ function MemberRing({
         {PACE_META[pace].label}
       </p>
       {detailed ? (
-        <p className={`mt-1 text-[11px] ${quiet ? "text-[#e09a9b]" : "text-muted-foreground"}`}>
+        <p className={`mt-1 text-[11px] ${quiet ? "text-destructive" : "text-muted-foreground"}`}>
           {lastAppliedLabel(row.last_applied)} · {row.active} active
         </p>
       ) : null}
@@ -377,10 +377,10 @@ export function BentoDashboard({
                     />
                     {me.streak_weeks}-week streak
                   </li>
-                  <li className="rounded-full border border-border bg-secondary/60 px-2.5 py-1 text-[#cdbfa3]">
+                  <li className="rounded-full border border-border bg-secondary/60 px-2.5 py-1 text-subtle">
                     {me.day_streak}-day activity streak
                   </li>
-                  <li className="rounded-full border border-border bg-secondary/60 px-2.5 py-1 text-[#cdbfa3]">
+                  <li className="rounded-full border border-border bg-secondary/60 px-2.5 py-1 text-subtle">
                     {me.total_applied_all_time} sent all-time
                   </li>
                 </ul>
@@ -393,8 +393,8 @@ export function BentoDashboard({
                     />
                   ) : (
                     <>
-                      <Link to="/applications/new" className={SECONDARY_BUTTON}>
-                        <Plus size={15} aria-hidden="true" className="text-primary" /> Log
+                      <Link to="/applications/new" className={PRIMARY_BUTTON}>
+                        <Plus size={15} aria-hidden="true" /> Log
                         application
                       </Link>
                       <button
@@ -494,10 +494,10 @@ export function BentoDashboard({
               <h2 className={EYEBROW}>Last {view.weeks.length} weeks</h2>
               <span aria-hidden="true" className="flex items-center gap-3 text-[11px] text-muted-foreground">
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-sm bg-[#e0b850]" /> You
+                  <span className="h-2 w-2 rounded-sm bg-primary" /> You
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-sm bg-[#d6a844]/30" /> Team
+                  <span className="h-2 w-2 rounded-sm bg-primary/30" /> Team
                 </span>
               </span>
             </div>
@@ -529,7 +529,7 @@ export function BentoDashboard({
             ) : (
               <div className="flex h-full flex-col items-start">
                 <h2 className={EYEBROW}>Waiting on you</h2>
-                <span className="mt-4 flex h-9 w-9 items-center justify-center rounded-full bg-[#9aa05f]/15 text-[#c3c88a]">
+                <span className="mt-4 flex h-9 w-9 items-center justify-center rounded-full bg-success/15 text-success">
                   <Check size={18} aria-hidden="true" />
                 </span>
                 <p className="mt-3 text-sm text-foreground">All caught up</p>

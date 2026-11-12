@@ -78,7 +78,7 @@ export function VerifyEmailPage({
         title="Email verified"
         description="Your account is ready. Sign in with the password you created."
       >
-        <div className="mb-5 flex items-center gap-3 rounded-xl border border-primary/25 bg-primary/[0.08] px-4 py-3 text-sm text-[#e7cf99]">
+        <div className="mb-5 flex items-center gap-3 rounded-xl border border-primary/25 bg-primary/[0.08] px-4 py-3 text-sm text-primary">
           <span
             aria-hidden="true"
             className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-primary/15 text-primary"
@@ -139,7 +139,7 @@ export function VerifyEmailPage({
           </p>
         ) : null}
         {resendFailed ? (
-          <p role="alert" className="mt-4 text-sm leading-6 text-[#f0a9a3]">
+          <p role="alert" className="mt-4 text-sm leading-6 text-destructive">
             The link could not be sent. Check the connection and try again.
           </p>
         ) : null}

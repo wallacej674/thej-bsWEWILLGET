@@ -82,7 +82,7 @@ export function ResumeProfilePanel({ client }: { client: ApiClient }) {
             discards the original file.
           </p>
         </div>
-        <label className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-primary/30 bg-primary/10 px-4 py-2 text-xs font-semibold text-[#e0b850] transition hover:bg-primary/15">
+        <label className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-primary/30 bg-primary/10 px-4 py-2 text-xs font-semibold text-primary transition hover:bg-primary/15">
           {uploading ? "Uploading..." : resume ? "Replace PDF" : "Upload PDF"}
           <input
             ref={inputRef}
@@ -96,7 +96,7 @@ export function ResumeProfilePanel({ client }: { client: ApiClient }) {
       </div>
 
       {error ? (
-        <p role="alert" className="mt-4 text-sm text-[#f0a9a3]">
+        <p role="alert" className="mt-4 text-sm text-destructive">
           {error}
         </p>
       ) : null}
@@ -111,7 +111,7 @@ export function ResumeProfilePanel({ client }: { client: ApiClient }) {
             <span className="text-sm font-medium text-foreground">
               {resume.original_filename}
             </span>
-            <span className="rounded-full border border-primary/25 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-[#e0b850]">
+            <span className="rounded-full border border-primary/25 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary">
               {statusLabel(resume.parser_status)}
             </span>
             <span className="text-xs text-muted-foreground">
@@ -119,11 +119,11 @@ export function ResumeProfilePanel({ client }: { client: ApiClient }) {
             </span>
           </div>
           {resume.parser_warnings.length > 0 ? (
-            <div className="rounded-lg border border-amber-400/20 bg-amber-400/10 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-amber-200">
+            <div className="rounded-lg border border-warning/20 bg-warning/10 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-warning">
                 ATS diagnostics
               </p>
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-100/85">
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-warning/85">
                 {resume.parser_warnings.map((warning) => (
                   <li key={warning}>{warning}</li>
                 ))}
@@ -138,13 +138,13 @@ export function ResumeProfilePanel({ client }: { client: ApiClient }) {
             <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Extracted text preview
             </summary>
-            <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[#cdbfa3]">
+            <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-subtle">
               {resume.extracted_text_preview}
             </p>
           </details>
           <button
             type="button"
-            className="rounded-lg border border-[#e0625a]/25 px-3 py-2 text-xs font-semibold text-[#e0625a] hover:bg-[#e0625a]/10"
+            className="rounded-lg border border-destructive/25 px-3 py-2 text-xs font-semibold text-destructive hover:bg-destructive/10"
             onClick={() => void remove()}
           >
             Remove resume

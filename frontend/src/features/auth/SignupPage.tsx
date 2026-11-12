@@ -10,6 +10,12 @@ import { Link } from "react-router";
 
 import type { MessageResponse, SignupInput } from "./authApi";
 import { AuthLayout } from "./AuthLayout";
+import {
+  authInputClass,
+  authLabelClass,
+  authLinkClass,
+  authPrimaryButtonClass,
+} from "./authStyles";
 
 interface SignupPageProps {
   onSignup(input: SignupInput): Promise<MessageResponse>;
@@ -25,12 +31,6 @@ type SignupFields = {
 };
 
 type FieldErrors = Partial<Record<keyof SignupFields, string>>;
-
-const inputClass =
-  "min-h-11 w-full rounded-lg border border-border bg-input px-3.5 py-2.5 text-sm text-foreground outline-none transition placeholder:text-[#6b6253] focus:border-primary focus:ring-2 focus:ring-primary/20";
-
-const primaryButtonClass =
-  "min-h-11 w-full rounded-lg border border-primary/35 bg-secondary px-4 py-2.5 text-sm font-semibold text-foreground transition hover:border-primary/60 hover:bg-[#3a2a17] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60";
 
 function errorCode(error: unknown): string | undefined {
   if (typeof error === "object" && error !== null && "code" in error) {
@@ -151,52 +151,56 @@ export function SignupPage({ onSignup, onResend }: SignupPageProps) {
 
   if (submittedEmail) {
     return (
-      <AuthLayout eyebrow="Account setup">
-        <div aria-live="polite">
-          <h1 className="text-3xl font-semibold tracking-[-0.03em] text-foreground">
-            {deliveryFailed ? "Your account is saved" : "Check your email"}
-          </h1>
-          <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">
-            {deliveryFailed
-              ? "We saved your registration, but the email could not be delivered. Try sending a new link."
-              : "Open the verification link we sent to finish creating your account."}
-          </p>
-          <p className="mt-5 rounded-lg border border-border bg-card px-4 py-3 text-sm font-medium text-foreground">
-            {submittedEmail}
-          </p>
-          <button
-            type="button"
-            onClick={() => void resend()}
-            disabled={resendPending || resendSeconds > 0}
-            className="mt-5 min-h-11 w-full rounded-lg border border-primary/30 bg-primary/10 px-4 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary/15 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {resendPending
-              ? "Sending new link…"
-              : resendSeconds > 0
-                ? `Send again in ${resendSeconds}s`
-                : "Send a new link"}
-          </button>
-          <Link
-            to="/login"
-            className="mt-5 inline-flex text-sm font-medium text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-          >
+      <AuthLayout
+        live
+        title={deliveryFailed ? "Your account is saved" : "Check your email"}
+        description={
+          deliveryFailed
+            ? "We saved your registration, but the email could not be delivered. Try sending a new link."
+            : "Open the verification link we sent to finish creating your account."
+        }
+        footer={
+          <Link to="/login" className={authLinkClass}>
             Return to sign in
           </Link>
-        </div>
+        }
+      >
+        <p className={authLabelClass}>Sent to</p>
+        <p className="break-all rounded-xl border border-border bg-input px-4 py-3 text-[0.95rem] font-medium text-foreground">
+          {submittedEmail}
+        </p>
+        <button
+          type="button"
+          onClick={() => void resend()}
+          disabled={resendPending || resendSeconds > 0}
+          className="mt-5 h-12 w-full rounded-xl border border-primary/30 bg-primary/10 px-4 text-[0.95rem] font-semibold text-primary transition hover:bg-primary/15 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {resendPending
+            ? "Sending new link…"
+            : resendSeconds > 0
+              ? `Send again in ${resendSeconds}s`
+              : "Send a new link"}
+        </button>
       </AuthLayout>
     );
   }
 
   return (
-    <AuthLayout eyebrow="Create account">
-      <h1 className="text-3xl font-semibold tracking-[-0.03em] text-foreground">
-        Start a shared search
-      </h1>
-      <p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground">
-        Create your account and verify your email before entering the workspace.
-      </p>
-
-      <form className="mt-8 space-y-5" onSubmit={submit} noValidate>
+    <AuthLayout
+      live
+      wide
+      title="Start a shared search"
+      description="Create your account and verify your email before entering the workspace."
+      footer={
+        <>
+          Already have an account?{" "}
+          <Link to="/login" className={authLinkClass}>
+            Sign in
+          </Link>
+        </>
+      }
+    >
+      <form className="space-y-5" onSubmit={submit} noValidate>
         <Field
           label="Display name"
           name="displayName"
@@ -250,20 +254,10 @@ export function SignupPage({ onSignup, onResend }: SignupPageProps) {
           onChange={update}
         />
 
-        <button type="submit" disabled={pending} className={primaryButtonClass}>
+        <button type="submit" disabled={pending} className={authPrimaryButtonClass}>
           {pending ? "Creating account…" : "Create account"}
         </button>
       </form>
-
-      <p className="mt-6 text-sm text-muted-foreground">
-        Already have an account?{" "}
-        <Link
-          to="/login"
-          className="font-semibold text-primary transition hover:text-[#e8c976] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-        >
-          Sign in
-        </Link>
-      </p>
     </AuthLayout>
   );
 }
@@ -293,10 +287,7 @@ function Field({
   const messageId = `${name}-message`;
   return (
     <div>
-      <label
-        htmlFor={inputId}
-        className="block text-sm font-medium text-[#cfc4af]"
-      >
+      <label htmlFor={inputId} className={authLabelClass}>
         {label}
       </label>
       <input
@@ -308,7 +299,7 @@ function Field({
         aria-invalid={Boolean(error)}
         aria-describedby={error || helper ? messageId : undefined}
         onChange={(event) => onChange(name, event.target.value)}
-        className={`${inputClass} mt-2 ${
+        className={`${authInputClass} ${
           error ? "border-destructive/60 focus:border-destructive focus:ring-destructive/20" : ""
         }`}
       />

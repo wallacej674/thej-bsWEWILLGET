@@ -3,6 +3,12 @@ import { Link, useSearchParams } from "react-router";
 
 import type { MessageResponse, VerificationResponse } from "./authApi";
 import { AuthLayout } from "./AuthLayout";
+import {
+  authInputClass,
+  authLabelClass,
+  authLinkClass,
+  authPrimaryButtonClass,
+} from "./authStyles";
 
 interface VerifyEmailPageProps {
   onVerify(token: string): Promise<VerificationResponse>;
@@ -52,11 +58,14 @@ export function VerifyEmailPage({
 
   if (state === "loading") {
     return (
-      <AuthLayout eyebrow="Email verification">
-        <div aria-live="polite" aria-busy="true">
-          <div className="h-9 w-52 animate-pulse rounded bg-foreground/[0.07]" />
-          <div className="mt-4 h-4 w-full max-w-sm animate-pulse rounded bg-foreground/[0.05]" />
-          <div className="mt-2 h-4 w-3/4 animate-pulse rounded bg-foreground/[0.05]" />
+      <AuthLayout
+        live
+        title="Verifying your email"
+        description="This only takes a moment."
+      >
+        <div aria-busy="true" className="space-y-3">
+          <div className="h-12 w-full animate-pulse rounded-xl bg-foreground/[0.05]" />
+          <div className="h-12 w-full animate-pulse rounded-xl bg-foreground/[0.07]" />
         </div>
       </AuthLayout>
     );
@@ -64,50 +73,48 @@ export function VerifyEmailPage({
 
   if (state === "verified") {
     return (
-      <AuthLayout eyebrow="Email verification">
-        <div aria-live="polite">
+      <AuthLayout
+        live
+        title="Email verified"
+        description="Your account is ready. Sign in with the password you created."
+      >
+        <div className="mb-5 flex items-center gap-3 rounded-xl border border-primary/25 bg-primary/[0.08] px-4 py-3 text-sm text-[#e7cf99]">
           <span
             aria-hidden="true"
-            className="mb-5 flex h-12 w-12 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary"
+            className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-primary/15 text-primary"
           >
-            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none">
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none">
               <path
                 d="m5 12.5 4.25 4.25L19 7"
                 stroke="currentColor"
-                strokeWidth="2"
+                strokeWidth="2.25"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
             </svg>
           </span>
-          <h1 className="text-3xl font-semibold tracking-[-0.03em] text-foreground">
-            Email verified
-          </h1>
-          <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">
-            Your account is ready. Sign in with the password you created.
-          </p>
-          <Link
-            to="/login?verified=true"
-            className="mt-7 inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-primary/35 bg-secondary px-4 py-2.5 text-sm font-semibold text-foreground transition hover:border-primary/60 hover:bg-[#3a2a17] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-          >
-            Sign in
-          </Link>
+          Verification complete
         </div>
+        <Link to="/login?verified=true" className={authPrimaryButtonClass}>
+          Sign in
+        </Link>
       </AuthLayout>
     );
   }
 
   return (
-    <AuthLayout eyebrow="Email verification">
-      <h1 className="text-3xl font-semibold tracking-[-0.03em] text-foreground">
-        Get a new link
-      </h1>
-      <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">
-        This verification link is missing, invalid, or expired. Enter your email
-        and we will send another if a registration is pending.
-      </p>
-      <form className="mt-7" onSubmit={resend}>
-        <label className="block text-sm font-medium text-[#cfc4af]">
+    <AuthLayout
+      live
+      title="Get a new link"
+      description="This verification link is missing, invalid, or expired. Enter your email and we will send another if a registration is pending."
+      footer={
+        <Link to="/login" className={authLinkClass}>
+          Return to sign in
+        </Link>
+      }
+    >
+      <form onSubmit={resend}>
+        <label className={authLabelClass}>
           Email address
           <input
             type="email"
@@ -115,13 +122,14 @@ export function VerifyEmailPage({
             autoComplete="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            className="mt-2 min-h-11 w-full rounded-lg border border-border bg-input px-3.5 py-2.5 text-sm text-foreground outline-none transition placeholder:text-[#6b6253] focus:border-primary focus:ring-2 focus:ring-primary/20"
+            placeholder="you@example.com"
+            className={`${authInputClass} mt-2 font-normal`}
           />
         </label>
         <button
           type="submit"
           disabled={resendPending}
-          className="mt-5 min-h-11 w-full rounded-lg border border-primary/35 bg-secondary px-4 py-2.5 text-sm font-semibold text-foreground transition hover:border-primary/60 hover:bg-[#3a2a17] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:opacity-60"
+          className={`${authPrimaryButtonClass} mt-4`}
         >
           {resendPending ? "Sending new link…" : "Send a new link"}
         </button>
@@ -136,12 +144,6 @@ export function VerifyEmailPage({
           </p>
         ) : null}
       </form>
-      <Link
-        to="/login"
-        className="mt-6 inline-flex text-sm font-medium text-muted-foreground transition hover:text-foreground"
-      >
-        Return to sign in
-      </Link>
     </AuthLayout>
   );
 }

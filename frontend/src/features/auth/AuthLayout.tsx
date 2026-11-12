@@ -2,80 +2,87 @@ import type { ReactNode } from "react";
 
 import logoUrl from "../../assets/applytogether-logo.png";
 
+const VALUES = ["Shared pipeline", "Weekly goals", "Team accountability"];
+
 export function AuthLayout({
+  title,
+  description,
   children,
-  eyebrow,
+  footer,
+  wide = false,
+  live = false,
 }: {
-  children: ReactNode;
-  eyebrow: string;
+  title: ReactNode;
+  description?: ReactNode;
+  children?: ReactNode;
+  footer?: ReactNode;
+  /** Widens the card for longer forms such as sign up. */
+  wide?: boolean;
+  /** Announces heading changes, for pages whose state changes in place. */
+  live?: boolean;
 }) {
   return (
-    <main className="dark theme-gold min-h-[100dvh] bg-background text-foreground [font-family:'Space_Grotesk',system-ui,sans-serif]">
-      <div className="mx-auto grid min-h-[100dvh] max-w-[1400px] grid-cols-1 md:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
-        <section className="flex items-center px-5 py-10 sm:px-10 md:px-14 lg:px-20">
-          <div className="w-full max-w-[520px] motion-safe:animate-[auth-enter_480ms_cubic-bezier(0.16,1,0.3,1)_both]">
-            <div className="mb-10 flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl bg-[#060504] p-0.5">
-                <img
-                  src={logoUrl}
-                  alt=""
-                  className="h-full w-full object-contain"
-                />
-              </span>
-              <div>
-                <p className="text-base font-semibold tracking-tight text-foreground">
-                  ApplyTogether
-                </p>
-                <p className="text-xs text-muted-foreground">Shared job-search workspace</p>
-              </div>
+    <main className="dark theme-gold relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground [font-family:'Space_Grotesk',system-ui,sans-serif]">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 [background:radial-gradient(60%_42%_at_50%_0%,rgba(214,168,68,0.17),transparent_72%)]"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 [background-image:radial-gradient(rgba(214,168,68,0.22)_1px,transparent_1px)] [background-size:24px_24px] [mask-image:radial-gradient(50%_45%_at_50%_28%,black,transparent)]"
+      />
+
+      <div className="relative flex flex-1 items-center justify-center px-4 py-12 sm:px-6 sm:py-16">
+        <div
+          className={`w-full ${wide ? "max-w-[30rem]" : "max-w-[25rem]"} motion-safe:animate-[auth-enter_480ms_cubic-bezier(0.16,1,0.3,1)_both]`}
+        >
+          <div
+            aria-live={live ? "polite" : undefined}
+            className="mb-8 flex flex-col items-center text-center"
+          >
+            <span className="mb-6 flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-[#060504] p-1 shadow-[0_0_0_1px_rgba(214,168,68,0.28),0_14px_44px_-10px_rgba(214,168,68,0.4)]">
+              <img
+                src={logoUrl}
+                alt="ApplyTogether"
+                className="h-full w-full object-contain"
+              />
+            </span>
+            <h1 className="text-balance text-[1.85rem] font-bold leading-tight tracking-[-0.02em] text-foreground">
+              {title}
+            </h1>
+            {description ? (
+              <p className="mt-2 max-w-[24rem] text-pretty text-[0.95rem] leading-6 text-muted-foreground">
+                {description}
+              </p>
+            ) : null}
+          </div>
+
+          {children ? (
+            <div className="rounded-2xl border border-border bg-card/85 p-6 shadow-[0_1px_2px_rgba(0,0,0,0.45),0_30px_70px_-24px_rgba(0,0,0,0.8)] ring-1 ring-inset ring-white/[0.03] backdrop-blur sm:p-7">
+              {children}
             </div>
-            <p className="mb-3 text-[0.7rem] font-bold uppercase tracking-[0.16em] text-primary">
-              {eyebrow}
-            </p>
-            {children}
-          </div>
-        </section>
+          ) : null}
 
-        <aside className="relative hidden overflow-hidden border-l border-border bg-card p-12 md:flex md:flex-col md:justify-between lg:p-16">
-          <div aria-hidden="true" className="absolute inset-x-0 top-0 h-px bg-primary/40" />
-          <div>
-            <p className="max-w-sm text-3xl font-semibold leading-tight tracking-[-0.03em] text-foreground">
-              Keep the search shared. Keep every application accountable.
-            </p>
-            <p className="mt-5 max-w-md text-sm leading-6 text-muted-foreground">
-              Build one clear workspace for the roles you are pursuing, the people
-              helping, and the next action on every application.
-            </p>
-          </div>
-
-          <div className="space-y-3" aria-hidden="true">
-            {[
-              ["Lakefront Health", "Product operations", "Applied"],
-              ["Copperline Studio", "UX researcher", "Reviewing"],
-              ["Northstar Civic Lab", "Program manager", "Saved"],
-            ].map(([company, role, status], index) => (
-              <div
-                key={company}
-                className={`border-l px-4 py-3 ${
-                  index === 0
-                    ? "border-primary bg-primary/[0.06]"
-                    : "border-border"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{company}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{role}</p>
-                  </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                    {status}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </aside>
+          {footer ? (
+            <div className="mt-6 text-center text-sm text-muted-foreground">
+              {footer}
+            </div>
+          ) : null}
+        </div>
       </div>
+
+      <footer className="relative flex flex-wrap items-center justify-center gap-x-4 gap-y-2 px-6 pb-8 text-[0.66rem] font-semibold uppercase tracking-[0.18em] text-[#6b6253]">
+        {VALUES.map((value, index) => (
+          <span key={value} className="flex items-center gap-4">
+            {index > 0 ? (
+              <span aria-hidden="true" className="hidden text-primary/50 sm:inline">
+                ◆
+              </span>
+            ) : null}
+            {value}
+          </span>
+        ))}
+      </footer>
     </main>
   );
 }

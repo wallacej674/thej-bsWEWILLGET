@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { forwardRef, useRef } from "react";
 import { motion, useMotionValue, useReducedMotion, useSpring } from "motion/react";
 
 import { ARRANGEMENT_META, STATUS_META } from "../../dashboard/dashboardModel";
@@ -10,22 +10,24 @@ import { OwnerAvatar, StatusBadge } from "./wallParts";
 
 const MAX_TILT_DEGREES = 14;
 
-/**
- * One company on the wall: big initials, a status-coloured top edge, a tilt
- * that follows the cursor, and details that slide up on hover or focus.
- */
-export function WallTile({
-  application,
-  index,
-  featured,
-  onOpen,
-}: {
+interface WallTileProps {
   application: JobApplication;
   index: number;
   featured: boolean;
   /** Receives the tile too, so focus can return to it when details close. */
   onOpen(application: JobApplication, tile: HTMLElement | null): void;
-}) {
+}
+
+/**
+ * One company on the wall: big initials, a status-coloured top edge, a tilt
+ * that follows the cursor, and details that slide up on hover or focus.
+ * Forwards its ref to the list item so AnimatePresence's "popLayout" mode can
+ * measure tiles as they leave.
+ */
+export const WallTile = forwardRef<HTMLLIElement, WallTileProps>(function WallTile(
+  { application, index, featured, onOpen },
+  itemRef,
+) {
   const ref = useRef<HTMLButtonElement>(null);
   const reduce = useReducedMotion();
   const tiltX = useMotionValue(0);
@@ -38,6 +40,7 @@ export function WallTile({
 
   return (
     <motion.li
+      ref={itemRef}
       layout
       initial={{ opacity: 0, scale: 0.92, filter: "blur(6px)" }}
       animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
@@ -123,4 +126,4 @@ export function WallTile({
       </motion.button>
     </motion.li>
   );
-}
+});

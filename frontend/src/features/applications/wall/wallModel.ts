@@ -36,6 +36,9 @@ export function compactSalary(
       style: "currency",
       currency: application.salary_currency ?? "USD",
       notation: "compact",
+      // Set both bounds: older Intl versions (Node 22) otherwise keep one
+      // currency decimal and print "$140.0K" instead of "$140K".
+      minimumFractionDigits: 0,
       maximumFractionDigits: 1,
     });
     format = (value) => formatter.format(value);

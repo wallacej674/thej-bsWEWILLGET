@@ -11,7 +11,7 @@ import type {
 function ErrorMessage({ error }: { error: string | undefined }) {
   if (!error) return null;
   return (
-    <p role="alert" className="rounded-lg border border-[#e0625a]/25 bg-[#e0625a]/10 p-3 text-sm text-[#f0a9a3]">
+    <p role="alert" className="rounded-lg border border-destructive/25 bg-destructive/10 p-3 text-sm text-destructive">
       {error}
     </p>
   );
@@ -97,7 +97,7 @@ export function AiResumeTailorPanel({
     <section className="rounded-xl border border-border bg-card p-5">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
         <div>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-[#e0b850]">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-primary">
             AI Resume Tailor
           </h2>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -109,14 +109,14 @@ export function AiResumeTailorPanel({
           type="button"
           onClick={() => void generate()}
           disabled={generating || loading || missingJobDescription}
-          className="inline-flex min-h-10 items-center justify-center rounded-lg border border-primary/35 bg-secondary px-4 py-2 text-sm font-semibold text-foreground transition hover:border-primary/60 hover:bg-[#3a2a17] disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex min-h-10 items-center justify-center rounded-lg border border-primary bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:border-primary/90 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {generating ? "Analyzing..." : analysis ? "Regenerate" : "Tailor resume with AI"}
         </button>
       </div>
 
       {missingJobDescription ? (
-        <p className="mt-4 rounded-lg border border-amber-400/20 bg-amber-400/10 p-3 text-sm text-amber-100">
+        <p className="mt-4 rounded-lg border border-warning/20 bg-warning/10 p-3 text-sm text-warning">
           Add a job description before generating resume tailoring.
         </p>
       ) : null}
@@ -131,13 +131,13 @@ export function AiResumeTailorPanel({
         <ErrorMessage error={error} />
         {analysis ? (
           <>
-            <div className="rounded-xl border border-border bg-[#14100a] p-4">
+            <div className="rounded-xl border border-border bg-background p-4">
               <div className="flex flex-wrap items-center gap-4">
                 <div>
                   <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
                     Match score
                   </p>
-                  <p className="font-numeric mt-1 text-3xl font-semibold text-[#e0b850]">
+                  <p className="font-numeric mt-1 text-3xl font-semibold text-primary">
                     {analysis.result.match_score}%
                   </p>
                 </div>
@@ -187,7 +187,7 @@ export function AiResumeTailorPanel({
             />
           </>
         ) : !loading ? (
-          <p className="rounded-lg border border-border bg-[#14100a] p-4 text-sm text-muted-foreground">
+          <p className="rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground">
             No AI analysis yet. Upload a resume from Profile, make sure this
             application has a job description, then run the tailor.
           </p>
@@ -208,7 +208,7 @@ function ResultSection({ title, items }: { title: string; items: string[] }) {
         {items.map((item) => (
           <span
             key={item}
-            className="rounded-full border border-border bg-secondary px-3 py-1 text-xs text-[#cdbfa3]"
+            className="rounded-full border border-border bg-secondary px-3 py-1 text-xs text-subtle"
           >
             {item}
           </span>
@@ -228,7 +228,7 @@ function CopyBlock({
   onCopy: () => void;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-[#14100a] p-4">
+    <div className="rounded-xl border border-border bg-background p-4">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           {title}
@@ -236,7 +236,7 @@ function CopyBlock({
         <button
           type="button"
           onClick={onCopy}
-          className="rounded border border-border px-2 py-1 text-xs text-[#cdbfa3] hover:bg-secondary"
+          className="rounded border border-border px-2 py-1 text-xs text-subtle hover:bg-secondary"
         >
           Copy
         </button>
@@ -258,7 +258,7 @@ function CopyList({
   onCopy: () => void;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-[#14100a] p-4">
+    <div className="rounded-xl border border-border bg-background p-4">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           {title}
@@ -266,7 +266,7 @@ function CopyList({
         <button
           type="button"
           onClick={onCopy}
-          className="rounded border border-border px-2 py-1 text-xs text-[#cdbfa3] hover:bg-secondary"
+          className="rounded border border-border px-2 py-1 text-xs text-subtle hover:bg-secondary"
         >
           Copy all
         </button>

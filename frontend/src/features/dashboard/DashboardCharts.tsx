@@ -10,6 +10,7 @@ import {
   shortDate,
   weekRange,
 } from "./dashboardModel";
+import { tint } from "../../app/theme/color";
 import { EASE_OUT } from "./dashboardStyles";
 import { CountUp } from "./motion";
 
@@ -45,12 +46,12 @@ export function GoalRing({
         height={size}
         viewBox={`0 0 ${size} ${size}`}
         aria-hidden="true"
-        className="-rotate-90 drop-shadow-[0_0_18px_rgba(214,168,68,0.22)]"
+        className="-rotate-90 drop-shadow-[0_0_18px_color-mix(in_srgb,var(--primary)_22%,transparent)]"
       >
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#f0cf7a" />
-            <stop offset="100%" stopColor="#b8862e" />
+            <stop offset="0%" style={{ stopColor: "var(--primary)" }} />
+            <stop offset="100%" style={{ stopColor: "var(--chart-2)" }} />
           </linearGradient>
         </defs>
         <circle
@@ -58,7 +59,7 @@ export function GoalRing({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="#2e2113"
+          style={{ stroke: "var(--track)" }}
           strokeWidth={stroke}
           strokeDasharray={goal ? undefined : "3 9"}
         />
@@ -68,7 +69,7 @@ export function GoalRing({
             cy={size / 2}
             r={radius}
             fill="none"
-            stroke={hit ? "#9aa05f" : `url(#${gradientId})`}
+            style={{ stroke: hit ? "var(--success)" : `url(#${gradientId})` }}
             strokeWidth={stroke}
             strokeLinecap="round"
             strokeDasharray={circumference}
@@ -118,7 +119,7 @@ export function Sparkline({ points, label }: { points: number[]; label: string }
       <motion.path
         d={path}
         fill="none"
-        stroke="#d6a844"
+        style={{ stroke: "var(--primary)" }}
         strokeWidth={2}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -173,7 +174,7 @@ export function WeekBars({
               <motion.div
                 className="relative overflow-hidden rounded-t-[4px]"
                 style={{
-                  background: current ? "rgba(214,168,68,0.38)" : "rgba(214,168,68,0.18)",
+                  background: current ? tint("var(--primary)", 30) : tint("var(--primary)", 14),
                 }}
                 initial={{ height: 0 }}
                 whileInView={{
@@ -188,7 +189,7 @@ export function WeekBars({
                     className="absolute inset-x-0 bottom-0"
                     style={{
                       height: `${(yours / week.total) * 100}%`,
-                      background: current ? "#e0b850" : "rgba(214,168,68,0.7)",
+                      background: current ? "var(--primary)" : tint("var(--primary)", 65),
                     }}
                   />
                 ) : null}
@@ -244,7 +245,7 @@ export function StatusStrip({ counts }: { counts: Record<ApplicationStatus, numb
               }}
             />
             {STATUS_META[status].label}
-            <span className="font-numeric text-[#cdbfa3]">{counts[status] ?? 0}</span>
+            <span className="font-numeric text-subtle">{counts[status] ?? 0}</span>
           </li>
         ))}
       </ul>
@@ -289,7 +290,7 @@ export function ArrangementDonut({ counts }: { counts: Record<WorkArrangement, n
             cy={size / 2}
             r={radius}
             fill="none"
-            stroke="#2e2113"
+            style={{ stroke: "var(--track)" }}
             strokeWidth={stroke}
           />
           {segments.map((segment, index) => (
@@ -323,7 +324,7 @@ export function ArrangementDonut({ counts }: { counts: Record<WorkArrangement, n
           <li key={entry.key} className="flex items-center gap-2 text-muted-foreground">
             <span className="h-2 w-2 flex-none rounded-full" style={{ background: entry.color }} />
             <span className="truncate">{entry.label}</span>
-            <span className="font-numeric ml-auto pl-2 text-[#cdbfa3]">
+            <span className="font-numeric ml-auto pl-2 text-subtle">
               {total ? Math.round((entry.value / total) * 100) : 0}%
             </span>
           </li>

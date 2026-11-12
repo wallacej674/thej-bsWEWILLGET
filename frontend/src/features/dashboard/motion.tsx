@@ -87,7 +87,7 @@ export function SpotlightTile({
     >
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100 [background:radial-gradient(380px_circle_at_var(--spot-x,50%)_var(--spot-y,50%),rgba(214,168,68,0.11),transparent_60%)]"
+        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100 [background:radial-gradient(380px_circle_at_var(--spot-x,50%)_var(--spot-y,50%),color-mix(in_srgb,var(--primary)_11%,transparent),transparent_60%)]"
       />
       <div className="relative h-full">{children}</div>
     </motion.div>

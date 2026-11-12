@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { ThemeToggle } from "../../app/theme/ThemeToggle";
 import logoUrl from "../../assets/applytogether-logo.png";
 
 const VALUES = ["Shared pipeline", "Weekly goals", "Team accountability"];
@@ -22,15 +23,18 @@ export function AuthLayout({
   live?: boolean;
 }) {
   return (
-    <main className="dark theme-gold relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground [font-family:'Space_Grotesk',system-ui,sans-serif]">
+    <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground [font-family:'Space_Grotesk',system-ui,sans-serif]">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 [background:radial-gradient(60%_42%_at_50%_0%,rgba(214,168,68,0.17),transparent_72%)]"
+        className="pointer-events-none absolute inset-0 [background:radial-gradient(60%_42%_at_50%_0%,color-mix(in_srgb,var(--primary)_12%,transparent),transparent_72%)]"
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 [background-image:radial-gradient(rgba(214,168,68,0.22)_1px,transparent_1px)] [background-size:24px_24px] [mask-image:radial-gradient(50%_45%_at_50%_28%,black,transparent)]"
+        className="pointer-events-none absolute inset-0 [background-image:radial-gradient(color-mix(in_srgb,var(--primary)_18%,transparent)_1px,transparent_1px)] [background-size:24px_24px] [mask-image:radial-gradient(50%_45%_at_50%_28%,black,transparent)]"
       />
+      <div className="absolute right-4 top-4 z-10 sm:right-6 sm:top-6">
+        <ThemeToggle />
+      </div>
 
       <div className="relative flex flex-1 items-center justify-center px-4 py-12 sm:px-6 sm:py-16">
         <div
@@ -40,7 +44,7 @@ export function AuthLayout({
             aria-live={live ? "polite" : undefined}
             className="mb-8 flex flex-col items-center text-center"
           >
-            <span className="mb-6 flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-[#060504] p-1 shadow-[0_0_0_1px_rgba(214,168,68,0.28),0_14px_44px_-10px_rgba(214,168,68,0.4)]">
+            <span className="mb-6 flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-black p-1 shadow-[0_0_0_1px_color-mix(in_srgb,var(--primary)_28%,transparent),0_14px_44px_-10px_color-mix(in_srgb,var(--primary)_40%,transparent)]">
               <img
                 src={logoUrl}
                 alt="ApplyTogether"
@@ -58,7 +62,7 @@ export function AuthLayout({
           </div>
 
           {children ? (
-            <div className="rounded-2xl border border-border bg-card/85 p-6 shadow-[0_1px_2px_rgba(0,0,0,0.45),0_30px_70px_-24px_rgba(0,0,0,0.8)] ring-1 ring-inset ring-white/[0.03] backdrop-blur sm:p-7">
+            <div className="rounded-2xl border border-border bg-card/85 p-6 shadow-[var(--shadow-raised)] ring-1 ring-inset ring-white/[0.03] backdrop-blur sm:p-7">
               {children}
             </div>
           ) : null}
@@ -71,7 +75,7 @@ export function AuthLayout({
         </div>
       </div>
 
-      <footer className="relative flex flex-wrap items-center justify-center gap-x-4 gap-y-2 px-6 pb-8 text-[0.66rem] font-semibold uppercase tracking-[0.18em] text-[#6b6253]">
+      <footer className="relative flex flex-wrap items-center justify-center gap-x-4 gap-y-2 px-6 pb-8 text-[0.66rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
         {VALUES.map((value, index) => (
           <span key={value} className="flex items-center gap-4">
             {index > 0 ? (

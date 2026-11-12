@@ -4,7 +4,6 @@ import {
   ArrowUpDown,
   Briefcase,
   Building2,
-  CalendarDays,
   CheckCircle,
   Check,
   ChevronDown,
@@ -12,17 +11,14 @@ import {
   ChevronRight,
   ExternalLink,
   FileText,
-  Flame,
   LayoutDashboard,
   LoaderCircle,
   Menu,
   Mail,
-  Pencil,
   Plus,
   RotateCcw,
   Search,
   Shield,
-  Target,
   Trash,
   User,
   UserPlus,
@@ -52,15 +48,6 @@ import {
   useParams,
   useSearchParams,
 } from "react-router";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { Toaster, toast } from "sonner";
 
 import { ApiError, createApiClient } from "../api/client";
@@ -85,7 +72,6 @@ import type {
   EmploymentType,
   JobApplication,
   JobPostingAutofillFields,
-  MyWeek,
   PaginatedApplications,
   SalaryPeriod,
   SortField,
@@ -104,7 +90,13 @@ import { authApi } from "../features/auth/authApi";
 import { LoginPage } from "../features/auth/LoginPage";
 import { SignupPage } from "../features/auth/SignupPage";
 import { VerifyEmailPage } from "../features/auth/VerifyEmailPage";
+import {
+  BentoDashboard,
+  BentoDashboardSkeleton,
+} from "../features/dashboard/BentoDashboard";
+import type { DashboardData } from "../features/dashboard/dashboardModel";
 import { InvitationInbox } from "../features/invitations/InvitationInbox";
+import { avatarColor, initials } from "../features/members/avatar";
 import { AiResumeTailorPanel } from "../features/resume/AiResumeTailorPanel";
 import { ResumeProfilePanel } from "../features/resume/ResumeProfilePanel";
 import {
@@ -206,34 +198,8 @@ function formatSalary(application: JobApplication): string {
     : range;
 }
 
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-}
-
 function clampChars(value: string, max: number): string {
   return value.length > max ? `${value.slice(0, max).trimEnd()}…` : value;
-}
-
-const avatarColors = [
-  "bg-[#d6a844]", // gold
-  "bg-[#c8743e]", // burnt orange
-  "bg-[#b08968]", // taupe
-  "bg-[#c2a25a]", // wheat
-  "bg-[#a9774a]", // bronze
-  "bg-[#cd8a5c]", // clay
-];
-
-function userColor(id: string): string {
-  let sum = 0;
-  for (let index = 0; index < id.length; index += 1) {
-    sum += id.charCodeAt(index);
-  }
-  return avatarColors[sum % avatarColors.length];
 }
 
 function Avatar({
@@ -252,7 +218,8 @@ function Avatar({
   };
   return (
     <span
-      className={`${sizes[size]} ${userColor(id)} inline-flex flex-shrink-0 items-center justify-center rounded-full font-semibold text-[#1a130b]`}
+      className={`${sizes[size]} inline-flex flex-shrink-0 items-center justify-center rounded-full font-semibold text-[#1a130b]`}
+      style={{ backgroundColor: avatarColor(id) }}
       aria-hidden="true"
     >
       {initials(name)}
@@ -756,10 +723,6 @@ function AppShell({ context }: { context: AppContext }) {
   );
 }
 
-// Warm categorical palette — gold + earth tones with a single muted teal as the
-// only cool accent. Deliberately avoids the indigo/emerald/blue defaults.
-const ownerColors = ["#d6a844", "#cc7a4d", "#5f8f8a", "#9aa05f", "#a9774a", "#b08968"];
-
 // Raised surface treatment shared across dashboard modules: a soft drop shadow
 // lifts the tile off the near-black background, and an inset white ring fakes a lit
 // top edge — the standard dark-UI elevation trick — so panels read as distinct tiles
@@ -767,290 +730,72 @@ const ownerColors = ["#d6a844", "#cc7a4d", "#5f8f8a", "#9aa05f", "#a9774a", "#b0
 const PANEL =
   "rounded-xl border border-border bg-card shadow-[0_1px_2px_rgba(0,0,0,0.45)] ring-1 ring-inset ring-white/[0.03]";
 
-// Dependency-free sparkline: maps a short numeric series to a polyline in a fixed
-// viewBox and lets it stretch to the container (preserveAspectRatio="none").
-function Sparkline({
-  points,
-  stroke,
-}: {
-  points: number[];
-  stroke: string;
-}) {
-  if (points.length < 2) return null;
-  const max = Math.max(...points);
-  const min = Math.min(...points);
-  const span = max - min || 1;
-  const stepX = 60 / (points.length - 1);
-  const coords = points
-    .map((value, index) => {
-      const x = index * stepX;
-      const y = 15 - ((value - min) / span) * 14;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-  return (
-    <svg
-      className="mt-2 block h-4 w-full"
-      viewBox="0 0 60 16"
-      preserveAspectRatio="none"
-      aria-hidden="true"
-    >
-      <polyline
-        points={coords}
-        fill="none"
-        stroke={stroke}
-        strokeWidth={1.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        vectorEffect="non-scaling-stroke"
-      />
-    </svg>
-  );
-}
+// Team rows loaded for the dashboard's member rings (sorted by this week).
+const DASHBOARD_TEAM_SAMPLE = 50;
 
-// Circular progress toward the weekly goal. Hex values are the gold-theme
-// palette (matching the dashboard's other data visuals); the ring turns olive
-// once the goal is met.
-function GoalRing({ value, goal }: { value: number; goal: number }) {
-  const radius = 34;
-  const circumference = 2 * Math.PI * radius;
-  const progress = goal > 0 ? Math.min(1, value / goal) : 0;
-  const reached = goal > 0 && value >= goal;
-  return (
-    <svg width={92} height={92} viewBox="0 0 92 92" className="shrink-0" aria-hidden="true">
-      <circle cx={46} cy={46} r={radius} fill="none" stroke="#2e2113" strokeWidth={8} />
-      <circle
-        cx={46}
-        cy={46}
-        r={radius}
-        fill="none"
-        stroke={reached ? "#9aa05f" : "#d6a844"}
-        strokeWidth={8}
-        strokeLinecap="round"
-        strokeDasharray={circumference}
-        strokeDashoffset={circumference * (1 - progress)}
-        transform="rotate(-90 46 46)"
-        style={{ transition: "stroke-dashoffset 0.5s ease" }}
-      />
-      <text
-        x={46}
-        y={44}
-        textAnchor="middle"
-        fill="#f4eee1"
-        fontSize={19}
-        fontWeight={600}
-        style={{ fontFamily: "Space Grotesk, system-ui, sans-serif" }}
-      >
-        {value}/{goal}
-      </text>
-      <text x={46} y={59} textAnchor="middle" fill="#8c8170" fontSize={9}>
-        applied
-      </text>
-    </svg>
-  );
-}
-
-// Personal accountability panel: goal ring, weekly + day streaks, a trend
-// sparkline, and a follow-up nudge — with an empty state that invites the
-// member to set a goal, and an inline editor to change it.
-function YourWeekCard({
-  myWeek,
-  onSetGoal,
-}: {
-  myWeek: MyWeek | null;
-  onSetGoal: (goal: number) => Promise<void>;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("5");
-  const [saving, setSaving] = useState(false);
-
-  if (!myWeek) return <section className={`${PANEL} p-5`} />;
-
-  const startEditing = () => {
-    setDraft(String(myWeek.weekly_goal ?? 5));
-    setEditing(true);
-  };
-
-  const save = async () => {
-    const parsed = Math.round(Number(draft));
-    if (!Number.isFinite(parsed) || parsed < 1 || parsed > 100) return;
-    setSaving(true);
-    try {
-      await onSetGoal(parsed);
-      setEditing(false);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const primaryButton =
-    "inline-flex items-center justify-center gap-2 rounded-lg border border-primary/35 bg-secondary px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/60 hover:bg-[#3a2a17] disabled:cursor-not-allowed disabled:opacity-50";
-
-  return (
-    <section className={`${PANEL} flex flex-col p-5`}>
-      <div className="flex items-center justify-between">
-        <h2 className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-          Your week
-        </h2>
-        {myWeek.weekly_goal != null && !editing && (
-          <button
-            type="button"
-            onClick={startEditing}
-            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-primary"
-          >
-            <Pencil size={12} /> Goal
-          </button>
-        )}
-      </div>
-
-      {editing ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6">
-          <label htmlFor="weekly-goal-input" className="text-xs text-muted-foreground">
-            Applications per week
-          </label>
-          <input
-            id="weekly-goal-input"
-            type="number"
-            min={1}
-            max={100}
-            value={draft}
-            autoFocus
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") void save();
-              if (event.key === "Escape") setEditing(false);
-            }}
-            className="font-numeric w-24 rounded-lg border border-border bg-input px-3 py-2 text-center text-lg text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
-          />
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => void save()}
-              disabled={saving}
-              className={primaryButton}
-            >
-              Save goal
-            </button>
-            {myWeek.weekly_goal != null && (
-              <button
-                type="button"
-                onClick={() => setEditing(false)}
-                className="rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-              >
-                Cancel
-              </button>
-            )}
-          </div>
-        </div>
-      ) : myWeek.weekly_goal == null ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6 text-center">
-          <Target size={26} className="text-primary/70" />
-          <div>
-            <p className="text-sm font-medium text-foreground">Set your weekly goal</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Track how many applications you aim for each week.
-            </p>
-          </div>
-          <button type="button" onClick={startEditing} className={primaryButton}>
-            Set goal
-          </button>
-        </div>
-      ) : (
-        <>
-          <div className="mt-3 flex items-center gap-4">
-            <GoalRing value={myWeek.applied_this_week} goal={myWeek.weekly_goal} />
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5 text-sm">
-                <Flame
-                  size={15}
-                  className={myWeek.streak_weeks > 0 ? "text-primary" : "text-muted-foreground"}
-                />
-                <span className="font-medium text-foreground">
-                  {myWeek.streak_weeks > 0
-                    ? `${myWeek.streak_weeks}-week streak`
-                    : "No streak yet"}
-                </span>
-              </div>
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                {myWeek.day_streak > 0
-                  ? `${myWeek.day_streak}-day activity streak`
-                  : "Apply today to start a streak"}
-              </p>
-              <div className="mt-2 w-24">
-                <Sparkline
-                  points={myWeek.recent_weeks.map((week) => week.total)}
-                  stroke="#d6a844"
-                />
-              </div>
-            </div>
-          </div>
-          {myWeek.oldest_open && (
-            <Link
-              to={`/applications/${myWeek.oldest_open.application_id}`}
-              className="mt-4 flex items-center gap-2 rounded-lg border border-border bg-input/40 px-3 py-2 text-xs transition-colors hover:border-primary/50"
-            >
-              <ChevronRight size={14} className="shrink-0 text-primary" />
-              <span className="min-w-0 truncate text-muted-foreground">
-                Follow up:{" "}
-                <span className="text-foreground">
-                  {myWeek.oldest_open.company_name}
-                </span>{" "}
-                — {myWeek.oldest_open.job_title}
-              </span>
-            </Link>
-          )}
-        </>
-      )}
-    </section>
-  );
-}
-
+// Loads the overview data and hands it to the Bento dashboard. The full,
+// searchable team table renders under the tiles and re-pulls whenever the
+// member saves a new weekly goal.
 function DashboardPage({ context }: { context: AppContext }) {
-  const [summary, setSummary] = useState<ApplicationSummary | null>(null);
-  const [myWeek, setMyWeek] = useState<MyWeek | null>(null);
+  const [data, setData] = useState<DashboardData | null>(null);
   const [goalRefresh, setGoalRefresh] = useState(0);
   const [error, setError] = useState<unknown>();
   const [loading, setLoading] = useState(true);
+  const workspaceId = context.session.workspace.id;
+  const userId = context.session.user.id;
 
-  // Two bounded requests drive the dashboard: the workspace summary and the
-  // current member's personal "your week" snapshot. Per-member accountability
-  // is loaded separately and paginated by TeamAccountabilityCard.
   const load = useCallback(async () => {
     setLoading(true);
     setError(undefined);
     try {
-      const [summaryResult, myWeekResult] = await Promise.all([
-        applicationsApi.summary(context.client, context.session.workspace.id),
-        applicationsApi.myWeek(context.client, context.session.workspace.id),
+      const [summary, myWeek, team] = await Promise.all([
+        applicationsApi.summary(context.client, workspaceId),
+        applicationsApi.myWeek(context.client, workspaceId),
+        // The ring tile only needs the busiest members; the table below
+        // pages through everyone.
+        applicationsApi.teamAccountability(context.client, workspaceId, {
+          sort: "this_week",
+          order: "desc",
+          pageSize: DASHBOARD_TEAM_SAMPLE,
+        }),
       ]);
-      setSummary(summaryResult);
-      setMyWeek(myWeekResult);
+      setData({ summary, myWeek, team: team.items });
     } catch (caught) {
       setError(caught);
     } finally {
       setLoading(false);
     }
-  }, [context.client, context.session.workspace.id]);
+  }, [context.client, workspaceId]);
 
   useEffect(() => void load(), [load]);
 
-  // Saving a goal returns the recomputed snapshot; bumping goalRefresh also
-  // re-pulls the team table so its goal column reflects the new value.
   const handleSetGoal = useCallback(
     async (goal: number) => {
       const updated = await applicationsApi.setWeeklyGoal(
         context.client,
-        context.session.workspace.id,
+        workspaceId,
         goal,
       );
-      setMyWeek(updated);
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              myWeek: updated,
+              team: current.team.map((row) =>
+                row.owner.id === userId
+                  ? { ...row, weekly_goal: updated.weekly_goal }
+                  : row,
+              ),
+            }
+          : current,
+      );
       setGoalRefresh((count) => count + 1);
     },
-    [context.client, context.session.workspace.id],
+    [context.client, workspaceId, userId],
   );
 
-  if (loading) return <LoadingState label="Loading dashboard…" />;
-  if (error) {
+  if (loading) return <BentoDashboardSkeleton />;
+  if (error || !data) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
         <ErrorState error={error} onRetry={load} />
@@ -1058,309 +803,16 @@ function DashboardPage({ context }: { context: AppContext }) {
     );
   }
 
-  const overTimeRaw = summary?.applications_over_time ?? [];
-  const applicationsOverTime = overTimeRaw.map((point) => ({
-    week: formatWeekRange(point.week_start),
-    total: point.total,
-  }));
-  const topApplicants = summary?.top_applicants ?? [];
-  const statusMix = (Object.keys(statusLabels) as ApplicationStatus[]).map(
-    (status) => ({
-      name: statusLabels[status],
-      value: summary?.status_counts[status] ?? 0,
-      color: {
-        applied: "#d6a844",
-        rejected: "#c2686a",
-        withdrawn: "#8c8170",
-        closed: "#b08953",
-      }[status],
-    }),
-  );
-  const arrangementMix = (
-    Object.keys(arrangementLabels) as WorkArrangement[]
-  ).map((arrangement) => ({
-    name: arrangementLabels[arrangement],
-    value: summary?.work_arrangement_counts[arrangement] ?? 0,
-    color: {
-      remote: "#5f8f8a",
-      hybrid: "#cc7a4d",
-      onsite: "#9aa05f",
-      unknown: "#6b6253",
-    }[arrangement],
-  }));
-  // Workspace-wide weekly series drives the "Applications over time" chart caption.
-  const weekTotalAt = (index: number) => overTimeRaw[index]?.total ?? 0;
-  const weekDelta =
-    weekTotalAt(overTimeRaw.length - 1) - weekTotalAt(overTimeRaw.length - 2);
-  const latestWeekLabel = overTimeRaw.length
-    ? formatWeekRange(overTimeRaw[overTimeRaw.length - 1].week_start)
-    : "This week";
-  const weeklyTotals = overTimeRaw.map((point) => point.total);
-  const windowTotal = weeklyTotals.reduce((sum, value) => sum + value, 0);
-
-  // The top KPI cards reflect the logged-in member, not the workspace: Active /
-  // Applied this week / Recently updated are their own totals in this workspace,
-  // and Total applied is their all-time count across every workspace.
-  const personalRecentWeeks = myWeek?.recent_weeks ?? [];
-  const personalWeekly = personalRecentWeeks.map((point) => point.total);
-  const personalThisWeek = myWeek?.applied_this_week ?? 0;
-  const personalWeekDelta =
-    personalRecentWeeks.length >= 2
-      ? personalRecentWeeks[personalRecentWeeks.length - 1].total -
-        personalRecentWeeks[personalRecentWeeks.length - 2].total
-      : 0;
   return (
-    <div className="mx-auto max-w-[1280px] px-4 py-8 sm:px-6">
-      <div className="mb-7">
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <p className="text-[0.7rem] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-              Overview
-            </p>
-            <h1 className="font-display mt-1.5 text-2xl font-semibold tracking-tight text-foreground">
-              This week at a glance
-            </h1>
-          </div>
-          <span className="flex flex-none items-center gap-1.5 whitespace-nowrap rounded-lg border border-primary/35 bg-secondary px-3 py-1.5 text-xs text-foreground">
-            <CalendarDays size={13} className="text-primary" />
-            {latestWeekLabel}
-          </span>
-        </div>
-        <div className="mt-4 h-px bg-border" />
-      </div>
-
-      <div className="mb-7 grid gap-6 lg:grid-cols-[320px_1fr]">
-        <YourWeekCard myWeek={myWeek} onSetGoal={handleSetGoal} />
-        <div className="grid grid-cols-2 gap-4">
-          <div className={`${PANEL} px-5 py-4`}>
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                Active
-              </p>
-              <Briefcase size={14} className="text-muted-foreground" />
-            </div>
-            <p className="font-numeric mt-2 text-[28px] font-semibold leading-none text-foreground">
-              {myWeek?.total_active ?? 0}
-            </p>
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              your apps in this workspace
-            </p>
-          </div>
-          <div className={`${PANEL} px-5 py-4`}>
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                Applied this week
-              </p>
-              <p className="text-[11px]">
-                {personalWeekDelta > 0 ? (
-                  <span className="text-[#9aa05f]">▲ {personalWeekDelta}</span>
-                ) : personalWeekDelta < 0 ? (
-                  <span className="text-[#c2686a]">
-                    ▼ {Math.abs(personalWeekDelta)}
-                  </span>
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </p>
-            </div>
-            <p className="font-numeric mt-2 text-[28px] font-semibold leading-none text-foreground">
-              {personalThisWeek}
-            </p>
-            <Sparkline
-              points={personalWeekly}
-              stroke={personalWeekDelta < 0 ? "#c2686a" : "#9aa05f"}
-            />
-          </div>
-          <div className={`${PANEL} px-5 py-4`}>
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                Recently updated
-              </p>
-              <Pencil size={14} className="text-muted-foreground" />
-            </div>
-            <p className="font-numeric mt-2 text-[28px] font-semibold leading-none text-foreground">
-              {myWeek?.recently_updated ?? 0}
-            </p>
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              your edited apps
-            </p>
-          </div>
-          <div className={`${PANEL} px-5 py-4`}>
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                Total applied
-              </p>
-              <FileText size={14} className="text-muted-foreground" />
-            </div>
-            <p className="font-numeric mt-2 text-[28px] font-semibold leading-none text-foreground">
-              {myWeek?.total_applied_all_time ?? 0}
-            </p>
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              all time · all workspaces
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="mb-10 grid items-start gap-6 lg:grid-cols-[1.7fr_1fr]">
-        {/* Remount when the member saves a new goal so the goal column re-pulls. */}
+    <BentoDashboard
+      data={data}
+      user={context.session.user}
+      onSetGoal={handleSetGoal}
+      teamDetails={
+        // Remount when the member saves a new goal so the goal column re-pulls.
         <TeamAccountabilityCard key={goalRefresh} context={context} />
-        <section>
-          <h2 className="mb-3 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-            Recent activity
-          </h2>
-          <div className={`${PANEL} p-5`}>
-            <RecentActivityFeed activities={summary?.recent_activity ?? []} />
-          </div>
-        </section>
-      </div>
-
-      <h2 className="mb-4 text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-        Analytics
-      </h2>
-      <div>
-        <DashboardChartCard
-          title="Applications over time"
-          trend={
-            <span className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="font-numeric text-foreground">{windowTotal}</span>
-              total
-              {weekDelta > 0 ? (
-                <span className="text-[#9aa05f]">▲ {weekDelta}</span>
-              ) : weekDelta < 0 ? (
-                <span className="text-[#c2686a]">▼ {Math.abs(weekDelta)}</span>
-              ) : (
-                <span>—</span>
-              )}
-            </span>
-          }
-        >
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={applicationsOverTime}
-              margin={{ top: 14, right: 8, left: -20, bottom: 4 }}
-            >
-              <CartesianGrid
-                stroke="rgba(140,129,112,0.12)"
-                strokeDasharray="3 4"
-                vertical={false}
-              />
-              <XAxis
-                dataKey="week"
-                interval={0}
-                angle={-26}
-                textAnchor="end"
-                height={58}
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: "#8c8170", fontSize: 10 }}
-              />
-              <YAxis
-                allowDecimals={false}
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: "#8c8170", fontSize: 11 }}
-              />
-              <Tooltip
-                contentStyle={chartTooltipStyle}
-                itemStyle={{ color: "#f4eee1" }}
-                labelStyle={{ color: "#a89a80" }}
-                cursor={{ fill: "rgba(214,168,68,0.06)" }}
-              />
-              <Bar
-                dataKey="total"
-                name="Applications"
-                fill="#d6a844"
-                radius={[3, 3, 0, 0]}
-                maxBarSize={28}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </DashboardChartCard>
-
-        <section className={`${PANEL} mt-6 grid gap-x-8 gap-y-6 p-6 md:grid-cols-3`}>
-          <div>
-            <h3 className="mb-4 text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
-              Status
-            </h3>
-            <BarGaugeRows
-              rows={statusMix.map((item) => ({
-                label: item.name,
-                value: item.value,
-                color: item.color,
-              }))}
-            />
-          </div>
-          <div>
-            <h3 className="mb-4 text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
-              Work arrangement
-            </h3>
-            <BarGaugeRows
-              rows={arrangementMix.map((item) => ({
-                label: item.name,
-                value: item.value,
-                color: item.color,
-              }))}
-            />
-          </div>
-          <div>
-            <div className="mb-4 flex items-center justify-between gap-2">
-              <h3 className="text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
-                Top applicants
-              </h3>
-              <Link
-                to="/applications"
-                className="text-[10px] font-medium uppercase tracking-[0.08em] text-[#e0b850] transition-colors hover:text-primary"
-              >
-                View all
-              </Link>
-            </div>
-            {topApplicants.length > 0 ? (
-              <BarGaugeRows
-                rows={topApplicants.map((item, index) => ({
-                  label: item.owner.display_name,
-                  value: item.count,
-                  color: ownerColors[index % ownerColors.length],
-                }))}
-              />
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                No applications yet.
-              </p>
-            )}
-          </div>
-        </section>
-      </div>
-
-    </div>
-  );
-}
-
-const chartTooltipStyle = {
-  background: "#1e1810",
-  border: "1px solid rgba(214,168,68,0.18)",
-  borderRadius: "8px",
-  color: "#f4eee1",
-  fontSize: "12px",
-};
-
-function DashboardChartCard({
-  title,
-  trend,
-  children,
-}: {
-  title: string;
-  trend?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section className={`${PANEL} relative h-[355px] p-6 pb-12`}>
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="font-display text-base font-semibold text-foreground">{title}</h2>
-        {trend}
-      </div>
-      <div className="h-[255px]">{children}</div>
-    </section>
+      }
+    />
   );
 }
 
@@ -1602,171 +1054,6 @@ export function TeamAccountabilityCard({ context }: { context: AppContext }) {
       )}
     </section>
   );
-}
-
-function BarGaugeRows({
-  rows,
-}: {
-  rows: { label: string; value: number; color: string }[];
-}) {
-  const max = Math.max(...rows.map((row) => row.value), 1);
-  const total = rows.reduce((sum, row) => sum + row.value, 0);
-  return (
-    <div className="flex flex-col gap-3">
-      {rows.map((row) => {
-        const empty = row.value === 0;
-        const share = total > 0 ? Math.round((row.value / total) * 100) : 0;
-        return (
-          <div key={row.label} className="flex items-center gap-3 text-xs">
-            <span
-              className={`w-20 shrink-0 truncate ${
-                empty ? "text-muted-foreground" : "text-[#cdbfa3]"
-              }`}
-            >
-              {row.label}
-            </span>
-            <div className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">
-              <div
-                className="h-full rounded-full transition-[width]"
-                style={{
-                  width: `${(row.value / max) * 100}%`,
-                  backgroundColor: row.color,
-                }}
-              />
-            </div>
-            <span
-              className={`font-numeric w-5 shrink-0 text-right ${
-                empty ? "text-[#6b6253]" : "text-foreground"
-              }`}
-            >
-              {row.value}
-            </span>
-            <span className="font-numeric w-9 shrink-0 text-right text-[11px] text-muted-foreground">
-              {share}%
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function activityDayBucket(occurredAt: string): string {
-  const then = new Date(occurredAt).getTime();
-  const now = new Date();
-  const startOfToday = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-  ).getTime();
-  if (then >= startOfToday) return "Today";
-  if (then >= startOfToday - 86_400_000) return "Yesterday";
-  return "Earlier";
-}
-
-function RecentActivityFeed({
-  activities,
-}: {
-  activities: ApplicationSummary["recent_activity"];
-}) {
-  if (activities.length === 0) {
-    return (
-      <p className="py-10 text-center text-sm text-muted-foreground">
-        Activity appears as applications are added or updated.
-      </p>
-    );
-  }
-  const groups: { bucket: string; items: typeof activities }[] = [];
-  for (const activity of activities) {
-    const bucket = activityDayBucket(activity.occurred_at);
-    const last = groups[groups.length - 1];
-    if (last && last.bucket === bucket) last.items.push(activity);
-    else groups.push({ bucket, items: [activity] });
-  }
-  return (
-    <div className="flex flex-col gap-5">
-      {groups.map((group) => (
-        <div key={group.bucket}>
-          <div className="mb-3 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-            {group.bucket}
-          </div>
-          <div className="relative flex flex-col gap-4 pl-8">
-            <div className="absolute bottom-1 left-[11px] top-1 w-px bg-border" />
-            {group.items.map((activity) => {
-              const added = activity.action === "added";
-              const Icon = added ? Plus : Pencil;
-              return (
-                <Link
-                  key={`${activity.application_id}-${activity.occurred_at}`}
-                  to={`/applications/${activity.application_id}`}
-                  className="group relative flex items-start justify-between gap-3"
-                >
-                  <span
-                    className={`absolute left-[-32px] top-0 flex h-6 w-6 items-center justify-center rounded-full border-2 border-card ${
-                      added
-                        ? "bg-[#9aa05f]/15 text-[#9aa05f]"
-                        : "bg-primary/15 text-[#e0b850]"
-                    }`}
-                    aria-hidden="true"
-                  >
-                    <Icon size={12} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[13px] leading-snug text-muted-foreground">
-                      <span className="font-medium text-foreground">
-                        {activity.owner.display_name}
-                      </span>{" "}
-                      {activity.action}{" "}
-                      <span className="font-medium text-foreground transition-colors group-hover:text-primary">
-                        {activity.job_title}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
-                      <span className="truncate">{activity.company_name}</span>
-                      {activity.action === "updated" && (
-                        <span className="shrink-0">
-                          <StatusPill status={activity.status} />
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground">
-                    {formatRelativeTime(activity.occurred_at)}
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function formatRelativeTime(value: string): string {
-  const elapsedSeconds = Math.max(
-    0,
-    Math.floor((Date.now() - new Date(value).getTime()) / 1000),
-  );
-  if (elapsedSeconds < 60) return "Just now";
-  const minutes = Math.floor(elapsedSeconds / 60);
-  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
-  const days = Math.floor(hours / 24);
-  if (days === 1) return "Yesterday";
-  return `${days} days ago`;
-}
-
-function formatWeekRange(weekStart: string): string {
-  const start = new Date(`${weekStart}T12:00:00`);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-  return `${formatter.format(start)} – ${formatter.format(end)}`;
 }
 
 function filtersFromSearchParams(params: URLSearchParams): ApplicationFilters {

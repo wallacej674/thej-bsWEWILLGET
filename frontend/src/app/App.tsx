@@ -3,7 +3,6 @@ import {
   ArrowLeft,
   Briefcase,
   Building2,
-  CheckCircle,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -14,7 +13,6 @@ import {
   Menu,
   Mail,
   Plus,
-  RotateCcw,
   Search,
   Shield,
   Trash,
@@ -52,6 +50,7 @@ import { DarkSelect } from "./components/DarkSelect";
 import { ThemeToggle } from "./theme/ThemeToggle";
 import { useTheme } from "./theme/themeStore";
 import { CompanyWall } from "../features/applications/wall/CompanyWall";
+import { ProfileHub } from "../features/profile/ProfileHub";
 import {
   applicationsApi,
   sessionApi,
@@ -68,7 +67,6 @@ import type {
   ApplicationStatus,
   ApplicationSummary,
   CurrentUser,
-  DeletedApplication,
   EmploymentType,
   JobApplication,
   JobPostingAutofillFields,
@@ -98,7 +96,6 @@ import type { DashboardData } from "../features/dashboard/dashboardModel";
 import { InvitationInbox } from "../features/invitations/InvitationInbox";
 import { avatarColor, initials } from "../features/members/avatar";
 import { AiResumeTailorPanel } from "../features/resume/AiResumeTailorPanel";
-import { ResumeProfilePanel } from "../features/resume/ResumeProfilePanel";
 import {
   configuredDevelopmentIdentities,
   createIdentityStore,
@@ -409,7 +406,6 @@ function AppShell({ context }: { context: AppContext }) {
   const nav = [
     { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
     { to: "/applications", label: "Applications", icon: FileText },
-    { to: "/deleted", label: "Deleted", icon: Trash },
     { to: "/workspace", label: "Workspace", icon: Users },
     { to: "/profile", label: "Profile", icon: User },
   ];
@@ -587,7 +583,8 @@ function AppShell({ context }: { context: AppContext }) {
             path="/applications/:applicationId/edit"
             element={<ApplicationFormPage context={context} mode="edit" />}
           />
-          <Route path="/deleted" element={<DeletedPage context={context} />} />
+          {/* The bin moved into Profile; keep old links working. */}
+          <Route path="/deleted" element={<Navigate to="/profile?bin=open" replace />} />
           <Route
             path="/workspace"
             element={<WorkspacePage context={context} />}
@@ -970,7 +967,8 @@ function searchParamsFromFilters(filters: ApplicationFilters): URLSearchParams {
 }
 
 // Loads the workspace's applications for the URL's filters and renders them
-// as the company wall. Deleting asks first and moves the record to Deleted.
+// as the company wall. Deleting asks first and moves the record to the
+// member's Recently deleted bin (on their Profile).
 function ApplicationsPage({ context }: { context: AppContext }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const filters = useMemo(
@@ -1018,14 +1016,14 @@ function ApplicationsPage({ context }: { context: AppContext }) {
   const remove = async (application: JobApplication): Promise<boolean> => {
     if (
       !window.confirm(
-        `Move ${application.company_name} — ${application.job_title} to Deleted? You can restore it later.`,
+        `Move ${application.company_name} — ${application.job_title} to Recently deleted? You can restore it from your Profile.`,
       )
     ) {
       return false;
     }
     try {
       await applicationsApi.delete(context.client, workspaceId, application.id);
-      toast.success("Application moved to Deleted.");
+      toast.success("Moved to Recently deleted. Restore it from your Profile.");
       void load();
       return true;
     } catch (caught) {
@@ -1165,14 +1163,14 @@ function ApplicationDetailPage({ context }: { context: AppContext }) {
     context.session.workspace.role,
   );
   const remove = async () => {
-    if (!window.confirm("Move this application to Deleted?")) return;
+    if (!window.confirm("Move this application to Recently deleted? You can restore it from your Profile.")) return;
     try {
       await applicationsApi.delete(
         context.client,
         context.session.workspace.id,
         application.id,
       );
-      toast.success("Application moved to Deleted.");
+      toast.success("Moved to Recently deleted. Restore it from your Profile.");
       navigate("/applications");
     } catch (caught) {
       toast.error(caught instanceof Error ? caught.message : "Delete failed.");
@@ -1639,7 +1637,7 @@ export function ApplicationFormPage({
       if (error instanceof ApiError) {
         setFormError(
           error.code === "deleted_application_exists"
-            ? "A deleted application already uses this posting URL. Restore that record from Deleted."
+            ? "A deleted application already uses this posting URL. Restore it from Profile → Recently deleted."
             : error.message,
         );
         setFieldErrors(validationFieldErrors(error.details));
@@ -2005,247 +2003,6 @@ function FormTextarea({
         className="w-full resize-y rounded-lg border border-border bg-input px-3 py-2 text-sm leading-relaxed text-foreground focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/15"
       />
     </label>
-  );
-}
-
-function DeletedPage({ context }: { context: AppContext }) {
-  const [page, setPage] = useState(1);
-  const [result, setResult] =
-    useState<PaginatedApplications<DeletedApplication> | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<unknown>();
-  const [selecting, setSelecting] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [selectAll, setSelectAll] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      setResult(
-        await applicationsApi.deleted(
-          context.client,
-          context.session.workspace.id,
-          page,
-          10,
-        ),
-      );
-      setError(undefined);
-    } catch (caught) {
-      setError(caught);
-    } finally {
-      setLoading(false);
-    }
-  }, [context.client, context.session.workspace.id, page]);
-
-  useEffect(() => void load(), [load]);
-
-  const restore = async (application: DeletedApplication) => {
-    try {
-      await applicationsApi.restore(
-        context.client,
-        context.session.workspace.id,
-        application.id,
-      );
-      toast.success(`${application.company_name} restored.`);
-      await load();
-    } catch (caught) {
-      toast.error(caught instanceof Error ? caught.message : "Restore failed.");
-    }
-  };
-
-  const leaveSelectionMode = () => {
-    setSelecting(false);
-    setSelectedIds(new Set());
-    setSelectAll(false);
-  };
-
-  const toggleApplication = (applicationId: string) => {
-    setSelectAll(false);
-    setSelectedIds((current) => {
-      const next = new Set(current);
-      if (next.has(applicationId)) {
-        next.delete(applicationId);
-      } else {
-        next.add(applicationId);
-      }
-      return next;
-    });
-  };
-
-  const toggleSelectAll = () => {
-    if (selectAll) {
-      setSelectAll(false);
-      setSelectedIds(new Set());
-      return;
-    }
-    setSelectAll(true);
-    setSelectedIds(new Set(result?.items.map((application) => application.id)));
-  };
-
-  const permanentlyDelete = async () => {
-    const count = selectAll
-      ? (result?.pagination.total_items ?? 0)
-      : selectedIds.size;
-    if (count === 0) return;
-    const noun = count === 1 ? "application" : "applications";
-    if (
-      !window.confirm(
-        `Permanently delete ${count} ${noun}? This cannot be undone or restored.`,
-      )
-    ) {
-      return;
-    }
-    setDeleting(true);
-    try {
-      const response = await applicationsApi.permanentlyDelete(
-        context.client,
-        context.session.workspace.id,
-        selectAll ? [] : [...selectedIds],
-        selectAll,
-      );
-      toast.success(
-        `${response.deleted_count} ${
-          response.deleted_count === 1 ? "application" : "applications"
-        } permanently deleted.`,
-      );
-      leaveSelectionMode();
-      if (page !== 1) {
-        setPage(1);
-      } else {
-        await load();
-      }
-    } catch (caught) {
-      toast.error(
-        caught instanceof Error ? caught.message : "Permanent deletion failed.",
-      );
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
-      <PageHeader
-        title="Deleted applications"
-        description="Review, restore, or permanently erase applications you deleted."
-        action={
-          result && result.pagination.total_items > 0 && !selecting ? (
-            <button
-              onClick={() => setSelecting(true)}
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-destructive/25 bg-destructive/[0.08] px-3.5 py-2 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/50"
-            >
-              <Trash size={14} /> Permanently delete
-            </button>
-          ) : undefined
-        }
-      />
-      {selecting && result && (
-        <div className="mb-4 flex flex-col justify-between gap-3 rounded-xl border border-destructive/25 bg-gradient-to-r from-destructive/[0.08] to-transparent p-4 sm:flex-row sm:items-center">
-          <div>
-            <p className="text-sm font-semibold text-foreground">
-              Select applications to delete forever
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {selectAll
-                ? `All ${result.pagination.total_items} applications in your Deleted tab are selected.`
-                : `${selectedIds.size} selected. You can still cancel or restore applications later.`}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={toggleSelectAll}
-              className="rounded-lg border border-border bg-secondary px-3 py-2 text-xs font-medium text-subtle transition-colors hover:bg-accent"
-            >
-              {selectAll ? "Clear all" : "Select all"}
-            </button>
-            <button
-              onClick={leaveSelectionMode}
-              className="rounded-lg px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              Cancel
-            </button>
-            <button
-              disabled={deleting || (!selectAll && selectedIds.size === 0)}
-              onClick={() => void permanentlyDelete()}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-destructive px-3 py-2 text-xs font-semibold text-primary-foreground transition-colors hover:bg-destructive/90 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {deleting ? (
-                <LoaderCircle size={13} className="animate-spin" />
-              ) : (
-                <Trash size={13} />
-              )}
-              Delete permanently
-            </button>
-          </div>
-        </div>
-      )}
-      {loading ? (
-        <LoadingState label="Loading deleted applications…" />
-      ) : error ? (
-        <ErrorState error={error} onRetry={load} />
-      ) : result && result.items.length > 0 ? (
-        <>
-          <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
-            {result.items.map((application) => (
-              <div
-                key={application.id}
-                className={`flex flex-col justify-between gap-4 p-5 transition-colors sm:flex-row sm:items-center ${
-                  selecting &&
-                  (selectAll || selectedIds.has(application.id))
-                    ? "bg-destructive/[0.06]"
-                    : ""
-                }`}
-              >
-                <div className="flex min-w-0 items-start gap-3">
-                  {selecting && (
-                    <input
-                      type="checkbox"
-                      aria-label={`Select ${application.company_name} ${application.job_title}`}
-                      checked={selectAll || selectedIds.has(application.id)}
-                      onChange={() => toggleApplication(application.id)}
-                      className="mt-1 h-4 w-4 shrink-0 cursor-pointer rounded border-border bg-input accent-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/50"
-                    />
-                  )}
-                  <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-sm font-semibold text-foreground">
-                      {application.company_name}
-                    </h2>
-                    <StatusPill status={application.status} />
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {application.job_title} · Deleted{" "}
-                    {formatDate(application.deleted_at)} by{" "}
-                    {application.deleted_by.display_name}
-                    {application.moderated ? " · Moderated" : ""}
-                  </p>
-                  </div>
-                </div>
-                {!selecting && (
-                  <button
-                    onClick={() => void restore(application)}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-medium text-primary hover:bg-primary/15"
-                  >
-                    <RotateCcw size={13} /> Restore application
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-          <PaginationBar
-            pagination={result.pagination}
-            pageSize={10}
-            onPage={setPage}
-          />
-        </>
-      ) : (
-        <EmptyState
-          title="Deleted is empty"
-          description="Applications you remove can be restored from this page."
-        />
-      )}
-    </div>
   );
 }
 
@@ -2771,119 +2528,47 @@ export function WorkspacePage({ context }: { context: AppContext }) {
   );
 }
 
+// The profile hub. Deleted applications live here too (the old /deleted page
+// redirects to this page with the bin open).
 function ProfilePage({ context }: { context: AppContext }) {
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string>();
-
-  const submitPasswordChange = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (submitting) return;
-
-    setSubmitting(true);
-    setError(undefined);
-    try {
-      await context.changePassword({ currentPassword, newPassword });
-      toast.success("Password changed. Please sign in again.");
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "The password could not be changed.",
-      );
-    } finally {
-      setCurrentPassword("");
-      setNewPassword("");
-      setSubmitting(false);
-    }
-  };
-
+  const identity = context.developmentIdentity;
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-      <PageHeader
-        title="Profile"
-        description="Your account and authentication settings."
-      />
-      <div className="rounded-xl border border-border bg-card p-6">
-        <div className="flex items-center gap-4 border-b border-border pb-6">
-          <Avatar
-            id={context.session.user.id}
-            name={context.session.user.display_name}
-            size="lg"
-          />
+    <ProfileHub
+      client={context.client}
+      user={context.session.user}
+      workspace={context.session.workspace}
+      workspaces={context.workspaces}
+      changePassword={context.changePassword}
+      logout={context.logout}
+      developerTools={
+        identity ? (
           <div>
-            <h2 className="text-xl font-semibold text-foreground">
-              {context.session.user.display_name}
-            </h2>
-            <div className="mt-2 flex items-center gap-2 text-xs font-medium text-primary">
-              <CheckCircle size={13} /> Signed in
-            </div>
-          </div>
-        </div>
-        <form className="mt-6 max-w-md space-y-4" onSubmit={submitPasswordChange}>
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">Change password</h3>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Changing your password signs this account out on every device.
-            </p>
-          </div>
-          {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
-          <label className="block text-sm text-subtle">
-            Current password
-            <input
-              type="password"
-              autoComplete="current-password"
-              required
-              value={currentPassword}
-              onChange={(event) => setCurrentPassword(event.target.value)}
-              className="mt-1.5 w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
-            />
-          </label>
-          <label className="block text-sm text-subtle">
-            New password
-            <input
-              type="password"
-              autoComplete="new-password"
-              required
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-              className="mt-1.5 w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
-            />
-          </label>
-          <PrimaryButton type="submit" disabled={submitting}>
-            {submitting ? "Updating password…" : "Update password"}
-          </PrimaryButton>
-        </form>
-        {context.developmentIdentity ? (
-          <div className="mt-6 rounded-xl border border-warning/15 bg-warning/[0.04] p-4">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-warning">
+            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-warning">
               <Shield size={13} /> Developer-only identity adapter
-            </div>
+            </p>
             <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
               This build explicitly enables the development identity header.
               Cookie sessions take precedence in normal builds.
             </p>
             <select
-              className="mt-4 w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground"
-              value={context.developmentIdentity.selectedUserId}
-              onChange={(event) =>
-                context.developmentIdentity?.switchIdentity(event.target.value)
-              }
+              aria-label="Developer identity"
+              className="mt-4 w-full max-w-sm rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground"
+              value={identity.selectedUserId}
+              onChange={(event) => identity.switchIdentity(event.target.value)}
             >
-              {context.developmentIdentity.identities.map((identity) => (
-                <option key={identity.id} value={identity.id}>
-                  Switch to {identity.label}
+              {identity.identities.map((option) => (
+                <option key={option.id} value={option.id}>
+                  Switch to {option.label}
                 </option>
               ))}
             </select>
           </div>
-        ) : null}
-      </div>
-      <ResumeProfilePanel client={context.client} />
-    </div>
+        ) : undefined
+      }
+    />
   );
 }
+
 
 function NotFoundPage() {
   return (

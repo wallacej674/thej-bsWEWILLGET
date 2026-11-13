@@ -28,7 +28,7 @@ export function ApplicationDrawer({
   canEdit: boolean;
   canDelete: boolean;
   onClose(): void;
-  /** Resolves true once the application has been moved to Deleted. */
+  /** Resolves true once the application has been moved to Recently deleted. */
   onDelete(application: JobApplication): Promise<boolean>;
 }) {
   const [deleting, setDeleting] = useState(false);

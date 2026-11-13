@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Link } from "react-router";
 
 import { ThemeToggle } from "../../app/theme/ThemeToggle";
 import logoUrl from "../../assets/applytogether-logo.png";
@@ -44,13 +45,16 @@ export function AuthLayout({
             aria-live={live ? "polite" : undefined}
             className="mb-8 flex flex-col items-center text-center"
           >
-            <span className="mb-6 flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-black p-1 shadow-[0_0_0_1px_color-mix(in_srgb,var(--primary)_28%,transparent),0_14px_44px_-10px_color-mix(in_srgb,var(--primary)_40%,transparent)]">
+            <Link
+              to="/"
+              className="mb-6 flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-black p-1 shadow-[0_0_0_1px_color-mix(in_srgb,var(--primary)_28%,transparent),0_14px_44px_-10px_color-mix(in_srgb,var(--primary)_40%,transparent)] transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
               <img
                 src={logoUrl}
-                alt="ApplyTogether"
+                alt="ApplyTogether home"
                 className="h-full w-full object-contain"
               />
-            </span>
+            </Link>
             <h1 className="text-balance text-[1.85rem] font-bold leading-tight tracking-[-0.02em] text-foreground">
               {title}
             </h1>

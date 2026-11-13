@@ -211,7 +211,7 @@ export function CompanyWall({
   canModerate: boolean;
   onFiltersChange(changes: Partial<ApplicationFilters>, resetPage?: boolean): void;
   onClearFilters(): void;
-  /** Asks to move an application to Deleted; resolves true when it was. */
+  /** Asks to move an application to Recently deleted; resolves true when it was. */
   onDelete(application: JobApplication): Promise<boolean>;
 }) {
   const [selected, setSelected] = useState<JobApplication | null>(null);

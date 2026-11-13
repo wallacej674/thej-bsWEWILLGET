@@ -95,7 +95,7 @@ import {
 import type { DashboardData } from "../features/dashboard/dashboardModel";
 import { InvitationInbox } from "../features/invitations/InvitationInbox";
 import { avatarColor, initials } from "../features/members/avatar";
-import { AiResumeTailorPanel } from "../features/resume/AiResumeTailorPanel";
+import { ResumeTailorWorkspace } from "../features/resume/ResumeTailorWorkspace";
 import {
   configuredDevelopmentIdentities,
   createIdentityStore,
@@ -1056,6 +1056,16 @@ function ApplicationsPage({ context }: { context: AppContext }) {
       onFiltersChange={update}
       onClearFilters={() => setSearchParams(searchParamsFromFilters(defaultFilters))}
       onDelete={remove}
+      renderSidePanel={(application, canEdit) => (
+        <ResumeTailorWorkspace
+          // Fresh state per application.
+          key={application.id}
+          client={context.client}
+          workspaceId={workspaceId}
+          application={application}
+          canEdit={canEdit}
+        />
+      )}
     />
   );
 }
@@ -1257,11 +1267,6 @@ function ApplicationDetailPage({ context }: { context: AppContext }) {
             <NoteCard title="Personal notes" text={application.notes} />
           </>
         )}
-        <AiResumeTailorPanel
-          client={context.client}
-          workspaceId={context.session.workspace.id}
-          application={application}
-        />
       </div>
     </div>
   );

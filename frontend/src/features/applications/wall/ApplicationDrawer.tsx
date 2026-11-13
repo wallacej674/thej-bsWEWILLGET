@@ -23,6 +23,7 @@ export function ApplicationDrawer({
   canDelete,
   onClose,
   onDelete,
+  sidePanel,
 }: {
   application: JobApplication | null;
   canEdit: boolean;
@@ -30,6 +31,11 @@ export function ApplicationDrawer({
   onClose(): void;
   /** Resolves true once the application has been moved to Recently deleted. */
   onDelete(application: JobApplication): Promise<boolean>;
+  /**
+   * Optional workspace shown beside the details (the résumé tailor). The
+   * drawer widens into two columns on large screens and stacks below.
+   */
+  sidePanel?: ReactNode;
 }) {
   const [deleting, setDeleting] = useState(false);
   const open = application !== null;
@@ -73,7 +79,7 @@ export function ApplicationDrawer({
             tabIndex={-1}
             aria-label="Close details"
             onClick={onClose}
-            className="absolute inset-0 cursor-default bg-black/35 backdrop-blur dark:bg-black/60-[2px]"
+            className="absolute inset-0 cursor-default bg-black/35 backdrop-blur-[2px] dark:bg-black/60"
             variants={{ open: { opacity: 1 }, closed: { opacity: 0 } }}
             transition={{ duration: 0.25 }}
           />
@@ -83,7 +89,9 @@ export function ApplicationDrawer({
             aria-labelledby="application-drawer-title"
             variants={{ open: { x: 0 }, closed: { x: "100%" } }}
             transition={{ type: "spring", stiffness: 320, damping: 34 }}
-            className="absolute inset-y-0 right-0 flex w-full max-w-[520px] flex-col border-l border-border bg-card text-foreground shadow-[var(--shadow-raised)]"
+            className={`absolute inset-y-0 right-0 flex w-full flex-col border-l border-border bg-card text-foreground shadow-[var(--shadow-raised)] ${
+              sidePanel ? "max-w-[1120px]" : "max-w-[520px]"
+            }`}
           >
             <header className="relative overflow-hidden border-b border-border p-6">
               <div
@@ -121,60 +129,83 @@ export function ApplicationDrawer({
               </div>
             </header>
 
-            <div className="flex-1 overflow-y-auto p-6">
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
-                {(
-                  [
+            <div
+              className={
+                sidePanel
+                  ? "grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-[400px_minmax(0,1fr)] lg:overflow-hidden"
+                  : "flex min-h-0 flex-1 flex-col"
+              }
+            >
+              <div
+                className={
+                  sidePanel
+                    ? "border-border p-6 lg:overflow-y-auto lg:border-r"
+                    : "flex-1 overflow-y-auto p-6"
+                }
+              >
+                <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                  {(
                     [
-                      "Owner",
-                      <span key="owner" className="flex items-center gap-2">
-                        <OwnerAvatar owner={application.owner} />
-                        {application.owner.display_name}
-                      </span>,
-                    ],
-                    [
-                      "Applied",
-                      `${shortDate(application.application_date)} · ${sentAgo(application.application_date)}`,
-                    ],
-                    ["Location", application.location || "Not provided"],
-                    ["Salary", compactSalary(application) ?? "Not provided"],
-                    ["Last updated", timeAgo(application.updated_at)],
-                    ["Added", shortDate(application.created_at)],
-                  ] as [string, ReactNode][]
-                ).map(([label, value], index) => (
-                  <motion.div
-                    key={label}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: 0.12 + index * 0.04 }}
+                      [
+                        "Owner",
+                        <span key="owner" className="flex items-center gap-2">
+                          <OwnerAvatar owner={application.owner} />
+                          {application.owner.display_name}
+                        </span>,
+                      ],
+                      [
+                        "Applied",
+                        `${shortDate(application.application_date)} · ${sentAgo(application.application_date)}`,
+                      ],
+                      ["Location", application.location || "Not provided"],
+                      ["Salary", compactSalary(application) ?? "Not provided"],
+                      ["Last updated", timeAgo(application.updated_at)],
+                      ["Added", shortDate(application.created_at)],
+                    ] as [string, ReactNode][]
+                  ).map(([label, value], index) => (
+                    <motion.div
+                      key={label}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3, delay: 0.12 + index * 0.04 }}
+                    >
+                      <dt className={EYEBROW}>{label}</dt>
+                      <dd className="mt-1 text-foreground">{value}</dd>
+                    </motion.div>
+                  ))}
+                </dl>
+                <motion.section
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.38 }}
+                  className="mt-7"
+                >
+                  <h3 className={`${EYEBROW} mb-2`}>Notes</h3>
+                  <p className="whitespace-pre-line text-sm leading-relaxed text-subtle">
+                    {application.notes || "No notes yet."}
+                  </p>
+                </motion.section>
+                <motion.section
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.44 }}
+                  className="mt-6"
+                >
+                  <h3 className={`${EYEBROW} mb-2`}>Job description</h3>
+                  <p
+                    className={`whitespace-pre-line text-sm leading-relaxed text-subtle ${
+                      sidePanel ? "" : "line-clamp-[12]"
+                    }`}
                   >
-                    <dt className={EYEBROW}>{label}</dt>
-                    <dd className="mt-1 text-foreground">{value}</dd>
-                  </motion.div>
-                ))}
-              </dl>
-              <motion.section
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.38 }}
-                className="mt-7"
-              >
-                <h3 className={`${EYEBROW} mb-2`}>Notes</h3>
-                <p className="whitespace-pre-line text-sm leading-relaxed text-subtle">
-                  {application.notes || "No notes yet."}
-                </p>
-              </motion.section>
-              <motion.section
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.44 }}
-                className="mt-6"
-              >
-                <h3 className={`${EYEBROW} mb-2`}>Job description</h3>
-                <p className="line-clamp-[12] whitespace-pre-line text-sm leading-relaxed text-subtle">
-                  {application.job_description || "No description saved."}
-                </p>
-              </motion.section>
+                    {application.job_description || "No description saved."}
+                  </p>
+                </motion.section>
+              </div>
+              {sidePanel ? (
+                <div className="flex min-h-0 flex-col border-t border-border bg-background/50 lg:border-t-0">
+                  {sidePanel}
+                </div>
+              ) : null}
             </div>
 
             <footer className="flex flex-wrap items-center gap-2 border-t border-border p-4">

@@ -1,0 +1,89 @@
+/* Ambient keyframes for the landing page. Every animation is opt-in under
+   prefers-reduced-motion: no-preference. */
+
+@keyframes landing-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes landing-pan {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+@keyframes landing-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+@keyframes landing-shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .landing-orbit {
+    animation: landing-spin var(--orbit-duration, 48s) linear infinite;
+  }
+  .landing-orbit-counter {
+    animation: landing-spin var(--orbit-duration, 48s) linear infinite reverse;
+  }
+  .landing-pan {
+    animation: landing-pan 6s linear infinite;
+  }
+  .landing-ping {
+    animation: landing-ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+  .landing-shimmer {
+    animation: landing-shimmer 1.4s linear infinite;
+  }
+}
+
+/* Gradient text for the rotating word in the hero headline. */
+.landing-gradient-text {
+  background-image: linear-gradient(
+    90deg,
+    var(--primary),
+    var(--chart-2),
+    var(--chart-3),
+    var(--primary)
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Placeholder bar in an autofill field that has not filled in yet. */
+.landing-shimmer-bar {
+  background-image: linear-gradient(
+    90deg,
+    var(--track) 0%,
+    color-mix(in srgb, var(--primary) 18%, var(--track)) 50%,
+    var(--track) 100%
+  );
+  background-size: 200% 100%;
+}
+
+.landing-dots {
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--primary) 18%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: 24px 24px;
+}

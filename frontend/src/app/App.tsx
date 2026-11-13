@@ -47,7 +47,7 @@ import { Toaster, toast } from "sonner";
 
 import { ApiError, createApiClient } from "../api/client";
 import { DarkSelect } from "./components/DarkSelect";
-import { ThemeToggle } from "./theme/ThemeToggle";
+import { SignedOutRoutes } from "./SignedOutRoutes";import { ThemeToggle } from "./theme/ThemeToggle";
 import { useTheme } from "./theme/themeStore";
 import { CompanyWall } from "../features/applications/wall/CompanyWall";
 import { ProfileHub } from "../features/profile/ProfileHub";
@@ -85,8 +85,6 @@ import {
   useAuth,
 } from "../features/auth/AuthProvider";
 import { authApi } from "../features/auth/authApi";
-import { LoginPage } from "../features/auth/LoginPage";
-import { SignupPage } from "../features/auth/SignupPage";
 import { VerifyEmailPage } from "../features/auth/VerifyEmailPage";
 import {
   BentoDashboard,
@@ -2793,20 +2791,11 @@ function AuthenticatedApp({
 
   if (auth.status === "unauthenticated") {
     return (
-      <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="/login" element={<LoginPage onLogin={auth.login} />} />
-        <Route
-          path="/signup"
-          element={
-            <SignupPage
-              onSignup={auth.signup}
-              onResend={auth.resendVerification}
-            />
-          }
-        />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
+      <SignedOutRoutes
+        onLogin={auth.login}
+        onSignup={auth.signup}
+        onResend={auth.resendVerification}
+      />
     );
   }
 

@@ -198,6 +198,7 @@ export function CompanyWall({
   onFiltersChange,
   onClearFilters,
   onDelete,
+  renderSidePanel,
 }: {
   /** null until the first page has loaded. */
   applications: JobApplication[] | null;
@@ -213,6 +214,8 @@ export function CompanyWall({
   onClearFilters(): void;
   /** Asks to move an application to Recently deleted; resolves true when it was. */
   onDelete(application: JobApplication): Promise<boolean>;
+  /** Workspace shown beside an application's details (the résumé tailor). */
+  renderSidePanel?(application: JobApplication, canEdit: boolean): ReactNode;
 }) {
   const [selected, setSelected] = useState<JobApplication | null>(null);
   const opener = useRef<HTMLElement | null>(null);
@@ -306,6 +309,11 @@ export function CompanyWall({
         canDelete={selected ? canDeleteApplication(selected, userId, canModerate) : false}
         onClose={close}
         onDelete={onDelete}
+        sidePanel={
+          selected && renderSidePanel
+            ? renderSidePanel(selected, canEditApplication(selected, userId))
+            : undefined
+        }
       />
     </MotionConfig>
   );

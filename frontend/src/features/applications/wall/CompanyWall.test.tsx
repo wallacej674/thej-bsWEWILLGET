@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
@@ -166,5 +166,21 @@ describe("CompanyWall", () => {
     renderWall({ applications: null, pagination: null, loading: true });
 
     expect(screen.getByLabelText("Loading applications")).toBeInTheDocument();
+  });
+
+  it("shows the side panel beside the details, with the member's edit rights", async () => {
+    const renderSidePanel = vi.fn((application: JobApplication) => (
+      <p>Tailor for {application.company_name}</p>
+    ));
+    renderWall({ renderSidePanel });
+
+    fireEvent.click(screen.getByRole("button", { name: /^Harbor & Pine/ }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Harbor & Pine" });
+    expect(within(dialog).getByText("Tailor for Harbor & Pine")).toBeInTheDocument();
+    expect(renderSidePanel).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: "app-2" }),
+      false,
+    );
   });
 });

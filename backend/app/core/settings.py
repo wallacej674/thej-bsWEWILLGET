@@ -65,6 +65,9 @@ class Settings(BaseSettings):
     rate_limit_refresh_per_session: str = "30/minute"
     rate_limit_autofill_per_user: str = "20/minute"
     rate_limit_resume_upload_per_user: str = "10/hour"
+    rate_limit_forgot_password_per_email: str = "3/hour"
+    rate_limit_forgot_password_per_ip: str = "10/hour"
+    rate_limit_reset_password_per_ip: str = "20/hour"
     smtp_host: str = "smtp.gmail.com"
     smtp_port: int = 587
     smtp_username: str | None = None
@@ -76,6 +79,8 @@ class Settings(BaseSettings):
     frontend_base_url: str = "http://localhost:5173"
     email_verification_hours: int = 24
     email_resend_cooldown_seconds: int = 60
+    # How long an emailed password reset link works (SEC-10).
+    password_reset_minutes: int = 30
     openai_api_key: str | None = None
     openai_resume_tailor_model: str = "gpt-5.4-nano"
     openai_resume_tailor_max_input_tokens: int = 30_000

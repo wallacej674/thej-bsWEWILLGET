@@ -187,6 +187,15 @@ describe("LoginPage", () => {
     expect(screen.getByRole("link", { name: "ApplyTogether home" })).toHaveAttribute("href", "/");
   });
 
+  it("links to the forgot-password page", () => {
+    renderLoginPage();
+
+    expect(screen.getByRole("link", { name: "Forgot password?" })).toHaveAttribute(
+      "href",
+      "/forgot-password",
+    );
+  });
+
   it("links to account creation", () => {
     renderLoginPage();
 

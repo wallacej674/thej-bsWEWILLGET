@@ -236,6 +236,15 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                     </button>
                   }
                 />
+                <div className="-mt-1 flex justify-end">
+                  <Link
+                    to="/forgot-password"
+                    state={{ email }}
+                    className="rounded-sm text-[0.8rem] font-semibold text-primary transition hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
                 <motion.button
                   type="submit"
                   disabled={busy}

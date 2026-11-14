@@ -8,7 +8,7 @@ It removes:
 
 - sign-in sessions 30 days after they expired or were revoked;
 - pending registrations 7 days after they expired or were used (they hold
-  password hashes);
+  password hashes), and password reset links likewise;
 - sign-in throttle buckets idle for a day (their history is forgotten by
   then anyway) and rate-limit windows older than a day;
 - soft-deleted applications after PURGE_DELETED_APPLICATIONS_AFTER_DAYS,
@@ -32,6 +32,7 @@ from app.db.session import get_session_factory
 from app.models.application import JobApplication
 from app.models.auth_session import AuthenticationSession
 from app.models.login_throttle import LoginThrottleBucket
+from app.models.password_reset import PasswordResetToken
 from app.models.pending_registration import PendingRegistration
 from app.models.rate_limit import RateLimitCounter
 
@@ -81,6 +82,15 @@ def purge(session: Session, now: datetime | None = None) -> dict[str, int]:
                         LoginThrottleBucket.locked_until.is_(None),
                         LoginThrottleBucket.locked_until < now,
                     ),
+                )
+            ),
+        ),
+        "password_reset_tokens": _count(
+            session,
+            delete(PasswordResetToken).where(
+                or_(
+                    PasswordResetToken.expires_at < registration_cutoff,
+                    PasswordResetToken.consumed_at < registration_cutoff,
                 )
             ),
         ),

@@ -11,6 +11,7 @@ function renderAt(path: string) {
         onLogin={vi.fn(() => Promise.resolve())}
         onSignup={vi.fn(() => Promise.resolve({ message: "ok" }))}
         onResend={vi.fn(() => Promise.resolve({ message: "ok" }))}
+        onRequestReset={vi.fn(() => Promise.resolve({ message: "ok" }))}
       />
     </MemoryRouter>,
   );

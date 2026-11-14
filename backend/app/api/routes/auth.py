@@ -21,9 +21,13 @@ from app.core.security_events import email_hash, security_event
 from app.core.settings import get_settings
 from app.schemas.auth import (
     ChangePasswordRequest,
+    ForgotPasswordRequest,
+    ForgotPasswordResponse,
     LoginRequest,
     ResendVerificationRequest,
     ResendVerificationResponse,
+    ResetPasswordRequest,
+    ResetPasswordResponse,
     SignupRequest,
     SignupResponse,
     VerifyEmailRequest,
@@ -38,6 +42,10 @@ from app.services.auth_service import (
 )
 from app.services.email_delivery import EmailDeliveryError, EmailSender
 from app.services.login_throttle import LoginThrottledError
+from app.services.password_reset_service import (
+    InvalidResetTokenError,
+    PasswordResetService,
+)
 from app.services.rate_limit import enforce
 from app.services.registration_service import (
     InvalidVerificationTokenError,
@@ -48,6 +56,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 authentication_service = AuthenticationService()
 registration_service = RegistrationService()
+password_reset_service = PasswordResetService()
 
 
 def _set_auth_cookies(
@@ -260,6 +269,75 @@ def resend_verification(
             "The verification email could not be sent. Try again.",
         ) from error
     return ResendVerificationResponse()
+
+
+@router.post(
+    "/forgot-password",
+    response_model=ForgotPasswordResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def forgot_password(
+    payload: ForgotPasswordRequest,
+    request: Request,
+    session: DatabaseSession,
+    email_sender: EmailSenderDependency,
+) -> ForgotPasswordResponse:
+    """Email a reset link if the account exists; always answers the same."""
+    settings = get_settings()
+    enforce(
+        session,
+        "forgot-password-ip",
+        client_ip(request),
+        settings.rate_limit_forgot_password_per_ip,
+    )
+    enforce(
+        session,
+        "forgot-password-email",
+        payload.email,
+        settings.rate_limit_forgot_password_per_email,
+    )
+    sent = password_reset_service.request_reset(session, payload.email, email_sender)
+    security_event(
+        "auth.password_reset_requested",
+        "sent" if sent else "not_sent",
+        email_hash=email_hash(payload.email),
+    )
+    return ForgotPasswordResponse()
+
+
+@router.post("/reset-password", response_model=ResetPasswordResponse)
+def reset_password(
+    payload: ResetPasswordRequest,
+    request: Request,
+    session: DatabaseSession,
+    email_sender: EmailSenderDependency,
+) -> ResetPasswordResponse:
+    enforce(
+        session,
+        "reset-password-ip",
+        client_ip(request),
+        get_settings().rate_limit_reset_password_per_ip,
+    )
+    try:
+        user = password_reset_service.reset(session, payload.token, payload.password)
+    except InvalidResetTokenError as error:
+        session.rollback()
+        security_event("auth.password_reset", "failure", level=logging.WARNING)
+        raise AppError(
+            400,
+            "reset_link_invalid",
+            "This reset link is invalid or has expired. Ask for a new one.",
+        ) from error
+    except PasswordPolicyError as error:
+        session.rollback()
+        raise AppError(422, "password_policy_failed", str(error)) from error
+
+    security_event("auth.password_reset", "success", user_id=user.id)
+    try:
+        email_sender.send_password_changed_notice(recipient=user.email)
+    except EmailDeliveryError:
+        logger.warning("Could not send the password changed notice.")
+    return ResetPasswordResponse()
 
 
 @router.post("/refresh", status_code=status.HTTP_204_NO_CONTENT)

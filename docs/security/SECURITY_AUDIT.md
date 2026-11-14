@@ -36,7 +36,7 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 | SEC-07 | AI tailor cost quota and prompt-injection hardening | Medium | D · Uploads & AI | S | Open |
 | SEC-08 | Security event logging and alerting | Medium | E · Observability | M | Done |
 | SEC-09 | Logout must work with an expired access token | Medium | F · Auth flows | S | Open |
-| SEC-10 | Secure "forgot password" flow | Medium | F · Auth flows | M | Open |
+| SEC-10 | Secure "forgot password" flow | Medium | F · Auth flows | M | Done |
 | SEC-11 | Verification email content injection and email bombing | Medium | F · Auth flows | S | Open |
 | SEC-12 | Least-privilege database roles, TLS and timeouts | Medium | G · Database | M | Done |
 | SEC-13 | Row-level security as tenant-isolation backstop | Low | G · Database | L | Open |
@@ -301,6 +301,9 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 **Test:** with the clock 16 minutes past login, logout returns 204, the session's `revoked_at` is set, and a later `/auth/refresh` fails.
 
 ### SEC-10 · Secure "forgot password" flow — Medium
+
+**Status: Done** on branch `sec-even-tasks`. `POST /auth/forgot-password` always answers 202 the same way and emails a single-use, 30-minute link (stored as a SHA-256 digest; asking again voids the old one). `POST /auth/reset-password` checks the link and the password policy, then resets (revoking every session and lifting throttles) and emails a notice. Both are rate-limited. New `/forgot-password` and `/reset-password` pages match the sign-in page, and sign-in links to them. Tests: `backend/tests/test_password_reset.py`, `frontend/src/features/auth/PasswordReset.test.tsx`.
+
 
 **Where:** new endpoints in `auth.py` and `registration_service.py`/`auth_service.py`, plus frontend pages under `features/auth`.
 

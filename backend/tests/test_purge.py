@@ -110,6 +110,7 @@ def test_purge_removes_only_rows_past_retention(seeded) -> None:
         "auth_sessions": 2,
         "pending_registrations": 2,
         "login_throttle_buckets": 1,
+        "password_reset_tokens": 0,
         "rate_limit_counters": 1,
         # Off unless PURGE_DELETED_APPLICATIONS_AFTER_DAYS is set.
         "deleted_applications": 0,

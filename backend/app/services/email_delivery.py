@@ -21,6 +21,10 @@ class EmailSender(Protocol):
         self, *, recipient: str, paused_minutes: int
     ) -> None: ...
 
+    def send_password_reset_email(self, *, recipient: str, token: str) -> None: ...
+
+    def send_password_changed_notice(self, *, recipient: str) -> None: ...
+
 
 class SmtpEmailSender:
     def send_verification_email(
@@ -80,6 +84,57 @@ class SmtpEmailSender:
             subtype="html",
         )
         self._deliver(settings, message, "The security notice could not be sent.")
+
+    def send_password_reset_email(self, *, recipient: str, token: str) -> None:
+        settings = self._configured_settings()
+        reset_url = (
+            f"{settings.frontend_base_url.rstrip('/')}/reset-password?token={token}"
+        )
+        minutes = settings.password_reset_minutes
+        message = self._message(
+            settings, recipient, "Reset your ApplyTogether password"
+        )
+        message.set_content(
+            "Someone asked to reset the password for your ApplyTogether account.\n\n"
+            f"Choose a new password here (the link works once, for {minutes} "
+            f"minutes):\n{reset_url}\n\n"
+            "If you didn't ask for this, ignore this email; your password stays "
+            "the same."
+        )
+        message.add_alternative(
+            "<html><body>"
+            "<p>Someone asked to reset the password for your ApplyTogether "
+            "account.</p>"
+            f'<p><a href="{escape(reset_url, quote=True)}">Choose a new password</a>'
+            f" (works once, for {minutes} minutes).</p>"
+            "<p>If you didn't ask for this, ignore this email; your password "
+            "stays the same.</p>"
+            "</body></html>",
+            subtype="html",
+        )
+        self._deliver(settings, message, "The password reset email could not be sent.")
+
+    def send_password_changed_notice(self, *, recipient: str) -> None:
+        settings = self._configured_settings()
+        lines = [
+            "The password for your ApplyTogether account was just changed, and "
+            "every device was signed out.",
+            "If this was you, there's nothing else to do. If it wasn't, reset "
+            "your password straight away from the sign-in page.",
+        ]
+        message = self._message(
+            settings, recipient, "Your ApplyTogether password was changed"
+        )
+        message.set_content("\n\n".join(lines))
+        message.add_alternative(
+            "<html><body>"
+            + "".join(f"<p>{escape(line)}</p>" for line in lines)
+            + "</body></html>",
+            subtype="html",
+        )
+        self._deliver(
+            settings, message, "The password change notice could not be sent."
+        )
 
     @staticmethod
     def _configured_settings() -> Settings:

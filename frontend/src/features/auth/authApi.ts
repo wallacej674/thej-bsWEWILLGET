@@ -41,6 +41,11 @@ export interface SignupInput {
   workspaceName: string;
 }
 
+export interface ResetPasswordInput {
+  token: string;
+  password: string;
+}
+
 export interface MessageResponse {
   message: string;
 }
@@ -94,6 +99,18 @@ export const authApi = {
         includeCsrf: false,
         retryOnUnauthorized: false,
       },
+    ),
+  requestPasswordReset: (client: AuthClient, email: string) =>
+    client.post<MessageResponse>(
+      "/auth/forgot-password",
+      { email },
+      { includeCsrf: false, retryOnUnauthorized: false },
+    ),
+  resetPassword: (client: AuthClient, input: ResetPasswordInput) =>
+    client.post<{ status: string }>(
+      "/auth/reset-password",
+      { token: input.token, password: input.password },
+      { includeCsrf: false, retryOnUnauthorized: false },
     ),
   logout: (client: AuthClient) =>
     client.post<void>("/auth/logout", undefined, {

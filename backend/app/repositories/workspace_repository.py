@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.enums import MembershipRole
@@ -14,7 +14,7 @@ class WorkspaceRepository:
     def list_active_for_user(
         self, session: Session, user_id: UUID
     ) -> list[tuple[Workspace, WorkspaceMembership]]:
-        statement: Select[tuple[Workspace, WorkspaceMembership]] = (
+        statement = (
             select(Workspace, WorkspaceMembership)
             .join(
                 WorkspaceMembership,
@@ -101,7 +101,7 @@ class WorkspaceRepository:
                 if search_emails
                 else User.display_name.icontains(search, autoescape=True)
             )
-        statement: Select[tuple[WorkspaceMembership, User]] = (
+        statement = (
             select(WorkspaceMembership, User)
             .join(User, User.id == WorkspaceMembership.user_id)
             .where(*filters)
@@ -200,7 +200,7 @@ class WorkspaceRepository:
     def list_inbox_invitations(
         self, session: Session, email: str
     ) -> list[tuple[WorkspaceInvitation, Workspace, User]]:
-        statement: Select[tuple[WorkspaceInvitation, Workspace, User]] = (
+        statement = (
             select(WorkspaceInvitation, Workspace, User)
             .join(Workspace, Workspace.id == WorkspaceInvitation.workspace_id)
             .join(User, User.id == WorkspaceInvitation.invited_by_user_id)

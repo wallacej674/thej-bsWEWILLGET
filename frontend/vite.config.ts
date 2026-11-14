@@ -32,6 +32,8 @@ export default defineConfig({
   },
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
+  // Keep fonts as same-origin files for the production font-src policy.
+  build: { assetsInlineLimit: (file) => /\.woff2?$/.test(file) ? false : undefined },
   assetsInclude: ['**/*.svg', '**/*.csv'],
   test: {
     environment: 'jsdom',

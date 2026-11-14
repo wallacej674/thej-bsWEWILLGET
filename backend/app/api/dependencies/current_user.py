@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Annotated
 from uuid import UUID
 
@@ -5,14 +6,17 @@ from authx.exceptions import AuthXException, CSRFError, TokenExpiredError
 from authx.schema import TokenPayload
 from fastapi import Depends, Header, Request
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from app.core.auth import get_authx
 from app.core.errors import AppError
 from app.core.settings import get_settings
 from app.core.time import utc_now
+from app.db.row_security import set_workspace_actor
 from app.db.session import get_db
 from app.models.auth_session import AuthenticationSession
 from app.models.user import User
+from app.services.account_data import lock_active_user
 
 DatabaseSession = Annotated[Session, Depends(get_db)]
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
@@ -30,7 +34,15 @@ def _session_id(payload: TokenPayload) -> UUID:
         ) from error
 
 
-async def _cookie_user(request: Request, session: Session) -> User:
+@dataclass(frozen=True)
+class CookieIdentity:
+    user: User
+    auth_session: AuthenticationSession
+
+
+async def require_cookie_identity(
+    request: Request, session: DatabaseSession
+) -> CookieIdentity:
     authx = get_authx()
     try:
         token = await authx.get_access_token_from_request(request)
@@ -71,7 +83,19 @@ async def _cookie_user(request: Request, session: Session) -> User:
     user = session.get(User, user_id)
     if user is None or not user.is_active:
         raise AppError(401, "authentication_required", "Authentication is required.")
-    return user
+    if request.method in UNSAFE_METHODS:
+        user = await run_in_threadpool(lock_active_user, session, user.id)
+        await run_in_threadpool(session.refresh, authentication_session)
+        if (
+            authentication_session.revoked_at is not None
+            or authentication_session.expires_at <= utc_now()
+        ):
+            raise AppError(401, "session_revoked", "Authentication is required.")
+    set_workspace_actor(session, user.id)
+    return CookieIdentity(user, authentication_session)
+
+
+CurrentCookieIdentity = Annotated[CookieIdentity, Depends(require_cookie_identity)]
 
 
 LOCAL_CLIENTS = {"127.0.0.1", "::1", "localhost"}
@@ -116,8 +140,12 @@ async def get_current_user(
     """Resolve cookie identity first, then an explicitly-enabled dev fallback."""
     access_cookie_name = get_authx().config.JWT_ACCESS_COOKIE_NAME
     if access_cookie_name in request.cookies:
-        return await _cookie_user(request, session)
-    return _development_header_user(request, session, user_id_header)
+        return (await require_cookie_identity(request, session)).user
+    user = _development_header_user(request, session, user_id_header)
+    if request.method in UNSAFE_METHODS:
+        user = await run_in_threadpool(lock_active_user, session, user.id)
+    set_workspace_actor(session, user.id)
+    return user
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]

@@ -1,10 +1,24 @@
-from collections.abc import Callable
+import asyncio
+import gzip
+import ipaddress
+import socket
+import zlib
+from collections.abc import AsyncIterator, Callable
 
+import httpx
 import pytest
 
 from app.api.routes import applications
 from app.models.user import User
-from app.services.job_posting_autofill_service import JobPostingAutofillService
+from app.services import job_posting_autofill_service as autofill
+from app.services.job_posting_autofill_service import (
+    MAX_FETCH_BYTES,
+    JobPostingAutofillService,
+)
+
+PUBLIC_IP = "93.184.216.34"
+OTHER_PUBLIC_IP = "2606:4700::1111"
+PUBLIC_URL = "https://jobs.example.test/openings/old"
 
 
 @pytest.fixture(autouse=True)
@@ -443,3 +457,316 @@ def test_autofill_does_not_create_an_application(
     )
     assert list_response.status_code == 200
     assert list_response.json()["items"] == []
+
+
+class RecordingStream(httpx.AsyncByteStream):
+    def __init__(self, *chunks: bytes) -> None:
+        self.chunks = chunks
+        self.read_count = 0
+        self.closed = False
+
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+        for chunk in self.chunks:
+            self.read_count += 1
+            yield chunk
+
+    async def aclose(self) -> None:
+        self.closed = True
+
+
+@pytest.fixture
+def mock_fetch_network(monkeypatch):
+    def install(
+        handler: Callable[[httpx.Request], httpx.Response],
+        resolve: Callable[[str], list[str]] | None = None,
+    ) -> tuple[list[str], list[httpx.Request]]:
+        lookups: list[str] = []
+        requests: list[httpx.Request] = []
+
+        def getaddrinfo(
+            host: str, port: int, _family: int, type: int, _proto: int, _flags: int
+        ) -> list[tuple]:
+            lookups.append(host)
+            addresses = resolve(host) if resolve is not None else [PUBLIC_IP]
+            return [
+                (socket.AF_INET6, type, socket.IPPROTO_TCP, "", (address, port, 0, 0))
+                if ipaddress.ip_address(address).version == 6
+                else (socket.AF_INET, type, socket.IPPROTO_TCP, "", (address, port))
+                for address in addresses
+            ]
+
+        async def send(_transport: object, request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return handler(request)
+
+        monkeypatch.setattr(socket, "getaddrinfo", getaddrinfo)
+        monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", send)
+        return lookups, requests
+
+    return install
+
+
+@pytest.fixture
+def autofill_request(api_client, active_member, shared_workspace):
+    def post(url: str = PUBLIC_URL) -> httpx.Response:
+        return api_client.post(
+            f"/api/v1/workspaces/{shared_workspace.id}/applications/autofill",
+            headers={"X-User-Id": str(active_member.id)},
+            json={"job_posting_url": url},
+        )
+
+    return post
+
+
+@pytest.mark.parametrize(
+    "host",
+    ["127.0.0.1", "169.254.169.254", "10.0.0.1", "100.64.0.1", "redirect.example.test"],
+)
+def test_autofill_blocks_private_redirect_before_connecting(
+    host, autofill_request, mock_fetch_network
+) -> None:
+    redirect_body = RecordingStream(b"unused")
+    lookups, requests = mock_fetch_network(
+        lambda _request: httpx.Response(
+            302, headers={"location": f"http://{host}/internal"}, stream=redirect_body
+        ),
+        lambda name: ["10.0.0.1"] if name == "redirect.example.test" else [PUBLIC_IP],
+    )
+
+    response = autofill_request()
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "job_posting_url_not_allowed"
+    assert lookups[0] == "jobs.example.test"
+    assert lookups[1:] == ([host] if host == "redirect.example.test" else [])
+    assert [request.url.host for request in requests] == [PUBLIC_IP]
+    assert redirect_body.read_count == 0
+    assert redirect_body.closed
+
+
+def test_autofill_pins_connection_against_dns_rebinding(
+    autofill_request, mock_fetch_network
+) -> None:
+    answers = iter([[PUBLIC_IP], ["127.0.0.1"]])
+    lookups, requests = mock_fetch_network(
+        lambda _request: httpx.Response(
+            200,
+            headers={"content-type": "text/html"},
+            stream=RecordingStream(b"<html><h1>Backend Engineer</h1></html>"),
+        ),
+        lambda _host: next(answers),
+    )
+
+    assert autofill_request().status_code == 200
+    assert lookups == ["jobs.example.test"]
+    assert len(requests) == 1
+    assert requests[0].url.host == PUBLIC_IP
+    assert requests[0].headers["host"] == "jobs.example.test"
+    assert requests[0].extensions["sni_hostname"] == "jobs.example.test"
+
+
+@pytest.mark.parametrize("port", [0, 22, 6379])
+def test_autofill_blocks_disallowed_ports(
+    port, autofill_request, mock_fetch_network
+) -> None:
+    lookups, requests = mock_fetch_network(lambda _request: httpx.Response(200))
+
+    response = autofill_request(f"https://jobs.example.test:{port}/opening")
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "job_posting_url_not_allowed"
+    assert lookups == requests == []
+
+
+@pytest.mark.parametrize(
+    "private_answer",
+    [
+        "::ffff:127.0.0.1",
+        "2002:7f00:1::",
+        "2001:0:7f00:0001::ffff:fffe",
+        "64:ff9b::7f00:1",
+    ],
+)
+def test_autofill_blocks_mixed_dns_answers_with_embedded_private_addresses(
+    private_answer, autofill_request, mock_fetch_network
+) -> None:
+    _, requests = mock_fetch_network(
+        lambda _request: httpx.Response(200), lambda _host: [PUBLIC_IP, private_answer]
+    )
+
+    response = autofill_request()
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "job_posting_url_not_allowed"
+    assert requests == []
+
+
+@pytest.mark.parametrize(
+    ("encoding", "encode"),
+    [("identity", bytes), ("gzip", gzip.compress), ("deflate", zlib.compress)],
+)
+def test_autofill_aborts_oversize_body_mid_stream(
+    encoding, encode, autofill_request, mock_fetch_network
+) -> None:
+    body = b"x" * (MAX_FETCH_BYTES + 1)
+    encoded = encode(body)
+    halfway = len(encoded) // 2
+    stream = RecordingStream(encoded[:halfway], encoded[halfway:], b"unused")
+    mock_fetch_network(
+        lambda _request: httpx.Response(
+            200,
+            headers={"content-type": "text/html", "content-encoding": encoding},
+            stream=stream,
+        )
+    )
+
+    response = autofill_request()
+
+    assert response.status_code == 413
+    assert response.json()["error"]["code"] == "job_posting_response_too_large"
+    assert stream.read_count == 2
+    assert stream.closed
+
+
+@pytest.mark.parametrize(
+    ("headers", "status", "code"),
+    [
+        ({}, 415, "job_posting_content_type_unsupported"),
+        (
+            {"content-type": "text/html-extra"},
+            415,
+            "job_posting_content_type_unsupported",
+        ),
+        (
+            {"content-type": "text/html", "content-length": str(MAX_FETCH_BYTES + 1)},
+            413,
+            "job_posting_response_too_large",
+        ),
+    ],
+)
+def test_autofill_rejects_bad_headers_before_reading_body(
+    headers, status, code, autofill_request, mock_fetch_network
+) -> None:
+    stream = RecordingStream(b"unused")
+    mock_fetch_network(
+        lambda _request: httpx.Response(200, headers=headers, stream=stream)
+    )
+
+    response = autofill_request()
+
+    assert response.status_code == status
+    assert response.json()["error"]["code"] == code
+    assert stream.read_count == 0
+    assert stream.closed
+
+
+@pytest.mark.parametrize(
+    ("encoding", "encode"),
+    [
+        ("gzip", lambda body: gzip.compress(body) + gzip.compress(b"")),
+        ("deflate", zlib.compress),
+        ("deflate", lambda body: zlib.compress(body, wbits=-zlib.MAX_WBITS)),
+    ],
+)
+def test_autofill_resolves_public_redirects_against_the_original_origin(
+    encoding, encode, autofill_request, mock_fetch_network
+) -> None:
+    document = b"<html><h1>Backend Engineer</h1></html>"
+    encoded = encode(document)
+    responses = iter(
+        [
+            httpx.Response(302, headers={"location": "../new"}),
+            httpx.Response(
+                307, headers={"location": "https://careers.example.test/new"}
+            ),
+            httpx.Response(
+                200,
+                headers={
+                    "content-type": "application/xhtml+xml; charset=UTF-8",
+                    "content-encoding": encoding,
+                },
+                stream=RecordingStream(encoded[:1], encoded[1:]),
+            ),
+        ]
+    )
+    lookups, requests = mock_fetch_network(
+        lambda _request: next(responses),
+        lambda host: (
+            [OTHER_PUBLIC_IP] if host == "careers.example.test" else [PUBLIC_IP]
+        ),
+    )
+
+    response = autofill_request()
+
+    assert response.status_code == 200
+    assert response.json()["fields"]["job_title"] == "Backend Engineer"
+    assert lookups == ["jobs.example.test", "jobs.example.test", "careers.example.test"]
+    assert [request.url.host for request in requests] == [
+        PUBLIC_IP,
+        PUBLIC_IP,
+        OTHER_PUBLIC_IP,
+    ]
+    assert [request.url.path for request in requests] == [
+        "/openings/old",
+        "/new",
+        "/new",
+    ]
+    assert [request.extensions["sni_hostname"] for request in requests] == lookups
+
+
+def test_autofill_limits_redirects_to_three(
+    autofill_request, mock_fetch_network
+) -> None:
+    _, requests = mock_fetch_network(
+        lambda _request: httpx.Response(302, headers={"location": "/another"})
+    )
+
+    response = autofill_request()
+
+    assert response.status_code == 502
+    assert response.json()["error"]["code"] == "job_posting_fetch_failed"
+    assert len(requests) == 4
+
+
+def test_autofill_deadline_is_shared_across_redirects_and_body(
+    monkeypatch, autofill_request, mock_fetch_network
+) -> None:
+    scopes: list[asyncio.Timeout] = []
+    timeout = asyncio.timeout
+
+    def record_timeout(delay: float | None) -> asyncio.Timeout:
+        scope = timeout(delay)
+        if delay == autofill.FETCH_TIMEOUT_SECONDS:
+            scopes.append(scope)
+        return scope
+
+    class SlowStream(RecordingStream):
+        async def __aiter__(self) -> AsyncIterator[bytes]:
+            assert scopes[0].when() == hop_deadlines[0] == hop_deadlines[1]
+            scopes[0].reschedule(asyncio.get_running_loop().time())
+            await asyncio.sleep(0)
+            yield b"<html></html>"
+
+    stream = SlowStream()
+    monkeypatch.setattr(asyncio, "timeout", record_timeout)
+    responses = iter(
+        [
+            httpx.Response(302, headers={"location": "/another"}),
+            httpx.Response(200, headers={"content-type": "text/html"}, stream=stream),
+        ]
+    )
+    hop_deadlines: list[float | None] = []
+
+    def send(_request: httpx.Request) -> httpx.Response:
+        hop_deadlines.append(scopes[0].when())
+        return next(responses)
+
+    _, requests = mock_fetch_network(send)
+
+    response = autofill_request()
+
+    assert response.status_code == 504
+    assert response.json()["error"]["code"] == "job_posting_fetch_timeout"
+    assert len(requests) == 2
+    assert len(scopes) == 1
+    assert stream.closed

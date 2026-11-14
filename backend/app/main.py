@@ -14,6 +14,7 @@ from app.core.security_events import (
     RequestContextMiddleware,
     configure_security_logging,
 )
+from app.core.security_headers import add_security_headers
 from app.core.settings import Settings, get_settings
 
 # Headers the frontend actually sends (see frontend/src/api/client.ts).
@@ -51,8 +52,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=ALLOWED_HEADERS
         + (["X-User-Id"] if settings.dev_identity_header_enabled else []),
     )
-    # Added last so it runs first: reject unexpected Host headers outright.
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
+    app.middleware("http")(add_security_headers)
     # Outermost: every request gets an id and its origin noted for logging.
     app.add_middleware(RequestContextMiddleware)
     app.include_router(health_router)

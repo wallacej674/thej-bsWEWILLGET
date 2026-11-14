@@ -38,6 +38,15 @@ def test_the_app_role_can_use_data_but_not_change_the_schema(roles) -> None:
     connection.execute(text(f'SET LOCAL ROLE "{app_role}"'))
 
     connection.execute(text("SELECT count(*) FROM users"))
+    # RLS policy functions remain executable after provisioning the app role
+    # on a database that was migrated before that role existed.
+    connection.execute(text("SELECT count(*) FROM job_applications"))
+    assert (
+        connection.scalar(
+            text("SELECT public.applytogether_active_member_count(gen_random_uuid())")
+        )
+        == 0
+    )
     assert _denied(connection, "DROP TABLE users")
     assert _denied(connection, "ALTER TABLE users ADD COLUMN sneaky text")
     assert _denied(connection, "CREATE TABLE public.sneaky (id int)")

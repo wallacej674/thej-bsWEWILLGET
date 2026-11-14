@@ -107,18 +107,21 @@ export function createApiClient({
     if (userId) {
       headers["X-User-Id"] = userId;
     }
-    const csrfConfig = path === "/auth/refresh" ? refreshCsrf ?? csrf : csrf;
     if (
-      csrfConfig &&
       options.includeCsrf !== false &&
       ["POST", "PUT", "PATCH", "DELETE"].includes(method)
     ) {
-      const csrfToken = csrfConfig.readCookie(csrfConfig.cookieName);
-      if (csrfToken) {
-        headers[csrfConfig.headerName] = csrfToken;
+      const csrfConfigs =
+        path === "/auth/logout"
+          ? [csrf, refreshCsrf]
+          : [path === "/auth/refresh" ? refreshCsrf ?? csrf : csrf];
+      for (const config of csrfConfigs) {
+        const token = config?.readCookie(config.cookieName);
+        if (config && token) headers[config.headerName] = token;
       }
     }
-  if (options.body !== undefined) {
+
+    if (options.body !== undefined) {
       if (!(options.body instanceof FormData)) {
         headers["Content-Type"] = "application/json";
       }
@@ -230,7 +233,7 @@ export function createApiClient({
       request<T>("POST", path, { body, ...behavior }),
     patch: <T>(path: string, body: unknown) =>
       request<T>("PATCH", path, { body }),
-    delete: (path: string) => request<void>("DELETE", path),
+    delete: (path: string, body?: unknown) => request<void>("DELETE", path, { body }),
     login: (credentials: { email: string; password: string }) =>
       request<void>("POST", "/auth/login", {
         body: credentials,

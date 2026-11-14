@@ -11,15 +11,7 @@
       <!-- One-time tokens appear in some URLs; never send them on as a Referer. -->
       <meta name="referrer" content="no-referrer" />
       <style>html, body { height: 100%; margin: 0; } #root { height: 100%; }</style>
-      <script>
-        // Apply the saved colour mode before first paint (see app/theme/themeStore.ts).
-        try {
-          if (localStorage.getItem("applytogether-theme") === "dark") {
-            document.documentElement.classList.add("dark");
-            document.documentElement.style.colorScheme = "dark";
-          }
-        } catch (error) {}
-      </script>
+      <script src="%BASE_URL%theme-init.js"></script>
       
     </head>
 

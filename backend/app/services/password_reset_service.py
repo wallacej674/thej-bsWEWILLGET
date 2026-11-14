@@ -44,7 +44,9 @@ class PasswordResetService:
     ) -> bool:
         """Email a reset link if the account exists. True when one was sent."""
         user = session.scalar(
-            select(User).where(func.lower(User.email) == normalize_email(email))
+            select(User)
+            .where(func.lower(User.email) == normalize_email(email))
+            .with_for_update()
         )
         if user is None or not user.is_active or user.password_hash is None:
             return False
@@ -70,16 +72,21 @@ class PasswordResetService:
 
     def reset(self, session: Session, token: str, new_password: str) -> User:
         """Set a new password from a reset link; raises on a bad link."""
+        digest = _digest(token)
+        user_id = session.scalar(
+            select(PasswordResetToken.user_id).where(
+                PasswordResetToken.token_digest == digest
+            )
+        )
+        user = session.scalar(select(User).where(User.id == user_id).with_for_update())
+        if user is None or not user.is_active:
+            raise InvalidResetTokenError
+        # Lock the user before touching reset records, as account deletion does.
         record = session.scalar(
-            select(PasswordResetToken)
-            .where(PasswordResetToken.token_digest == _digest(token))
-            .with_for_update()
+            select(PasswordResetToken).where(PasswordResetToken.token_digest == digest)
         )
         now = utc_now()
         if record is None or record.consumed_at is not None or record.expires_at <= now:
-            raise InvalidResetTokenError
-        user = session.get(User, record.user_id)
-        if user is None or not user.is_active:
             raise InvalidResetTokenError
 
         # Raises PasswordPolicyError before anything changes.

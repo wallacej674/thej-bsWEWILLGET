@@ -71,10 +71,6 @@ function isUnauthorized(error: unknown): boolean {
   );
 }
 
-function missingWorkspaceError(): Error {
-  return new Error("Your account does not have an accessible workspace.");
-}
-
 export function AuthProvider({ client, children }: AuthProviderProps) {
   const [state, setState] = useState<AuthState>({ status: "initializing" });
   const restoreSequence = useRef(0);
@@ -96,9 +92,6 @@ export function AuthProvider({ client, children }: AuthProviderProps) {
       const workspaces = await authApi.workspaces(client);
       const workspace = workspaces.items[0];
 
-      if (!workspace) {
-        throw missingWorkspaceError();
-      }
       if (sequence !== restoreSequence.current) return;
 
       setState({ status: "authenticated", user, workspace });

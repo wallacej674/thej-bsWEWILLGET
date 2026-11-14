@@ -7,6 +7,7 @@ import { Link } from "react-router";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { AnimatePresence, MotionConfig, motion, useAnimate, useReducedMotion } from "motion/react";
 
+import { SignupChallenge } from "./SignupChallenge";
 import { ThemeToggle } from "../../app/theme/ThemeToggle";
 import logoUrl from "../../assets/applytogether-logo.png";
 import { EASE_OUT } from "../dashboard/dashboardStyles";
@@ -44,6 +45,7 @@ interface SignupPageProps {
 const RESEND_COOLDOWN_SECONDS = 60;
 const SHAKE = { x: [0, -10, 9, -7, 5, -2, 0] };
 const LAST_STEP = SIGNUP_STEPS.length - 1;
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY;
 
 function errorCode(error: unknown): string | undefined {
   if (typeof error === "object" && error !== null && "code" in error) {
@@ -123,6 +125,7 @@ export function SignupPage({ onSignup, onResend }: SignupPageProps) {
   // The field to focus when a step mounts; none on first load.
   const [focusTarget, setFocusTarget] = useState<SignupFieldName | null>(null);
   const [pending, setPending] = useState(false);
+  const [challengeToken, setChallengeToken] = useState<string>();
   const [submittedEmail, setSubmittedEmail] = useState<string>();
   const [deliveryFailed, setDeliveryFailed] = useState(false);
   const [resendPending, setResendPending] = useState(false);
@@ -165,6 +168,7 @@ export function SignupPage({ onSignup, onResend }: SignupPageProps) {
         email,
         password: fields.password,
         workspaceName: fields.workspaceName.trim(),
+        ...(challengeToken ? { challengeToken } : {}),
       });
       setSubmittedEmail(email);
       setResendSeconds(RESEND_COOLDOWN_SECONDS);
@@ -181,7 +185,13 @@ export function SignupPage({ onSignup, onResend }: SignupPageProps) {
         goTo(1, "password");
         shake();
       } else {
-        setErrors({ email: "The account could not be created. Check the form and try again." });
+        const code = errorCode(error);
+        const message = code === "rate_limited"
+          ? "Too many verification requests. Try again later."
+          : code === "signup_challenge_failed" || code === "signup_challenge_unavailable"
+            ? "The security check could not be verified. Please try again."
+            : "The account could not be created. Check the form and try again.";
+        setErrors({ email: message });
         goTo(0, "email");
         shake();
       }
@@ -217,7 +227,7 @@ export function SignupPage({ onSignup, onResend }: SignupPageProps) {
       shake();
       return;
     }
-    void create();
+    if (!TURNSTILE_SITE_KEY || challengeToken) void create();
   };
 
   const resend = async () => {
@@ -256,7 +266,7 @@ export function SignupPage({ onSignup, onResend }: SignupPageProps) {
 
   return (
     <MotionConfig reducedMotion="user">
-      <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground [font-family:'Space_Grotesk',system-ui,sans-serif]">
+      <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground font-display">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 [background:radial-gradient(60%_42%_at_50%_0%,color-mix(in_srgb,var(--primary)_12%,transparent),transparent_72%)]"
@@ -396,6 +406,9 @@ export function SignupPage({ onSignup, onResend }: SignupPageProps) {
                         {formError}
                       </p>
                     ) : null}
+                    {step === LAST_STEP && TURNSTILE_SITE_KEY && (
+                      <SignupChallenge siteKey={TURNSTILE_SITE_KEY} onToken={setChallengeToken} />
+                    )}
                     <div className="mt-7 flex items-center gap-3">
                       {step > 0 ? (
                         <button
@@ -409,7 +422,7 @@ export function SignupPage({ onSignup, onResend }: SignupPageProps) {
                       ) : null}
                       <button
                         type="submit"
-                        disabled={pending}
+                        disabled={pending || Boolean(step === LAST_STEP && TURNSTILE_SITE_KEY && !challengeToken)}
                         className="group inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-[0.95rem] font-semibold text-primary-foreground shadow-[0_8px_24px_-10px_color-mix(in_srgb,var(--primary)_70%,transparent)] transition hover:bg-primary/90 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:cursor-progress disabled:opacity-80"
                       >
                         {step < LAST_STEP ? (

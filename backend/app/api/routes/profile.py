@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, File, Response, UploadFile, status
+from starlette.concurrency import run_in_threadpool
 
 from app.api.dependencies.current_user import CurrentUser, DatabaseSession
 from app.core.errors import AppError
@@ -26,14 +27,16 @@ async def upload_resume(
     session: DatabaseSession,
     file: Annotated[UploadFile, File()],
 ) -> ResumeProfileResponse:
-    enforce(
+    await run_in_threadpool(
+        enforce,
         session,
         "resume-upload-user",
         str(current_user.id),
         get_settings().rate_limit_resume_upload_per_user,
     )
     data = await _read_capped(file, MAX_RESUME_BYTES)
-    return resume_service.upload_resume(
+    return await run_in_threadpool(
+        resume_service.upload_resume,
         session,
         current_user,
         filename=file.filename or "resume.pdf",

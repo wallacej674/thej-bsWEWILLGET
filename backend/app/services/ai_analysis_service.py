@@ -17,7 +17,9 @@ from app.schemas.ai_analysis import (
     ResumeTailorAnalysisResponse,
     ResumeTailorResult,
 )
-from app.services.ai_provider import AiProvider
+from app.services.account_data import lock_active_user
+from app.services.ai_provider import AiProvider, UnconfiguredAiProvider
+from app.services.ai_quota import reserve_ai_request
 
 PROMPT_VERSION = "resume-tailor-v1"
 
@@ -102,6 +104,9 @@ class AiAnalysisService:
             resume_text=resume.extracted_text,
             ats_warnings=resume.parser_warnings,
         )
+        if not isinstance(provider, UnconfiguredAiProvider):
+            lock_active_user(session, current_user.id)
+            reserve_ai_request(session, current_user.id, workspace_id)
         raw_result = provider.tailor_resume(prompt)
         try:
             result = ResumeTailorResult.model_validate(raw_result)
@@ -112,6 +117,7 @@ class AiAnalysisService:
                 "The AI provider returned an invalid response.",
             ) from error
 
+        lock_active_user(session, current_user.id)
         analysis = self._analyses.get_resume_tailor_analysis(
             session, application.id, current_user.id, PROMPT_VERSION
         )

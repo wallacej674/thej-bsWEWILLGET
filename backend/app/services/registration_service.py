@@ -13,12 +13,14 @@ from app.core.enums import MembershipRole
 from app.core.passwords import hash_password, validate_password
 from app.core.settings import get_settings
 from app.core.time import utc_now
+from app.db.row_security import allow_workspace_bootstrap, set_workspace_actor
 from app.models.membership import WorkspaceMembership
 from app.models.pending_registration import PendingRegistration
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.schemas.auth import SignupRequest
 from app.services.email_delivery import EmailDeliveryError, EmailSender
+from app.services.signup_abuse import reserve_verification_delivery
 
 
 def _token_digest(token: str) -> str:
@@ -41,13 +43,15 @@ class RegistrationService:
             return
 
         existing = session.scalar(
-            select(PendingRegistration).where(
-                PendingRegistration.email == payload.email
-            )
+            select(PendingRegistration)
+            .where(PendingRegistration.email == payload.email)
+            .with_for_update()
         )
         if existing is not None and existing.expires_at > now:
             return
 
+        if not reserve_verification_delivery(session, payload.email):
+            return
         token = secrets.token_urlsafe(32)
         settings = get_settings()
         if existing is None:
@@ -106,6 +110,8 @@ class RegistrationService:
         ):
             return
 
+        if not reserve_verification_delivery(session, email):
+            return
         token = secrets.token_urlsafe(32)
         registration.token_digest = _token_digest(token)
         registration.expires_at = now + timedelta(
@@ -163,6 +169,8 @@ class RegistrationService:
         workspace = Workspace(name=registration.workspace_name)
         session.add(workspace)
         session.flush()
+        set_workspace_actor(session, user.id)
+        allow_workspace_bootstrap(session, workspace.id)
         session.add(
             WorkspaceMembership(
                 workspace_id=workspace.id,

@@ -5,6 +5,8 @@ def test_current_user_returns_safe_profile(api_client, active_member) -> None:
     )
 
     assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["x-frame-options"] == "DENY"
     assert response.json() == {
         "id": str(active_member.id),
         "display_name": "Jonathan",

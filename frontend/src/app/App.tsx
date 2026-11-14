@@ -101,6 +101,8 @@ import {
   type DevelopmentIdentity,
 } from "../features/session/identity";
 import logoUrl from "../assets/applytogether-logo.png";
+import { PrivacyPage } from "../features/privacy/PrivacyPage";
+import { AccountData } from "../features/profile/AccountData";
 
 interface SessionState {
   user: CurrentUser;
@@ -2607,7 +2609,7 @@ export function LegacyDevelopmentIdentityApp() {
   const client = useMemo(
     () =>
       createApiClient({
-        baseUrl: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000",
+        baseUrl: import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.PROD ? "/api" : "http://localhost:8000"),
         developmentIdentity: { enabled: true, getUserId: () => selectedUserId },
       }),
     [selectedUserId],
@@ -2739,11 +2741,13 @@ function AuthenticatedApp({
   const auth = useAuth();
   const location = useLocation();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>();
 
   const refreshWorkspaces = useCallback(async () => {
     const response = await authApi.workspaces(client);
     setWorkspaces(response.items);
+    setWorkspacesLoaded(true);
     return response.items;
   }, [client]);
 
@@ -2754,6 +2758,7 @@ function AuthenticatedApp({
   useEffect(() => {
     if (auth.status !== "authenticated" || !auth.workspace) {
       setWorkspaces([]);
+      setWorkspacesLoaded(false);
       setActiveWorkspaceId(undefined);
       return;
     }
@@ -2771,6 +2776,7 @@ function AuthenticatedApp({
   if (location.pathname === "/reset-password") {
     return <ResetPasswordPage onReset={auth.resetPassword} />;
   }
+  if (location.pathname === "/privacy") return <PrivacyPage />;
 
   if (location.pathname === "/verify-email") {
     return (
@@ -2810,6 +2816,19 @@ function AuthenticatedApp({
         onResend={auth.resendVerification}
         onRequestReset={auth.requestPasswordReset}
       />
+    );
+  }
+
+  if (auth.user && (!auth.workspace || (workspacesLoaded && workspaces.length === 0))) {
+    return (
+      <main className="mx-auto max-w-2xl space-y-4 p-6">
+        <h1 className="font-display text-3xl font-semibold">Your account</h1>
+        <p>You do not have an active workspace.</p>
+        <AccountData client={client} onDeleted={auth.logout} />
+        <button className="text-primary underline" type="button" onClick={() => void auth.logout()}>
+          Sign out
+        </button>
+      </main>
     );
   }
 
@@ -2874,7 +2893,7 @@ function SecureIntegratedApp() {
   const client = useMemo(
     () =>
       createApiClient({
-        baseUrl: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000",
+        baseUrl: import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.PROD ? "/api" : "http://localhost:8000"),
         csrf: {
           cookieName: import.meta.env.VITE_CSRF_COOKIE_NAME ?? "applytogether_csrf",
           headerName: import.meta.env.VITE_CSRF_HEADER_NAME ?? "X-CSRF-Token",

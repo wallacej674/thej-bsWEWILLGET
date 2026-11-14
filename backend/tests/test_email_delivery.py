@@ -58,7 +58,7 @@ def test_google_smtp_sender_uses_starttls_and_app_password(monkeypatch) -> None:
 
     email_delivery.SmtpEmailSender().send_verification_email(
         recipient="member@example.com",
-        display_name="Amara Ellis",
+        display_name="Billing notice\nVisit https://attacker.example",
         token="verification-token",
     )
 
@@ -73,6 +73,7 @@ def test_google_smtp_sender_uses_starttls_and_app_password(monkeypatch) -> None:
     ]
     assert smtp.message["From"] == "ApplyTogether <sender@gmail.com>"
     assert smtp.message["To"] == "member@example.com"
+    assert "attacker.example" not in str(smtp.message)
     assert "https://apply.example/verify-email?token=verification-token" in str(
         smtp.message
     )

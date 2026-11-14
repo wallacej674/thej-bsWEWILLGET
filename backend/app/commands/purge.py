@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from sqlalchemy import Delete, and_, delete, or_
+from sqlalchemy import Delete, and_, create_engine, delete, or_
 from sqlalchemy.orm import Session
 
 from app.core.settings import get_settings
@@ -115,7 +115,11 @@ def purge(session: Session, now: datetime | None = None) -> dict[str, int]:
 
 
 def main() -> None:
-    session = get_session_factory()()
+    migration_url = get_settings().migration_database_url
+    # The optional application purge spans workspaces and uses the schema
+    # owner connection, since the API role is subject to row-level policies.
+    engine = create_engine(str(migration_url)) if migration_url else None
+    session = Session(engine) if engine is not None else get_session_factory()()
     try:
         removed = purge(session)
         session.commit()
@@ -124,6 +128,8 @@ def main() -> None:
         raise
     finally:
         session.close()
+        if engine is not None:
+            engine.dispose()
     for kind, count in removed.items():
         print(f"{kind}: {count} removed")
 

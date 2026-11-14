@@ -8,6 +8,49 @@ pagination. Milestone 3 replaces the normal development identity flow with
 secure email/password authentication. Google login remains a future enhancement
 that can link to the existing `users` records.
 
+## Production security headers
+
+The API sends HSTS, disables MIME sniffing and framing, and sends
+`Cache-Control: no-store` for authenticated and user-data responses.
+`frontend/vercel.json` sets the browser policy for the SPA. The production
+frontend uses `VITE_API_BASE_URL=/api` so all browser API calls stay on the
+same origin. Use those response headers on other static hosts and add an
+explicit `connect-src` origin if the browser calls a separately hosted API.
+
+## AI quota
+
+Résumé tailoring reserves one request against per-user and per-workspace UTC
+daily quotas and a global UTC monthly ceiling before contacting the provider.
+Set `AI_TAILOR_MONTHLY_REQUEST_LIMIT` from the monthly budget and the
+configured model's worst-case cost per request. Set it to zero to pause
+tailoring. Each request admitted to the tailoring provider counts, including
+requests the provider adapter rejects before sending and upstream failures.
+
+## Database row security
+
+Run migrations as the table owner and configure the API to connect as a
+separate DML-only role with no `BYPASSRLS`. The migration grants its five
+`applytogether_*` policy functions to the existing `applytogether_app` role.
+If you provision that role later or use a different runtime role, grant it
+`EXECUTE` on those five functions. A superuser or table owner
+bypasses these policies. Use the privileged connection for seed and migration
+commands. The API binds verified user identity to each transaction. Application
+owners can export or anonymize their own records through the account endpoints.
+
+## Verification email deployment
+
+Configure the backend `TURNSTILE_SECRET_KEY` and the frontend
+`VITE_TURNSTILE_SITE_KEY` for the public signup hostname. Use the same
+hostname in `FRONTEND_BASE_URL`. The server checks the signup action and
+hostname before creating a registration. Signup and resend share hourly
+request budgets by client IP and delivery budgets by recipient domain. Configure
+forwarded-address trust at the API server for known ingress proxies only. Session
+prefixes and signup limits both use the resulting client address.
+
+Before enabling production signup, check that SPF authorizes the SMTP provider,
+DKIM signatures pass, and the sending domain aligns with the From address under
+DMARC. Inspect a test delivery's authentication results.
+
 ## Authentication
 
 The backend uses AuthX 1.7 for short-lived access JWTs, longer-lived rotating
@@ -167,7 +210,8 @@ Before going live, also check:
 - **Restore drill.** Restore a backup to a scratch database at least once a
   quarter and run `python -m alembic current` against it.
 - **Network.** Only the API's hosts may reach the database port.
-- **Retention.** Schedule `python -m app.commands.purge` to run daily. It
+- **Retention.** Schedule `python -m app.commands.purge` to run daily with
+  `MIGRATION_DATABASE_URL` so it can purge across workspaces. It
   deletes expired sessions, stale pending registrations (which hold password
   hashes), and old throttle and rate-limit rows. Soft-deleted applications are
   only erased if `PURGE_DELETED_APPLICATIONS_AFTER_DAYS` is set.

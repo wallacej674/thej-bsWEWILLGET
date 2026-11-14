@@ -39,6 +39,7 @@ export interface SignupInput {
   email: string;
   password: string;
   workspaceName: string;
+  challengeToken?: string;
 }
 
 export interface ResetPasswordInput {
@@ -76,6 +77,7 @@ export const authApi = {
         email: input.email,
         password: input.password,
         workspace_name: input.workspaceName,
+        ...(input.challengeToken ? { challenge_token: input.challengeToken } : {}),
       },
       {
         includeCsrf: false,

@@ -28,6 +28,13 @@ from sqlalchemy import Connection, create_engine, text
 DEFAULT_MIGRATOR = "applytogether_migrator"
 DEFAULT_APP = "applytogether_app"
 APP_TABLE_PRIVILEGES = "SELECT, INSERT, UPDATE, DELETE"
+RLS_FUNCTIONS = (
+    ("applytogether_workspace_actor", ""),
+    ("applytogether_workspace_role", "uuid"),
+    ("applytogether_invitee", "text"),
+    ("applytogether_can_join", "uuid"),
+    ("applytogether_active_member_count", "uuid"),
+)
 
 
 def _role_exists(connection: Connection, role: str) -> bool:
@@ -104,6 +111,23 @@ def apply_roles(
     ]
     for grant in statements:
         _run(connection, grant)
+    # When roles are provisioned after the RLS migration, the definer
+    # functions must follow the tables to the new owner.
+    for name, arguments in RLS_FUNCTIONS:
+        if connection.scalar(
+            text("SELECT to_regprocedure(:signature) IS NOT NULL"),
+            {"signature": f"public.{name}({arguments})"},
+        ):
+            function = sql.SQL("public.{}({})").format(
+                sql.Identifier(name), sql.SQL(arguments)
+            )
+            _run(
+                connection, sql.SQL("ALTER FUNCTION {} OWNER TO {}").format(function, m)
+            )
+            _run(
+                connection,
+                sql.SQL("GRANT EXECUTE ON FUNCTION {} TO {}").format(function, a),
+            )
     # Only migrations may move the schema version.
     if connection.execute(
         text("SELECT to_regclass('public.alembic_version')")

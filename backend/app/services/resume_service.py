@@ -1,7 +1,7 @@
+import time
 from io import BytesIO
 
 from pypdf import PdfReader
-from pypdf.errors import PdfReadError
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
@@ -13,6 +13,12 @@ from app.schemas.resume import ParserStatus, ResumeProfileResponse, ResumeUpload
 from app.services.account_data import lock_active_user
 
 MAX_RESUME_BYTES = 3 * 1024 * 1024
+# Limits on parsing untrusted PDFs (SEC-06): a small file can expand into a
+# lot of pages, text or CPU time.
+MAX_RESUME_PAGES = 10
+MAX_RESUME_TEXT_CHARS = 50_000
+PARSE_BUDGET_SECONDS = 5.0
+PDF_SIGNATURE = b"%PDF-"
 MIN_USEFUL_TEXT_LENGTH = 120
 REQUIRED_SECTIONS = {
     "Experience": ("experience", "employment", "work history"),
@@ -79,10 +85,31 @@ class ResumeService:
             session.commit()
 
     def extract_pdf_text(self, data: bytes) -> ResumeUploadResult:
+        limits: list[str] = []
         try:
             reader = PdfReader(BytesIO(data))
-            text = "\n".join(page.extract_text() or "" for page in reader.pages)
-        except (PdfReadError, ValueError, TypeError, OSError) as error:
+            page_count = len(reader.pages)
+            deadline = time.monotonic() + PARSE_BUDGET_SECONDS
+            parts: list[str] = []
+            length = 0
+            for index in range(min(page_count, MAX_RESUME_PAGES)):
+                # Always read the first page; check the budget before the rest.
+                if index > 0 and time.monotonic() > deadline:
+                    limits.append(
+                        f"Stopped reading after {PARSE_BUDGET_SECONDS:g} seconds; "
+                        "later pages were skipped."
+                    )
+                    break
+                part = reader.pages[index].extract_text() or ""
+                parts.append(part)
+                length += len(part)
+                if length > MAX_RESUME_TEXT_CHARS:
+                    break
+            if page_count > MAX_RESUME_PAGES:
+                limits.append(f"Only the first {MAX_RESUME_PAGES} pages were read.")
+            text = "\n".join(parts)
+        except Exception as error:
+            # Untrusted input: any parser failure is the file's fault, not ours.
             raise AppError(
                 422,
                 "resume_parse_failed",
@@ -92,7 +119,12 @@ class ResumeService:
         normalized = "\n".join(
             line.strip() for line in text.splitlines() if line.strip()
         )
-        warnings = self._ats_warnings(normalized)
+        if len(normalized) > MAX_RESUME_TEXT_CHARS:
+            normalized = normalized[:MAX_RESUME_TEXT_CHARS]
+            limits.append(
+                f"Only the first {MAX_RESUME_TEXT_CHARS:,} characters were kept."
+            )
+        warnings = self._ats_warnings(normalized) + limits
         if not normalized:
             return ResumeUploadResult(
                 text="",
@@ -115,6 +147,9 @@ class ResumeService:
             "application/pdf",
             "application/x-pdf",
         }:
+            raise AppError(415, "resume_file_type_invalid", "Upload a PDF resume.")
+        if data and PDF_SIGNATURE not in data[:1024]:
+            # The name and type are the client's word; the bytes aren't.
             raise AppError(415, "resume_file_type_invalid", "Upload a PDF resume.")
         if len(data) > MAX_RESUME_BYTES:
             raise AppError(

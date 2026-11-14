@@ -80,3 +80,27 @@ class ResendVerificationRequest(BaseModel):
 
 class ResendVerificationResponse(BaseModel):
     message: str = "If an account is pending, a new link was sent."
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, value: object) -> object:
+        return SignupRequest.normalize_email(value)
+
+
+class ForgotPasswordResponse(BaseModel):
+    message: str = (
+        "If an account uses that email, we've sent a link to reset the password."
+    )
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=512)
+    password: str = Field(min_length=1, max_length=1024)
+
+
+class ResetPasswordResponse(BaseModel):
+    status: str = "password_reset"

@@ -4,35 +4,60 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.router import api_router
 from app.api.routes.health import router as health_router
+from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.errors import install_error_handlers
+from app.core.security_events import (
+    RequestContextMiddleware,
+    configure_security_logging,
+)
 from app.core.security_headers import add_security_headers
-from app.core.settings import get_settings
+from app.core.settings import Settings, get_settings
+
+# Headers the frontend actually sends (see frontend/src/api/client.ts).
+ALLOWED_HEADERS = ["Accept", "Content-Type", "X-CSRF-Token", "X-Refresh-CSRF-Token"]
+ALLOWED_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"]
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    get_settings().validate_identity_configuration()
+    get_settings().validate_configuration()
     yield
 
 
-def create_app() -> FastAPI:
-    settings = get_settings()
+def create_app(settings: Settings | None = None) -> FastAPI:
+    settings = settings or get_settings()
     logging.basicConfig(level=settings.log_level.upper())
-    app = FastAPI(title=settings.app_name, lifespan=lifespan)
+    configure_security_logging()
+    # Interactive API docs and the schema are for local development only.
+    show_docs = settings.environment == "development"
+    app = FastAPI(
+        title=settings.app_name,
+        lifespan=lifespan,
+        docs_url="/docs" if show_docs else None,
+        redoc_url="/redoc" if show_docs else None,
+        openapi_url="/openapi.json" if show_docs else None,
+    )
     install_error_handlers(app)
+    # Inside CORS so a 413 still carries CORS headers the browser can read.
+    app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_request_bytes)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=ALLOWED_METHODS,
+        allow_headers=ALLOWED_HEADERS
+        + (["X-User-Id"] if settings.dev_identity_header_enabled else []),
     )
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
     app.middleware("http")(add_security_headers)
+    # Outermost: every request gets an id and its origin noted for logging.
+    app.add_middleware(RequestContextMiddleware)
     app.include_router(health_router)
-    app.include_router(api_router, prefix=get_settings().api_v1_prefix)
+    app.include_router(api_router, prefix=settings.api_v1_prefix)
     return app
 
 

@@ -16,7 +16,9 @@ config = context.config
 configure_database_url(config)
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # Keep loggers that already exist (e.g. the security log) when migrations
+    # run inside the app or test process.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 

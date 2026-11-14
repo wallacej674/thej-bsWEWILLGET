@@ -1,10 +1,14 @@
+from datetime import timedelta
+
 from sqlalchemy import select
 
 from app.core.auth import get_authx
 from app.core.device_cookie import DEVICE_COOKIE_NAME
 from app.core.passwords import hash_password
+from app.core.time import utc_now
 from app.models.application import JobApplication
 from app.models.auth_session import AuthenticationSession
+from app.models.password_reset import PasswordResetToken
 from app.models.resume import UserResume
 from tests.test_ai_resume_tailor import create_application
 
@@ -100,12 +104,28 @@ def test_account_deletion_clears_private_data_and_anonymizes_shared_history(
     headers = login(api_client, database_session, active_member)
     access_cookie = get_authx().config.JWT_ACCESS_COOKIE_NAME
     original_access = api_client.cookies.get(access_cookie)
+    database_session.add(
+        PasswordResetToken(
+            user_id=active_member.id,
+            token_digest="a" * 64,
+            expires_at=utc_now() + timedelta(minutes=30),
+        )
+    )
+    database_session.flush()
     assert api_client.cookies.get(DEVICE_COOKIE_NAME) is not None
     response = api_client.request(
         "DELETE", "/api/v1/users/me", json={"password": PASSWORD}, headers=headers
     )
     assert response.status_code == 204
     assert api_client.cookies.get(DEVICE_COOKIE_NAME) is None
+    assert (
+        database_session.scalar(
+            select(PasswordResetToken).where(
+                PasswordResetToken.user_id == active_member.id
+            )
+        )
+        is None
+    )
     database_session.refresh(active_member)
     assert not active_member.is_active
     assert active_member.display_name == "Deleted account"

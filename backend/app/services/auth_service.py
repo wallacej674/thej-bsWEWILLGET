@@ -10,6 +10,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_authx
+from app.core.breached_passwords import check_not_breached
 from app.core.device_cookie import DeviceClaim
 from app.core.passwords import (
     dummy_verify,
@@ -220,6 +221,7 @@ class AuthenticationService:
             raise CurrentPasswordInvalidError
 
         validate_password(new_password)
+        check_not_breached(new_password)
         user.password_hash = hash_password(new_password)
         user.password_changed_at = utc_now()
         self.revoke_all_sessions(session, user.id)

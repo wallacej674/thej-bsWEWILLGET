@@ -16,6 +16,7 @@ import {
   type ChangePasswordInput,
   type LoginCredentials,
   type MessageResponse,
+  type ResetPasswordInput,
   type SignupInput,
   type VerificationResponse,
 } from "./authApi";
@@ -47,6 +48,8 @@ export interface AuthContextValue extends AuthState {
   signup(input: SignupInput): Promise<MessageResponse>;
   verifyEmail(token: string): Promise<VerificationResponse>;
   resendVerification(email: string): Promise<MessageResponse>;
+  requestPasswordReset(email: string): Promise<MessageResponse>;
+  resetPassword(input: ResetPasswordInput): Promise<void>;
   logout(): Promise<void>;
   changePassword(input: ChangePasswordInput): Promise<void>;
   retry(): Promise<void>;
@@ -145,6 +148,18 @@ export function AuthProvider({ client, children }: AuthProviderProps) {
     [client],
   );
 
+  const requestPasswordReset = useCallback(
+    (email: string) => authApi.requestPasswordReset(client, email),
+    [client],
+  );
+
+  const resetPassword = useCallback(
+    async (input: ResetPasswordInput): Promise<void> => {
+      await authApi.resetPassword(client, input);
+    },
+    [client],
+  );
+
   const changePassword = useCallback(
     async (input: ChangePasswordInput): Promise<void> => {
       await authApi.changePassword(client, input);
@@ -175,6 +190,8 @@ export function AuthProvider({ client, children }: AuthProviderProps) {
       signup,
       verifyEmail,
       resendVerification,
+      requestPasswordReset,
+      resetPassword,
       logout,
       changePassword,
       retry: restoreSession,
@@ -184,7 +201,9 @@ export function AuthProvider({ client, children }: AuthProviderProps) {
       client,
       login,
       logout,
+      requestPasswordReset,
       resendVerification,
+      resetPassword,
       restoreSession,
       signup,
       state,

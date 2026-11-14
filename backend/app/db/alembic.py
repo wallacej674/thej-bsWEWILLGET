@@ -4,4 +4,7 @@ from app.core.settings import get_settings
 
 
 def configure_database_url(config: Config) -> None:
-    config.set_main_option("sqlalchemy.url", str(get_settings().database_url))
+    """Migrate as the schema owner when MIGRATION_DATABASE_URL is set."""
+    settings = get_settings()
+    url = settings.migration_database_url or settings.database_url
+    config.set_main_option("sqlalchemy.url", str(url))

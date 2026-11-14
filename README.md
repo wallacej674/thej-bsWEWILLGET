@@ -178,7 +178,43 @@ The Milestone 2 frontend is not production authentication. It lets the user
 choose one of the configured seeded identities, stores that selection in local
 storage, and sends its UUID as `X-User-Id` on API requests. The backend resolves
 the user and workspace; request bodies never choose application ownership.
-`DEV_IDENTITY_HEADER_ENABLED=true` is valid only in development or test.
+`DEV_IDENTITY_HEADER_ENABLED=true` is valid only in development or test, and
+the header is honoured only for requests from the same machine.
+
+## Production database
+
+The API should not connect as the database owner. Create two roles once per
+database, as its owner or a superuser:
+
+```powershell
+$env:DATABASE_ADMIN_URL = "postgresql+psycopg://postgres:...@db-host/applytogether"
+$env:MIGRATOR_DB_PASSWORD = "..."
+$env:APP_DB_PASSWORD = "..."
+uv run python -m app.commands.create_db_roles
+```
+
+- `applytogether_migrator` owns the schema. Point `MIGRATION_DATABASE_URL` at
+  it; Alembic uses it when set.
+- `applytogether_app` can only read and write rows. Point `DATABASE_URL` at it.
+  It cannot create, alter or drop tables, or change `alembic_version`.
+
+Both URLs need `?sslmode=verify-full` in production, and the API refuses to
+start without it. Every API connection sets `statement_timeout` (5 seconds) and
+`idle_in_transaction_session_timeout` (10 seconds); tune them with
+`DB_STATEMENT_TIMEOUT_MS` and `DB_IDLE_IN_TRANSACTION_TIMEOUT_MS`.
+
+Before going live, also check:
+
+- **Backups.** Daily encrypted backups plus point-in-time recovery (WAL
+  archiving, or the provider's PITR) with at least 7 days' retention.
+- **Restore drill.** Restore a backup to a scratch database at least once a
+  quarter and run `python -m alembic current` against it.
+- **Network.** Only the API's hosts may reach the database port.
+- **Retention.** Schedule `python -m app.commands.purge` to run daily with
+  `MIGRATION_DATABASE_URL` so it can purge across workspaces. It
+  deletes expired sessions, stale pending registrations (which hold password
+  hashes), and old throttle and rate-limit rows. Soft-deleted applications are
+  only erased if `PURGE_DELETED_APPLICATIONS_AFTER_DAYS` is set.
 
 ## Validation
 

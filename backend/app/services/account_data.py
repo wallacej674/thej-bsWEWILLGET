@@ -14,6 +14,7 @@ from app.models.application import JobApplication
 from app.models.auth_session import AuthenticationSession
 from app.models.invitation import WorkspaceInvitation
 from app.models.membership import WorkspaceMembership
+from app.models.password_reset import PasswordResetToken
 from app.models.pending_registration import PendingRegistration
 from app.models.resume import UserResume
 from app.models.user import User
@@ -151,6 +152,9 @@ def delete_account(session: Session, user_id: UUID, password: str) -> None:
 
     session.execute(
         delete(AuthenticationSession).where(AuthenticationSession.user_id == user_id)
+    )
+    session.execute(
+        delete(PasswordResetToken).where(PasswordResetToken.user_id == user_id)
     )
     session.execute(delete(UserResume).where(UserResume.user_id == user_id))
     session.execute(

@@ -31,13 +31,15 @@ function errorCode(error: unknown): string | undefined {
     : undefined;
 }
 
+/** Throttled sign-in (SEC-03) or a rate limit (SEC-02): wait, then retry. */
+function isWaitError(error: unknown): boolean {
+  const code = errorCode(error);
+  return code === "login_throttled" || code === "rate_limited";
+}
+
 function loginErrorMessage(error: unknown): string {
   // The server says how long to wait, e.g. "Try again in 4 minutes."
-  if (
-    errorCode(error) === "login_throttled" &&
-    error instanceof Error &&
-    error.message
-  ) {
+  if (isWaitError(error) && error instanceof Error && error.message) {
     return error.message;
   }
   if (
@@ -112,7 +114,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       setPhase("idle");
     } catch (caught) {
       setError(loginErrorMessage(caught));
-      setPhase(errorCode(caught) === "login_throttled" ? "throttled" : "error");
+      setPhase(isWaitError(caught) ? "throttled" : "error");
       if (!reduceMotion && column.current) {
         void animate(column.current, SHAKE, { duration: 0.45, ease: "easeOut" });
       }
@@ -234,6 +236,15 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                     </button>
                   }
                 />
+                <div className="-mt-1 flex justify-end">
+                  <Link
+                    to="/forgot-password"
+                    state={{ email }}
+                    className="rounded-sm text-[0.8rem] font-semibold text-primary transition hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
                 <motion.button
                   type="submit"
                   disabled={busy}

@@ -5,7 +5,9 @@ from app.models.auth_session import AuthenticationSession
 from app.models.invitation import WorkspaceInvitation
 from app.models.login_throttle import LoginThrottleBucket
 from app.models.membership import WorkspaceMembership
+from app.models.password_reset import PasswordResetToken
 from app.models.pending_registration import PendingRegistration
+from app.models.rate_limit import RateLimitCounter
 from app.models.resume import UserResume
 from app.models.user import User
 from app.models.workspace import Workspace
@@ -16,7 +18,9 @@ __all__ = [
     "AuthenticationSession",
     "JobApplication",
     "LoginThrottleBucket",
+    "PasswordResetToken",
     "PendingRegistration",
+    "RateLimitCounter",
     "User",
     "UserResume",
     "Workspace",

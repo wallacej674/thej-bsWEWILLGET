@@ -3,6 +3,7 @@ from uuid import UUID
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session
 
+from app.core.enums import MembershipRole
 from app.models.invitation import WorkspaceInvitation
 from app.models.membership import WorkspaceMembership
 from app.models.user import User
@@ -46,12 +47,44 @@ class WorkspaceRepository:
         )
         return session.execute(statement).tuples().one_or_none()
 
+    def count_owned_workspaces(self, session: Session, user_id: UUID) -> int:
+        """Workspaces (not deleted) where the user is an active owner."""
+        return int(
+            session.scalar(
+                select(func.count())
+                .select_from(WorkspaceMembership)
+                .join(Workspace, Workspace.id == WorkspaceMembership.workspace_id)
+                .where(
+                    WorkspaceMembership.user_id == user_id,
+                    WorkspaceMembership.role == MembershipRole.OWNER,
+                    WorkspaceMembership.removed_at.is_(None),
+                    Workspace.deleted_at.is_(None),
+                )
+            )
+            or 0
+        )
+
+    def count_pending_invitations(self, session: Session, workspace_id: UUID) -> int:
+        return int(
+            session.scalar(
+                select(func.count())
+                .select_from(WorkspaceInvitation)
+                .where(
+                    WorkspaceInvitation.workspace_id == workspace_id,
+                    WorkspaceInvitation.accepted_at.is_(None),
+                    WorkspaceInvitation.declined_at.is_(None),
+                )
+            )
+            or 0
+        )
+
     def list_active_members(
         self,
         session: Session,
         workspace_id: UUID,
         *,
         search: str | None = None,
+        search_emails: bool = True,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[tuple[WorkspaceMembership, User]], int]:
@@ -65,6 +98,8 @@ class WorkspaceRepository:
                     User.display_name.icontains(search, autoescape=True),
                     User.email.icontains(search, autoescape=True),
                 )
+                if search_emails
+                else User.display_name.icontains(search, autoescape=True)
             )
         statement: Select[tuple[WorkspaceMembership, User]] = (
             select(WorkspaceMembership, User)

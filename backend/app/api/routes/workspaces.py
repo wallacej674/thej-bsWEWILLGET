@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated
 from uuid import UUID
 
@@ -5,6 +6,7 @@ from fastapi import APIRouter, Query, Response, status
 
 from app.api.dependencies.current_user import CurrentUser, DatabaseSession
 from app.api.dependencies.workspace_access import WorkspaceAccess
+from app.core.security_events import email_hash, security_event
 from app.schemas.workspace import (
     WorkspaceCreate,
     WorkspaceInvitationCreate,
@@ -50,7 +52,7 @@ def get_workspace(
 @router.get("/{workspace_id}/members", response_model=WorkspaceMemberListResponse)
 def list_workspace_members(
     workspace_id: UUID,
-    _membership: WorkspaceAccess,
+    membership: WorkspaceAccess,
     session: DatabaseSession,
     search: Annotated[str | None, Query(max_length=200)] = None,
     page: Annotated[int, Query(ge=1)] = 1,
@@ -59,6 +61,7 @@ def list_workspace_members(
     return workspace_service.list_members(
         session,
         workspace_id,
+        viewer=membership,
         search=search.strip() or None if search else None,
         page=page,
         page_size=page_size,
@@ -76,9 +79,18 @@ def update_workspace_member_role(
     membership: WorkspaceAccess,
     session: DatabaseSession,
 ) -> WorkspaceMember:
-    return workspace_service.update_member_role(
+    updated = workspace_service.update_member_role(
         session, workspace_id, membership, user_id, payload
     )
+    security_event(
+        "workspace.role_changed",
+        "success",
+        workspace_id=workspace_id,
+        actor_id=membership.user_id,
+        user_id=user_id,
+        role=payload.role,
+    )
+    return updated
 
 
 @router.post(
@@ -93,13 +105,21 @@ def invite_workspace_member(
     membership: WorkspaceAccess,
     session: DatabaseSession,
 ) -> WorkspaceInvitationResponse:
-    return workspace_service.invite_member(
+    invitation = workspace_service.invite_member(
         session,
         workspace_id,
         membership,
         current_user.id,
         payload,
     )
+    security_event(
+        "workspace.invitation_created",
+        "success",
+        workspace_id=workspace_id,
+        actor_id=current_user.id,
+        email_hash=email_hash(payload.email),
+    )
+    return invitation
 
 
 @router.get(
@@ -140,6 +160,13 @@ def revoke_workspace_invitation(
         membership,
         invitation_id,
     )
+    security_event(
+        "workspace.invitation_revoked",
+        "success",
+        workspace_id=workspace_id,
+        actor_id=membership.user_id,
+        invitation_id=invitation_id,
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -154,6 +181,13 @@ def remove_workspace_member(
     session: DatabaseSession,
 ) -> Response:
     workspace_service.remove_member(session, workspace_id, membership, user_id)
+    security_event(
+        "workspace.member_removed",
+        "success",
+        workspace_id=workspace_id,
+        actor_id=membership.user_id,
+        user_id=user_id,
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -164,4 +198,11 @@ def delete_workspace(
     session: DatabaseSession,
 ) -> Response:
     workspace_service.delete_workspace(session, workspace_id, membership)
+    security_event(
+        "workspace.deleted",
+        "success",
+        level=logging.WARNING,
+        workspace_id=workspace_id,
+        actor_id=membership.user_id,
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)

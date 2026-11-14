@@ -34,7 +34,8 @@ export interface Workspace {
 }
 
 export interface WorkspaceMember {
-  user: CurrentUser & { email: string };
+  // The API only shares other members' emails with owners and admins.
+  user: CurrentUser & { email: string | null };
   role: "owner" | "admin" | "member";
   joined_at: string;
 }

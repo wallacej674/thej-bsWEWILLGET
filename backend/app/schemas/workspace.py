@@ -20,7 +20,8 @@ class WorkspaceListResponse(BaseModel):
 class WorkspaceMemberUser(BaseModel):
     id: UUID
     display_name: str
-    email: str
+    # Shown only to owners and admins, and to the member themselves (SEC-16).
+    email: str | None = None
     avatar_url: str | None
 
 

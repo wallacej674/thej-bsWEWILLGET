@@ -85,6 +85,7 @@ import {
   useAuth,
 } from "../features/auth/AuthProvider";
 import { authApi } from "../features/auth/authApi";
+import { ResetPasswordPage } from "../features/auth/ResetPasswordPage";
 import { VerifyEmailPage } from "../features/auth/VerifyEmailPage";
 import {
   BentoDashboard,
@@ -2411,9 +2412,11 @@ export function WorkspacePage({ context }: { context: AppContext }) {
                             </span>
                           )}
                         </div>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {member.user.email}
-                        </p>
+                        {member.user.email ? (
+                          <p className="truncate text-xs text-muted-foreground">
+                            {member.user.email}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -2769,6 +2772,10 @@ function AuthenticatedApp({
     });
   }, [auth.status, auth.workspace, refreshWorkspaces]);
 
+  // Reset links work whether or not this browser is signed in (SEC-10).
+  if (location.pathname === "/reset-password") {
+    return <ResetPasswordPage onReset={auth.resetPassword} />;
+  }
   if (location.pathname === "/privacy") return <PrivacyPage />;
 
   if (location.pathname === "/verify-email") {
@@ -2807,6 +2814,7 @@ function AuthenticatedApp({
         onLogin={auth.login}
         onSignup={auth.signup}
         onResend={auth.resendVerification}
+        onRequestReset={auth.requestPasswordReset}
       />
     );
   }

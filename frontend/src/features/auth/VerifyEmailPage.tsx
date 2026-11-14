@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { Link } from "react-router";
 
 import type { MessageResponse, VerificationResponse } from "./authApi";
 import { AuthLayout } from "./AuthLayout";
@@ -9,6 +9,7 @@ import {
   authLinkClass,
   authPrimaryButtonClass,
 } from "./authStyles";
+import { useUrlToken } from "./useUrlToken";
 
 interface VerifyEmailPageProps {
   onVerify(token: string): Promise<VerificationResponse>;
@@ -21,8 +22,8 @@ export function VerifyEmailPage({
   onVerify,
   onResend,
 }: VerifyEmailPageProps) {
-  const [searchParams] = useSearchParams();
-  const token = searchParams.get("token") ?? "";
+  // Read once, then dropped from the address bar (SEC-20).
+  const token = useUrlToken();
   const [state, setState] = useState<VerificationState>(
     token ? "loading" : "invalid",
   );

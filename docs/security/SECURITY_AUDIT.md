@@ -28,29 +28,29 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 |---|---|---|---|---|---|
 | SEC-00 | Land the dependency vulnerability fixes | High | — | S | Done |
 | SEC-01 | Close SSRF holes in job-link autofill | High | A · Autofill | M | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/41) |
-| SEC-02 | Rate limiting for auth and expensive endpoints | High | B · Rate limiting | M | Open |
+| SEC-02 | Rate limiting for auth and expensive endpoints | High | B · Rate limiting | M | Done |
 | SEC-03 | Replace hard account lockout with throttling (lockout DoS) | Medium | B · Rate limiting | S | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/43) |
-| SEC-04 | Fail-closed production configuration | Medium | C · Config & headers | S | Open |
+| SEC-04 | Fail-closed production configuration | Medium | C · Config & headers | S | Done |
 | SEC-05 | Security headers on API and frontend | Medium | C · Config & headers | S | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42) |
-| SEC-06 | Harden résumé upload and PDF parsing | Medium | D · Uploads & AI | S | Open |
+| SEC-06 | Harden résumé upload and PDF parsing | Medium | D · Uploads & AI | S | Done |
 | SEC-07 | AI tailor cost quota and prompt-injection hardening | Medium | D · Uploads & AI | S | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42) |
-| SEC-08 | Security event logging and alerting | Medium | E · Observability | M | Open |
+| SEC-08 | Security event logging and alerting | Medium | E · Observability | M | Done |
 | SEC-09 | Logout must work with an expired access token | Medium | F · Auth flows | S | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42) |
-| SEC-10 | Secure "forgot password" flow | Medium | F · Auth flows | M | Open |
+| SEC-10 | Secure "forgot password" flow | Medium | F · Auth flows | M | Done |
 | SEC-11 | Verification email content injection and email bombing | Medium | F · Auth flows | S | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42) |
-| SEC-12 | Least-privilege database roles, TLS and timeouts | Medium | G · Database | M | Open |
+| SEC-12 | Least-privilege database roles, TLS and timeouts | Medium | G · Database | M | Done |
 | SEC-13 | Row-level security as tenant-isolation backstop | Low | G · Database | L | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42) |
-| SEC-14 | Data retention and purge jobs | Low | G · Database | S | Open |
+| SEC-14 | Data retention and purge jobs | Low | G · Database | S | Done |
 | SEC-15 | Account deletion and data export | Medium | H · Privacy | M | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42) |
-| SEC-16 | Limit member email visibility | Low | H · Privacy | S | Open |
+| SEC-16 | Limit member email visibility | Low | H · Privacy | S | Done |
 | SEC-17 | Escape LIKE wildcards in search | Low | I · Small fixes | S | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42) |
-| SEC-18 | Caps on workspaces and invitations per user | Low | I · Small fixes | S | Open |
+| SEC-18 | Caps on workspaces and invitations per user | Low | I · Small fixes | S | Done |
 | SEC-19 | Lockout counter keeps re-locking after expiry | Low | B · Rate limiting | S | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/43) |
-| SEC-20 | Remove the verification token from the URL after use | Low | J · Frontend | S | Open |
+| SEC-20 | Remove the verification token from the URL after use | Low | J · Frontend | S | Done |
 | SEC-21 | Self-host fonts and tighten third-party requests | Low | J · Frontend | S | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42) |
-| SEC-22 | CI and supply-chain hardening | Low | K · CI | S | Open |
+| SEC-22 | CI and supply-chain hardening | Low | K · CI | S | Done |
 | SEC-23 | Session management: list and revoke devices | Low | F · Auth flows | M | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42) |
-| SEC-24 | Breached-password check and optional MFA | Low | F · Auth flows | M | Open |
+| SEC-24 | Breached-password check and optional MFA | Low | F · Auth flows | M | Done |
 
 ---
 
@@ -111,6 +111,9 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-02 · Rate limiting for auth and expensive endpoints — High
 
+**Status: Done** on branch `sec-even-tasks`. Postgres-backed fixed-window limits (`backend/app/services/rate_limit.py`, all `RATE_LIMIT_*` settings): login 10/min per IP, signup 5/hour per IP, resend 3/hour per email and 10/hour per IP, verify 20/min per IP, refresh 30/min per session, autofill 20/min per user, résumé upload 10/hour per user, all answering `429 rate_limited` with `Retry-After`. The suggested per-email *login* limit was left out on purpose: anyone could trip it for a victim's email and lock them out, which SEC-03 handles safely. The AI tailor quota is SEC-07. Tests: `backend/tests/test_rate_limits.py`.
+
+
 **Where:** `backend/app/main.py` (middleware) and `backend/app/api/routes/auth.py`, `applications.py` (autofill), `ai_analysis.py` and `profile.py` (résumé upload).
 
 **Problem.** Nothing limits request rates.
@@ -167,6 +170,9 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-04 · Fail-closed production configuration — Medium
 
+**Status: Done** on branch `sec-even-tasks`. ENVIRONMENT has no default. In production, startup refuses: a weak or placeholder JWT secret, non-https CORS origins, a missing or wildcard `ALLOWED_HOSTS`, a database URL without `sslmode=verify-full`/`verify-ca`, insecure cookies, or the dev identity header. `TrustedHostMiddleware` rejects unknown hosts; CORS methods and headers are narrowed; `/docs`, `/redoc` and `/openapi.json` exist only in development; and the `X-User-Id` header is honoured only from this machine. Tests: `backend/tests/test_production_configuration.py`.
+
+
 **Where:** `backend/app/core/settings.py`, `backend/app/main.py` and `backend/app/api/dependencies/current_user.py`.
 
 **Problems.**
@@ -216,6 +222,9 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-06 · Harden résumé upload and PDF parsing — Medium
 
+**Status: Done** on branch `sec-even-tasks`. A request-size middleware (`MAX_REQUEST_BYTES`, 4 MB, including chunked bodies) answers 413 before buffering; uploads are read in chunks and stop at 3 MB; files must start with the `%PDF-` signature; parsing reads at most 10 pages and 50,000 characters within a 5-second budget; and any parser exception is a 422. Tests: `backend/tests/test_resume_upload_limits.py`.
+
+
 **Where:** `backend/app/api/routes/profile.py:26` and `backend/app/services/resume_service.py:81–125`.
 
 **Problems.**
@@ -263,6 +272,9 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-08 · Security event logging and alerting — Medium
 
+**Status: Done** on branch `sec-even-tasks`. `backend/app/core/security_events.py` writes JSON lines to the `applytogether.security` logger with a per-request id (echoed as `X-Request-ID`), IP, user agent and outcome. It covers sign-in, throttling, pausing, refresh-token reuse (warning), logout, password changes, signup and verification; role changes, removals, workspace deletion and invitations; permanent deletes; rate limits; and every 401/403 (`access.denied`). Emails appear only as keyed-hash pseudonyms, never with passwords or tokens. No database table was added; ship the log stream to your log platform and alert on `auth.refresh_reuse` and `auth.login_paused`. Tests: `backend/tests/test_security_events.py`.
+
+
 **Where:** the backend has essentially no application logging (`grep logger.` finds nothing in `app/`).
 
 **Problem.** There is no audit trail for logins, failed logins, lockouts, refresh-token reuse (a likely sign of token theft), password changes, role changes, member removal, workspace deletion or permanent deletes. Incidents can't be detected or investigated.
@@ -297,6 +309,9 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 **Test:** with the clock 16 minutes past login, logout returns 204, the session's `revoked_at` is set, and a later `/auth/refresh` fails.
 
 ### SEC-10 · Secure "forgot password" flow — Medium
+
+**Status: Done** on branch `sec-even-tasks`. `POST /auth/forgot-password` always answers 202 the same way and emails a single-use, 30-minute link (stored as a SHA-256 digest; asking again voids the old one). `POST /auth/reset-password` checks the link and the password policy, then resets (revoking every session and lifting throttles) and emails a notice. Both are rate-limited. New `/forgot-password` and `/reset-password` pages match the sign-in page, and sign-in links to them. Tests: `backend/tests/test_password_reset.py`, `frontend/src/features/auth/PasswordReset.test.tsx`.
+
 
 **Where:** new endpoints in `auth.py` and `registration_service.py`/`auth_service.py`, plus frontend pages under `features/auth`.
 
@@ -343,6 +358,9 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-24 · Breached-password check and optional MFA — Low
 
+**Status: Done** on branch `sec-even-tasks`. Sign-up, password change and reset refuse passwords found in Have I Been Pwned's corpus, via the k-anonymity range API (only a 5-character SHA-1 prefix is sent, with padding on). It fails open with a warning if HIBP is down (`BREACHED_PASSWORD_CHECK_*` settings). Fixed along the way: sign-up policy errors were 500s, and sign-up revealed existing accounts by skipping the password check for them. **Optional TOTP MFA is still to do**; the task marked it "later". Tests: `backend/tests/test_breached_passwords.py`.
+
+
 - **Where:** `backend/app/core/passwords.py` (`validate_password`).
 - **Change:**
   - Reject passwords found in Have I Been Pwned's Pwned Passwords list, using its k-anonymity range API (send only the first five characters of the SHA-1 hash).
@@ -355,6 +373,9 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 ## Track G · Database
 
 ### SEC-12 · Least-privilege database roles, TLS and timeouts — Medium
+
+**Status: Done** on branch `sec-even-tasks`. `python -m app.commands.create_db_roles` creates the schema-owning migrator and the DML-only app role (safe to rerun), Alembic uses `MIGRATION_DATABASE_URL` when set, every API connection sets `statement_timeout` and `idle_in_transaction_session_timeout`, the Postgres image is pinned by digest, and the README documents roles, TLS and a backup/PITR/restore checklist. Tests: `backend/tests/test_database_roles.py`.
+
 
 **Where:** `compose.yaml`, `backend/.env.example`, `backend/app/db/session.py`, the Alembic config, and the deployment.
 
@@ -388,6 +409,9 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-14 · Data retention and purge jobs — Low
 
+**Status: Done** on branch `sec-even-tasks`. `python -m app.commands.purge` (daily, safe to repeat) removes sessions 30 days past expiry or revocation, pending registrations 7 days past expiry or use, idle unlocked throttle buckets, and rate-limit windows older than a day. Soft-deleted applications are erased only if `PURGE_DELETED_APPLICATIONS_AFTER_DAYS` is set, because that's still a product decision. Tests: `backend/tests/test_purge.py`.
+
+
 - **Problem:** several kinds of data are never deleted.
   - Expired or revoked `auth_sessions`.
   - Expired or consumed `pending_registrations`, which **hold password hashes**.
@@ -415,6 +439,9 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-16 · Limit member email visibility — Low
 
+**Status: Done** on branch `sec-even-tasks`. The member list returns other members' emails only to owners and admins (everyone still sees their own), and plain members' searches match display names only, so they can't probe for addresses. The workspace page hides the missing email line. Tests: `backend/tests/test_member_email_visibility.py`.
+
+
 - **Where:** `backend/app/schemas/workspace.py:23` (`WorkspaceMemberUser.email`) and `list_members`.
 - **Problem:** every member, of any role, can list every other member's email address, in workspaces of up to 500 people.
 - **Change:** return emails only to owners and admins (other members get the display name only), or make email visibility opt-in.
@@ -435,6 +462,9 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-18 · Caps on workspaces and invitations per user — Low
 
+**Status: Done** on branch `sec-even-tasks`. Creating a workspace returns 409 `workspace_limit_reached` once the user owns `MAX_WORKSPACES_PER_USER` (20) live workspaces, and inviting returns 409 `invitation_limit_reached` once a workspace has `MAX_PENDING_INVITATIONS_PER_WORKSPACE` (200) waiting. Tests: `backend/tests/test_abuse_caps.py`.
+
+
 - **Where:** `workspace_service.create_workspace` and `invite_member`.
 - **Problem:** one account can create unlimited workspaces and pending invitations, which is a storage-abuse and spam vector.
 - **Change:** add settings such as `max_workspaces_per_user = 20` and `max_pending_invitations_per_workspace = 200`, and return 409 with a clear message.
@@ -445,6 +475,9 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 ## Track J · Frontend
 
 ### SEC-20 · Remove the verification token from the URL after use — Low
+
+**Status: Done** on branch `sec-even-tasks`. The verify-email page and the new reset-password page read their token through `useUrlToken`, which keeps the value and removes it from the address bar straight away, and `index.html` sets `<meta name="referrer" content="no-referrer">` globally. Tests: `frontend/src/features/auth/VerifyEmailPage.test.tsx`, `PasswordReset.test.tsx`.
+
 
 - **Where:** `frontend/src/features/auth/VerifyEmailPage.tsx`.
 - **Problem:** `/verify-email?token=…` stays in the address bar and browser history after use. Tokens are single-use, but they still leak through history, shared screenshots and analytics.
@@ -465,6 +498,9 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 ## Track K · CI
 
 ### SEC-22 · CI and supply-chain hardening — Low
+
+**Status: Done** on branch `sec-even-tasks`. Actions are pinned to commit SHAs (current majors kept). CI runs `npm audit --audit-level=high` and `pip-audit`. A CodeQL workflow (Python, JS/TS, security-extended) and a Supply chain workflow (full-history gitleaks; dependency review failing on high severity) are added, and `.github/dependabot.yml` covers npm, uv, github-actions and docker-compose. **Still to check:** the workflows' first runs once pushed (a throwaway-branch test with a known-vulnerable package and a fake secret is recommended), and Dependabot alert #102, which needs someone signed in to GitHub to read.
+
 
 - **Where:** `.github/workflows/*.yml`.
 - **Problem:** actions are pinned by tag (`@v4`) rather than commit SHA, and CI does no dependency or secret scanning. Dependabot is set up only in the GitHub settings; there's no `.github/dependabot.yml` in the repo.

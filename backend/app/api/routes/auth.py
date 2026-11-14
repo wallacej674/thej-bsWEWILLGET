@@ -1,17 +1,28 @@
-from authx.exceptions import AuthXException, MissingTokenError
+from ipaddress import ip_address, ip_network
+from uuid import UUID
+
+from authx.exceptions import AuthXException, TokenExpiredError
 from authx.schema import TokenPayload
 from fastapi import APIRouter, Request, Response, status
+from sqlalchemy import select, update
 
-from app.api.dependencies.current_user import CurrentUser, DatabaseSession
+from app.api.dependencies.current_user import (
+    CurrentCookieIdentity,
+    CurrentUser,
+    DatabaseSession,
+)
 from app.api.dependencies.email_delivery import EmailSenderDependency
 from app.core.auth import get_authx
 from app.core.errors import AppError
 from app.core.passwords import PasswordPolicyError
+from app.core.time import utc_now
+from app.models.auth_session import AuthenticationSession
 from app.schemas.auth import (
     ChangePasswordRequest,
     LoginRequest,
     ResendVerificationRequest,
     ResendVerificationResponse,
+    SessionInfo,
     SignupRequest,
     SignupResponse,
     VerifyEmailRequest,
@@ -28,6 +39,10 @@ from app.services.email_delivery import EmailDeliveryError
 from app.services.registration_service import (
     InvalidVerificationTokenError,
     RegistrationService,
+)
+from app.services.signup_abuse import (
+    limit_verification_request,
+    verify_signup_challenge,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -63,11 +78,23 @@ async def _refresh_token_payload(request: Request) -> TokenPayload:
 
 
 @router.post("/login", status_code=status.HTTP_204_NO_CONTENT)
-def login(payload: LoginRequest, session: DatabaseSession) -> Response:
+def login(
+    payload: LoginRequest, session: DatabaseSession, request: Request
+) -> Response:
     try:
         result = authentication_service.login(
             session, email=payload.email, password=payload.password
         )
+        result.session.user_agent = request.headers.get("user-agent", "")[:512] or None
+        if request.client is not None:
+            try:
+                address = ip_address(request.client.host)
+                bits = 24 if address.version == 4 else 64
+                result.session.ip_prefix = str(
+                    ip_network(f"{address}/{bits}", strict=False)
+                )
+            except ValueError:
+                pass
         session.commit()
     except InvalidCredentialsError as error:
         session.rollback()
@@ -91,7 +118,10 @@ def signup(
     payload: SignupRequest,
     session: DatabaseSession,
     email_sender: EmailSenderDependency,
+    request: Request,
 ) -> SignupResponse:
+    limit_verification_request(session, request)
+    verify_signup_challenge(payload.challenge_token)
     try:
         registration_service.signup(session, payload, email_sender)
     except EmailDeliveryError as error:
@@ -129,7 +159,9 @@ def resend_verification(
     payload: ResendVerificationRequest,
     session: DatabaseSession,
     email_sender: EmailSenderDependency,
+    request: Request,
 ) -> ResendVerificationResponse:
+    limit_verification_request(session, request)
     try:
         registration_service.resend(session, payload.email, email_sender)
     except EmailDeliveryError as error:
@@ -172,14 +204,23 @@ async def logout(request: Request, session: DatabaseSession) -> Response:
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
     authx = get_authx()
     try:
-        token = await authx.get_access_token_from_request(request)
-        payload = authx.verify_token(token, verify_csrf=True)
-        authentication_service.revoke_session(session, payload)
-        session.commit()
-    except MissingTokenError:
-        # Logging out twice must remain safe and clear any stale cookies.
+        payload = None
+        if authx.config.JWT_ACCESS_COOKIE_NAME in request.cookies:
+            try:
+                token = await authx.get_access_token_from_request(request)
+                payload = authx.verify_token(token, verify_csrf=True)
+            except TokenExpiredError:
+                pass
+        if payload is None and authx.config.JWT_REFRESH_COOKIE_NAME in request.cookies:
+            token = await authx.get_refresh_token_from_request(request)
+            payload = authx.verify_token(token, verify_csrf=True)
+        if payload is not None:
+            authentication_service.revoke_session(session, payload)
+            session.commit()
+    except TokenExpiredError:
+        # With no usable token, clearing stale cookies is still safe.
         session.rollback()
-    except AuthXException as error:
+    except (AuthXException, InvalidSessionError) as error:
         session.rollback()
         raise AppError(
             403,
@@ -187,6 +228,76 @@ async def logout(request: Request, session: DatabaseSession) -> Response:
             "The request could not be validated.",
         ) from error
     _clear_auth_cookies(response)
+    return response
+
+
+@router.get("/sessions", response_model=list[SessionInfo])
+def list_sessions(
+    identity: CurrentCookieIdentity, session: DatabaseSession
+) -> list[SessionInfo]:
+    sessions = session.scalars(
+        select(AuthenticationSession)
+        .where(
+            AuthenticationSession.user_id == identity.user.id,
+            AuthenticationSession.revoked_at.is_(None),
+            AuthenticationSession.expires_at > utc_now(),
+        )
+        .order_by(AuthenticationSession.created_at.desc(), AuthenticationSession.id)
+    )
+    return [
+        SessionInfo(
+            id=row.id,
+            user_agent=row.user_agent,
+            ip_prefix=row.ip_prefix,
+            created_at=row.created_at,
+            last_refreshed_at=row.last_refreshed_at,
+            current=row.id == identity.auth_session.id,
+        )
+        for row in sessions
+    ]
+
+
+@router.delete("/sessions/others", status_code=status.HTTP_204_NO_CONTENT)
+def revoke_other_sessions(
+    identity: CurrentCookieIdentity, session: DatabaseSession
+) -> Response:
+    now = utc_now()
+    session.execute(
+        update(AuthenticationSession)
+        .where(
+            AuthenticationSession.user_id == identity.user.id,
+            AuthenticationSession.id != identity.auth_session.id,
+            AuthenticationSession.revoked_at.is_(None),
+            AuthenticationSession.expires_at > now,
+        )
+        .values(revoked_at=now)
+    )
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+def revoke_one_session(
+    session_id: UUID, identity: CurrentCookieIdentity, session: DatabaseSession
+) -> Response:
+    now = utc_now()
+    revoked = session.scalar(
+        update(AuthenticationSession)
+        .where(
+            AuthenticationSession.user_id == identity.user.id,
+            AuthenticationSession.id == session_id,
+            AuthenticationSession.revoked_at.is_(None),
+            AuthenticationSession.expires_at > now,
+        )
+        .values(revoked_at=now)
+        .returning(AuthenticationSession.id)
+    )
+    if revoked is None:
+        raise AppError(404, "session_not_found", "Session was not found.")
+    session.commit()
+    response = Response(status_code=status.HTTP_204_NO_CONTENT)
+    if revoked == identity.auth_session.id:
+        _clear_auth_cookies(response)
     return response
 
 

@@ -7,6 +7,11 @@ from app.core.enums import MembershipRole
 from app.core.errors import AppError
 from app.core.settings import get_settings
 from app.core.time import utc_now
+from app.db.row_security import (
+    allow_invitation_response,
+    allow_workspace_bootstrap,
+    set_workspace_actor,
+)
 from app.models.invitation import WorkspaceInvitation
 from app.models.membership import WorkspaceMembership
 from app.models.user import User
@@ -89,6 +94,7 @@ class WorkspaceService:
         workspace = Workspace(name=payload.name)
         session.add(workspace)
         session.flush()
+        allow_workspace_bootstrap(session, workspace.id)
         membership = WorkspaceMembership(
             workspace_id=workspace.id,
             user_id=owner_id,
@@ -220,6 +226,18 @@ class WorkspaceService:
     def accept_invitation(
         self, session: Session, invitation_id: UUID, user: User
     ) -> WorkspaceSummary:
+        set_workspace_actor(session, user.id)
+        invitation = self._repository.get_pending_invitation_for_email(
+            session, invitation_id, user.email, lock=False
+        )
+        if invitation is None or not self._repository.lock_workspace_for_admission(
+            session, invitation.workspace_id
+        ):
+            raise AppError(
+                404,
+                "workspace_invitation_not_found",
+                "Workspace invitation was not found.",
+            )
         invitation = self._repository.get_pending_invitation_for_email(
             session, invitation_id, user.email
         )
@@ -237,6 +255,8 @@ class WorkspaceService:
                 "Workspace invitation was not found.",
             )
         self._admit_invited_member(session, workspace.id, user.id)
+        session.flush()
+        allow_invitation_response(session, invitation.id)
         invitation.accepted_at = utc_now()
         session.commit()
         return WorkspaceSummary(
@@ -257,6 +277,7 @@ class WorkspaceService:
                 "workspace_invitation_not_found",
                 "Workspace invitation was not found.",
             )
+        allow_invitation_response(session, invitation.id)
         invitation.declined_at = utc_now()
         session.commit()
 
@@ -388,12 +409,6 @@ class WorkspaceService:
         user_id: UUID,
     ) -> None:
         """Atomically create or reactivate one invited membership."""
-        if not self._repository.lock_workspace_for_admission(session, workspace_id):
-            raise AppError(
-                404,
-                "workspace_invitation_not_found",
-                "Workspace invitation was not found.",
-            )
         membership = session.scalar(
             select(WorkspaceMembership).where(
                 WorkspaceMembership.workspace_id == workspace_id,
@@ -412,6 +427,8 @@ class WorkspaceService:
             )
             return
 
+        if membership.removed_at is None:
+            return
         membership.role = MembershipRole.MEMBER
         membership.removed_at = None
         membership.updated_at = utc_now()

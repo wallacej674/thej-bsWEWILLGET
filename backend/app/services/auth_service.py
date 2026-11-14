@@ -6,7 +6,7 @@ from hashlib import sha256
 from uuid import UUID
 
 from authx.schema import TokenPayload
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_authx
@@ -96,7 +96,8 @@ class AuthenticationService:
             dummy_verify(password)
             raise InvalidCredentialsError
 
-        verified, upgraded_hash = verify_and_upgrade(password, user.password_hash)
+        verified_hash = user.password_hash
+        verified, upgraded_hash = verify_and_upgrade(password, verified_hash)
         locked = user.locked_until is not None and user.locked_until > now
         if not verified or not user.is_active or locked:
             if not verified and user.is_active and not locked:
@@ -104,6 +105,19 @@ class AuthenticationService:
                 session.flush()
             raise InvalidCredentialsError
 
+        # Coordinate session creation with account deletion and password changes.
+        current = session.scalar(
+            select(User)
+            .where(User.id == user.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if (
+            current is None
+            or not current.is_active
+            or current.password_hash != verified_hash
+        ):
+            raise InvalidCredentialsError
         if upgraded_hash is not None:
             user.password_hash = upgraded_hash
         user.failed_login_attempts = 0
@@ -143,15 +157,19 @@ class AuthenticationService:
         return TokenPair(access_token=access_token, refresh_token=refresh_token)
 
     def revoke_session(self, session: Session, payload: TokenPayload) -> None:
-        authentication_session = session.get(
-            AuthenticationSession, _session_id(payload)
+        try:
+            user_id = UUID(payload.sub)
+        except ValueError as error:
+            raise InvalidSessionError from error
+        session.execute(
+            update(AuthenticationSession)
+            .where(
+                AuthenticationSession.id == _session_id(payload),
+                AuthenticationSession.user_id == user_id,
+                AuthenticationSession.revoked_at.is_(None),
+            )
+            .values(revoked_at=utc_now())
         )
-        if (
-            authentication_session is not None
-            and authentication_session.revoked_at is None
-        ):
-            authentication_session.revoked_at = utc_now()
-            session.flush()
 
     def change_password(
         self,

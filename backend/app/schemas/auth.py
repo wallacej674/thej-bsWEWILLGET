@@ -1,7 +1,19 @@
+from datetime import datetime
+from uuid import UUID
+
 from email_validator import EmailNotValidError, validate_email
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.settings import get_settings
+
+
+class SessionInfo(BaseModel):
+    id: UUID
+    user_agent: str | None
+    ip_prefix: str | None
+    created_at: datetime
+    last_refreshed_at: datetime | None
+    current: bool
 
 
 class LoginRequest(BaseModel):
@@ -19,6 +31,7 @@ class SignupRequest(BaseModel):
     email: str = Field(min_length=3, max_length=320)
     password: str = Field(min_length=1, max_length=1024)
     workspace_name: str = Field(min_length=1, max_length=200)
+    challenge_token: str | None = Field(default=None, max_length=2048)
 
     @field_validator("display_name", "workspace_name")
     @classmethod

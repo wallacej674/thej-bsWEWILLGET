@@ -24,7 +24,7 @@ export function AuthLayout({
   live?: boolean;
 }) {
   return (
-    <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground [font-family:'Space_Grotesk',system-ui,sans-serif]">
+    <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground font-display">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 [background:radial-gradient(60%_42%_at_50%_0%,color-mix(in_srgb,var(--primary)_12%,transparent),transparent_72%)]"

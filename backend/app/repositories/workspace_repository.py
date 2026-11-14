@@ -60,9 +60,11 @@ class WorkspaceRepository:
             WorkspaceMembership.removed_at.is_(None),
         ]
         if search:
-            pattern = f"%{search}%"
             filters.append(
-                or_(User.display_name.ilike(pattern), User.email.ilike(pattern))
+                or_(
+                    User.display_name.icontains(search, autoescape=True),
+                    User.email.icontains(search, autoescape=True),
+                )
             )
         statement: Select[tuple[WorkspaceMembership, User]] = (
             select(WorkspaceMembership, User)
@@ -96,12 +98,7 @@ class WorkspaceRepository:
 
     def count_active_members(self, session: Session, workspace_id: UUID) -> int:
         total = session.scalar(
-            select(func.count())
-            .select_from(WorkspaceMembership)
-            .where(
-                WorkspaceMembership.workspace_id == workspace_id,
-                WorkspaceMembership.removed_at.is_(None),
-            )
+            select(func.applytogether_active_member_count(workspace_id))
         )
         return int(total or 0)
 
@@ -152,7 +149,7 @@ class WorkspaceRepository:
             WorkspaceInvitation.declined_at.is_(None),
         ]
         if search:
-            filters.append(WorkspaceInvitation.email.ilike(f"%{search}%"))
+            filters.append(WorkspaceInvitation.email.icontains(search, autoescape=True))
         statement = (
             select(WorkspaceInvitation)
             .where(*filters)
@@ -186,18 +183,19 @@ class WorkspaceRepository:
         return list(session.execute(statement).tuples())
 
     def get_pending_invitation_for_email(
-        self, session: Session, invitation_id: UUID, email: str
+        self, session: Session, invitation_id: UUID, email: str, *, lock: bool = True
     ) -> WorkspaceInvitation | None:
-        return session.scalar(
-            select(WorkspaceInvitation)
-            .where(
-                WorkspaceInvitation.id == invitation_id,
-                WorkspaceInvitation.email == email,
-                WorkspaceInvitation.accepted_at.is_(None),
-                WorkspaceInvitation.declined_at.is_(None),
-            )
-            .with_for_update()
+        statement = select(WorkspaceInvitation).where(
+            WorkspaceInvitation.id == invitation_id,
+            WorkspaceInvitation.email == email,
+            WorkspaceInvitation.accepted_at.is_(None),
+            WorkspaceInvitation.declined_at.is_(None),
         )
+        if lock:
+            statement = statement.with_for_update().execution_options(
+                populate_existing=True
+            )
+        return session.scalar(statement)
 
     def get_pending_invitation(
         self, session: Session, workspace_id: UUID, invitation_id: UUID

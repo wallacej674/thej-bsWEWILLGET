@@ -109,7 +109,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
   return (
     <MotionConfig reducedMotion="user">
-      <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground [font-family:'Space_Grotesk',system-ui,sans-serif]">
+      <main className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background text-foreground font-display">
         <WallBackdrop />
         <div
           aria-hidden="true"

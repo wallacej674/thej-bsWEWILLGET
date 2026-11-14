@@ -308,13 +308,13 @@
 
 /* Dashboard typography direction: tabular mono figures + grotesk display headings. */
 .font-numeric {
-  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  font-family: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, monospace;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
 }
 
 .font-display {
-  font-family: "Space Grotesk", system-ui, sans-serif;
+  font-family: "Space Grotesk Variable", system-ui, sans-serif;
 }
 
 /* Slim, theme-tinted scrollbar for in-card scroll regions (replaces the chunky

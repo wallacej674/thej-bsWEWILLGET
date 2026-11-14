@@ -33,7 +33,6 @@ class SmtpEmailSender:
         verification_url = (
             f"{settings.frontend_base_url.rstrip('/')}/verify-email?token={token}"
         )
-        safe_display_name = escape(display_name)
         safe_verification_url = escape(verification_url, quote=True)
         message = EmailMessage()
         message["Subject"] = "Verify your ApplyTogether email"
@@ -42,14 +41,12 @@ class SmtpEmailSender:
         )
         message["To"] = recipient
         message.set_content(
-            f"Hi {display_name},\n\n"
             "Verify your email to finish creating your ApplyTogether account:\n"
             f"{verification_url}\n\n"
             f"This link expires in {settings.email_verification_hours} hours."
         )
         message.add_alternative(
             "<html><body>"
-            f"<p>Hi {safe_display_name},</p>"
             "<p>Verify your email to finish creating your "
             "ApplyTogether account.</p>"
             f'<p><a href="{safe_verification_url}">Verify email</a></p>'

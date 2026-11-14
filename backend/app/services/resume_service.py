@@ -10,6 +10,7 @@ from app.models.resume import UserResume
 from app.models.user import User
 from app.repositories.resume_repository import ResumeRepository
 from app.schemas.resume import ParserStatus, ResumeProfileResponse, ResumeUploadResult
+from app.services.account_data import lock_active_user
 
 MAX_RESUME_BYTES = 3 * 1024 * 1024
 MIN_USEFUL_TEXT_LENGTH = 120
@@ -50,6 +51,7 @@ class ResumeService:
                 parsed.parser_warnings,
             )
 
+        lock_active_user(session, current_user.id)
         resume = self._repository.get_for_user(session, current_user.id)
         if resume is None:
             resume = UserResume(

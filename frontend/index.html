@@ -9,15 +9,7 @@
       <meta name="description" content="Streamlines application management by providing users with a comprehensive dashboard to track progress, deadlines, and key insights efficiently." />
       <meta name="robots" content="noindex, nofollow" />
       <style>html, body { height: 100%; margin: 0; } #root { height: 100%; }</style>
-      <script>
-        // Apply the saved colour mode before first paint (see app/theme/themeStore.ts).
-        try {
-          if (localStorage.getItem("applytogether-theme") === "dark") {
-            document.documentElement.classList.add("dark");
-            document.documentElement.style.colorScheme = "dark";
-          }
-        } catch (error) {}
-      </script>
+      <script src="%BASE_URL%theme-init.js"></script>
       
     </head>
 

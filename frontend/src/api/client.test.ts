@@ -184,6 +184,21 @@ describe("API client", () => {
     expect(fetcher.mock.calls.filter(([url]) => String(url).endsWith("/auth/refresh"))).toHaveLength(1);
   });
 
+  it("includes both CSRF proofs for logout when available", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
+    const client = createApiClient({
+      baseUrl: "/api",
+      csrf: { cookieName: "access", headerName: "X-CSRF-Token", readCookie: () => "access-proof" },
+      refreshCsrf: { cookieName: "refresh", headerName: "X-Refresh-CSRF-Token", readCookie: () => "refresh-proof" },
+      fetcher,
+    });
+    await client.logout();
+    expect(fetcher.mock.calls[0][1]?.headers).toMatchObject({
+      "X-CSRF-Token": "access-proof",
+      "X-Refresh-CSRF-Token": "refresh-proof",
+    });
+  });
+
   it("does not refresh login, refresh, or logout requests", async () => {
     const fetcher = vi.fn<typeof fetch>().mockImplementation(async () =>
       new Response(JSON.stringify({ error: { code: "unauthorized", message: "Unauthorized", details: null } }), {

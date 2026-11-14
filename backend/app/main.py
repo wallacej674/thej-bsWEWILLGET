@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.router import api_router
 from app.api.routes.health import router as health_router
 from app.core.errors import install_error_handlers
+from app.core.security_headers import add_security_headers
 from app.core.settings import get_settings
 
 
@@ -29,6 +30,7 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.middleware("http")(add_security_headers)
     app.include_router(health_router)
     app.include_router(api_router, prefix=get_settings().api_v1_prefix)
     return app

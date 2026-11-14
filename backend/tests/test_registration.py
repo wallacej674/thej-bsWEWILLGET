@@ -3,8 +3,10 @@ from datetime import timedelta
 from sqlalchemy import select
 
 from app.api.dependencies.email_delivery import get_email_sender
+from app.core.settings import get_settings
 from app.core.time import utc_now
 from app.models.pending_registration import PendingRegistration
+from app.services import signup_abuse
 from app.services.email_delivery import EmailDeliveryError
 
 
@@ -23,6 +25,91 @@ class FailingEmailSender:
         self, *, recipient: str, display_name: str, token: str
     ) -> None:
         raise EmailDeliveryError("provider unavailable")
+
+
+def test_verification_limits_share_ip_budget_between_signup_and_resend(
+    api_client, monkeypatch
+) -> None:
+    monkeypatch.setattr(get_settings(), "verification_email_hourly_ip_limit", 1)
+    assert (
+        api_client.post(
+            "/api/v1/auth/resend-verification",
+            json={
+                "email": "unknown@example.test",
+            },
+        ).status_code
+        == 202
+    )
+    response = api_client.post(
+        "/api/v1/auth/signup",
+        json={
+            "email": "other@example.test",
+            "display_name": "Other",
+            "password": "correct horse battery staple",
+            "workspace_name": "Search",
+        },
+    )
+    assert response.status_code == 429
+    assert response.json()["error"]["code"] == "rate_limited"
+    assert int(response.headers["retry-after"]) > 0
+
+
+def test_domain_delivery_limit_keeps_resend_response_generic(
+    api_client, monkeypatch
+) -> None:
+    sender = RecordingEmailSender()
+    api_client.app.dependency_overrides[get_email_sender] = lambda: sender
+    monkeypatch.setattr(get_settings(), "verification_email_hourly_domain_limit", 1)
+    monkeypatch.setattr(get_settings(), "email_resend_cooldown_seconds", 0)
+    payload = {
+        "email": "first@example.test",
+        "display_name": "First",
+        "password": "correct horse battery staple",
+        "workspace_name": "Search",
+    }
+    assert api_client.post("/api/v1/auth/signup", json=payload).status_code == 202
+    for email in ("first@example.test", "unknown@example.test"):
+        response = api_client.post(
+            "/api/v1/auth/resend-verification", json={"email": email}
+        )
+        assert response.status_code == 202
+        assert response.json() == {
+            "message": "If an account is pending, a new link was sent."
+        }
+    assert len(sender.messages) == 1
+
+
+def test_signup_requires_valid_challenge_before_sending(
+    api_client, monkeypatch
+) -> None:
+    sender = RecordingEmailSender()
+    api_client.app.dependency_overrides[get_email_sender] = lambda: sender
+    monkeypatch.setattr(get_settings(), "turnstile_secret_key", "test-key")
+    payload = {
+        "email": "other@example.test",
+        "display_name": "Other",
+        "password": "correct horse battery staple",
+        "workspace_name": "Search",
+    }
+    assert api_client.post("/api/v1/auth/signup", json=payload).status_code == 422
+    monkeypatch.setattr(
+        signup_abuse.httpx,
+        "post",
+        lambda *args, **kwargs: signup_abuse.httpx.Response(
+            200,
+            request=signup_abuse.httpx.Request(
+                "POST", "https://challenges.cloudflare.com"
+            ),
+            json={"success": True, "action": "signup", "hostname": "localhost"},
+        ),
+    )
+    assert (
+        api_client.post(
+            "/api/v1/auth/signup", json={**payload, "challenge_token": "token"}
+        ).status_code
+        == 202
+    )
+    assert len(sender.messages) == 1
 
 
 def test_signup_persists_pending_registration_and_sends_verification_email(

@@ -153,11 +153,11 @@ def permanently_delete_applications(
     response_model=JobPostingAutofillResponse,
     response_model_exclude_none=True,
 )
-def autofill_job_posting(
+async def autofill_job_posting(
     payload: JobPostingAutofillRequest,
     _membership: WorkspaceAccess,
 ) -> JobPostingAutofillResponse:
-    return job_posting_autofill_service.autofill(payload.job_posting_url)
+    return await job_posting_autofill_service.autofill(payload.job_posting_url)
 
 
 @router.get("/{application_id}", response_model=ApplicationResponse)

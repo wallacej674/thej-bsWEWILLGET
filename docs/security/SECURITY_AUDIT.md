@@ -46,7 +46,7 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 | SEC-17 | Escape LIKE wildcards in search | Low | I · Small fixes | S | Open |
 | SEC-18 | Caps on workspaces and invitations per user | Low | I · Small fixes | S | Done |
 | SEC-19 | Lockout counter keeps re-locking after expiry | Low | B · Rate limiting | S | Done (with SEC-03) |
-| SEC-20 | Remove the verification token from the URL after use | Low | J · Frontend | S | Open |
+| SEC-20 | Remove the verification token from the URL after use | Low | J · Frontend | S | Done |
 | SEC-21 | Self-host fonts and tighten third-party requests | Low | J · Frontend | S | Open |
 | SEC-22 | CI and supply-chain hardening | Low | K · CI | S | Open |
 | SEC-23 | Session management: list and revoke devices | Low | F · Auth flows | M | Open |
@@ -454,6 +454,9 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 ## Track J · Frontend
 
 ### SEC-20 · Remove the verification token from the URL after use — Low
+
+**Status: Done** on branch `sec-even-tasks`. The verify-email page and the new reset-password page read their token through `useUrlToken`, which keeps the value and removes it from the address bar straight away, and `index.html` sets `<meta name=\"referrer\" content=\"no-referrer\">` globally. Tests: `frontend/src/features/auth/VerifyEmailPage.test.tsx`, `PasswordReset.test.tsx`.
+
 
 - **Where:** `frontend/src/features/auth/VerifyEmailPage.tsx`.
 - **Problem:** `/verify-email?token=…` stays in the address bar and browser history after use. Tokens are single-use, but they still leak through history, shared screenshots and analytics.

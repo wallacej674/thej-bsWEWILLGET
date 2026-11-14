@@ -30,7 +30,7 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 | SEC-01 | Close SSRF holes in job-link autofill | High | A · Autofill | M | In progress |
 | SEC-02 | Rate limiting for auth and expensive endpoints | High | B · Rate limiting | M | Open |
 | SEC-03 | Replace hard account lockout with throttling (lockout DoS) | Medium | B · Rate limiting | S | Done |
-| SEC-04 | Fail-closed production configuration | Medium | C · Config & headers | S | Open |
+| SEC-04 | Fail-closed production configuration | Medium | C · Config & headers | S | Done |
 | SEC-05 | Security headers on API and frontend | Medium | C · Config & headers | S | Open |
 | SEC-06 | Harden résumé upload and PDF parsing | Medium | D · Uploads & AI | S | Open |
 | SEC-07 | AI tailor cost quota and prompt-injection hardening | Medium | D · Uploads & AI | S | Open |
@@ -164,6 +164,9 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 ## Track C · Config & headers
 
 ### SEC-04 · Fail-closed production configuration — Medium
+
+**Status: Done** on branch `sec-even-tasks`. ENVIRONMENT has no default. In production, startup refuses: a weak or placeholder JWT secret, non-https CORS origins, a missing or wildcard `ALLOWED_HOSTS`, a database URL without `sslmode=verify-full`/`verify-ca`, insecure cookies, or the dev identity header. `TrustedHostMiddleware` rejects unknown hosts; CORS methods and headers are narrowed; `/docs`, `/redoc` and `/openapi.json` exist only in development; and the `X-User-Id` header is honoured only from this machine. Tests: `backend/tests/test_production_configuration.py`.
+
 
 **Where:** `backend/app/core/settings.py`, `backend/app/main.py` and `backend/app/api/dependencies/current_user.py`.
 

@@ -74,9 +74,26 @@ async def _cookie_user(request: Request, session: Session) -> User:
     return user
 
 
-def _development_header_user(session: Session, user_id_header: str | None) -> User:
+LOCAL_CLIENTS = {"127.0.0.1", "::1", "localhost"}
+
+
+def _is_local_request(request: Request) -> bool:
+    """True for requests from this machine (and for the test client)."""
+    if get_settings().environment == "test":
+        return True
+    return request.client is not None and request.client.host in LOCAL_CLIENTS
+
+
+def _development_header_user(
+    request: Request, session: Session, user_id_header: str | None
+) -> User:
     settings = get_settings()
-    if not settings.dev_identity_header_enabled or user_id_header is None:
+    if (
+        not settings.dev_identity_header_enabled
+        or user_id_header is None
+        # The impersonation header only ever works from this machine (SEC-04).
+        or not _is_local_request(request)
+    ):
         raise AppError(401, "authentication_required", "Authentication is required.")
     try:
         user_id = UUID(user_id_header)
@@ -100,7 +117,7 @@ async def get_current_user(
     access_cookie_name = get_authx().config.JWT_ACCESS_COOKIE_NAME
     if access_cookie_name in request.cookies:
         return await _cookie_user(request, session)
-    return _development_header_user(session, user_id_header)
+    return _development_header_user(request, session, user_id_header)
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]

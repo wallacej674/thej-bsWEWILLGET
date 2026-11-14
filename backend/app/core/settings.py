@@ -1,6 +1,7 @@
 import os
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import parse_qs, urlsplit
 
 from pydantic import Field, PostgresDsn
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -12,12 +13,18 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    environment: Literal["development", "test", "production"] = "development"
+    # No default: a deploy that forgets ENVIRONMENT must fail to start rather
+    # than quietly run with development behaviour (SEC-04).
+    environment: Literal["development", "test", "production"]
     app_name: str = "ApplyTogether API"
     api_v1_prefix: str = "/api/v1"
     database_url: PostgresDsn
     dev_identity_header_enabled: bool = False
     cors_origins: list[str] = Field(default_factory=list)
+    # Host headers the API answers to. Production must list its own domains.
+    allowed_hosts: list[str] = Field(
+        default_factory=lambda: ["localhost", "127.0.0.1", "testserver"]
+    )
     auth_jwt_secret_key: str
     auth_access_token_minutes: int = 15
     auth_refresh_token_days: int = 20
@@ -59,20 +66,44 @@ class Settings(BaseSettings):
     seed_kareem_email: str = "kareem@example.test"
     seed_kareem_display_name: str = "Kareem"
 
-    def validate_identity_configuration(self) -> None:
+    def validate_configuration(self) -> None:
+        """Refuse to start with settings that are unsafe (SEC-04)."""
         if self.dev_identity_header_enabled and self.environment not in {
             "development",
             "test",
         }:
             message = "DEV_IDENTITY_HEADER_ENABLED may only be enabled in development or test."
             raise RuntimeError(message)
-        if self.environment == "production" and not self.auth_cookie_secure:
-            raise RuntimeError("AUTH_COOKIE_SECURE must be enabled in production.")
         if "*" in self.cors_origins:
             raise RuntimeError(
                 "CORS_ORIGINS must not include a wildcard with credentials."
             )
-        if self.environment == "production" and (
+        if self.environment == "production":
+            self._validate_production()
+
+    def _validate_production(self) -> None:
+        if not self.auth_cookie_secure:
+            raise RuntimeError("AUTH_COOKIE_SECURE must be enabled in production.")
+        if not jwt_secret_is_strong(self.auth_jwt_secret_key):
+            raise RuntimeError(
+                "AUTH_JWT_SECRET_KEY must be a random value of at least 32 bytes "
+                "in production, not a placeholder."
+            )
+        insecure_origins = [
+            origin for origin in self.cors_origins if not origin.startswith("https://")
+        ]
+        if insecure_origins:
+            raise RuntimeError("CORS_ORIGINS must all use https:// in production.")
+        if not self.allowed_hosts or "*" in self.allowed_hosts:
+            raise RuntimeError(
+                "ALLOWED_HOSTS must list the API's own host names in production."
+            )
+        if database_ssl_mode(str(self.database_url)) not in VERIFIED_SSL_MODES:
+            raise RuntimeError(
+                "DATABASE_URL must use sslmode=verify-full (or verify-ca) in "
+                "production so the database certificate is checked."
+            )
+        if (
             not self.smtp_username
             or not self.smtp_app_password
             or not self.smtp_from_email
@@ -81,6 +112,30 @@ class Settings(BaseSettings):
                 "SMTP_USERNAME, SMTP_APP_PASSWORD, and SMTP_FROM_EMAIL "
                 "are required in production."
             )
+
+
+# Secrets that appear in this repository and must never be used for real.
+PLACEHOLDER_SECRETS = {
+    "generate-a-long-random-secret-and-keep-it-out-of-git",
+    "test-only-authx-signing-secret-change-me",
+    "change-me",
+    "secret",
+}
+VERIFIED_SSL_MODES = {"verify-full", "verify-ca"}
+
+
+def jwt_secret_is_strong(secret: str) -> bool:
+    """At least 32 bytes, not a known placeholder, and not trivially repetitive."""
+    return (
+        len(secret.encode("utf-8")) >= 32
+        and secret not in PLACEHOLDER_SECRETS
+        and len(set(secret)) >= 10
+    )
+
+
+def database_ssl_mode(url: str) -> str | None:
+    values = parse_qs(urlsplit(url).query).get("sslmode")
+    return values[-1] if values else None
 
 
 @lru_cache

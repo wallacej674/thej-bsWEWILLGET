@@ -163,6 +163,24 @@ describe("LoginPage", () => {
     expect(screen.getByText("Too many tries. Take a short break.")).toBeInTheDocument();
   });
 
+  it("treats a rate limit like a throttle", async () => {
+    renderLoginPage(
+      vi.fn(() =>
+        Promise.reject(new ApiError(429, "rate_limited", "Too many requests. Try again in 30 seconds.")),
+      ),
+    );
+    fireEvent.change(screen.getByLabelText("Email address"), {
+      target: { value: "jonathan@example.test" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "correct horse battery staple" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Try again in 30 seconds.");
+    expect(screen.getByText("Too many tries. Take a short break.")).toBeInTheDocument();
+  });
+
   it("links the logo back home", () => {
     renderLoginPage();
 

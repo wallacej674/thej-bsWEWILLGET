@@ -203,12 +203,16 @@ export function ResendButton({
           aria-hidden="true"
           className="absolute inset-y-0 left-0 bg-primary/10"
           initial={false}
-          animate={{ width: `${(seconds / total) * 100}%` }}
+          animate={{ width: `${Math.min(1, seconds / total) * 100}%` }}
           transition={{ duration: 1, ease: "linear" }}
         />
       ) : null}
       <span className="relative">
-        {pending ? "Sending new link…" : waiting ? `Send again in ${seconds}s` : "Send a new link"}
+        {pending
+          ? "Sending new link…"
+          : waiting
+            ? `Send again in ${seconds <= 60 ? `${seconds}s` : `${Math.ceil(seconds / 60)} min`}`
+            : "Send a new link"}
       </span>
     </button>
   );

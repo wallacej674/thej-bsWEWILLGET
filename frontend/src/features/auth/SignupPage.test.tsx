@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "../../api/client";
 import type { MessageResponse, SignupInput } from "./authApi";
 import { SignupPage } from "./SignupPage";
 
@@ -124,6 +125,27 @@ describe("SignupPage", () => {
 
     expect(await screen.findByRole("heading", { name: "Your account is saved" })).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Send a new link" })).toBeEnabled();
+  });
+
+  it("shows the wait when sign-ups from this address are rate limited", async () => {
+    renderSignup({
+      signup: vi
+        .fn()
+        .mockRejectedValue(
+          new ApiError(429, "rate_limited", "Too many requests. Try again in 40 minutes.", {
+            retry_after_seconds: 2400,
+          }),
+        ),
+    });
+    await fillYou();
+    await fillPassword();
+    type("Workspace name", "Amara's search");
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Too many requests. Try again in 40 minutes.",
+    );
+    expect(screen.getByLabelText("Workspace name")).toHaveValue("Amara's search");
   });
 
   it("returns to the first step with a message when the account can't be created", async () => {

@@ -1,9 +1,10 @@
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.dependencies.current_user import CurrentUser, DatabaseSession
+from app.api.dependencies.rate_limits import limit_per_user
 from app.api.dependencies.workspace_access import WorkspaceAccess
 from app.core.enums import ApplicationStatus, EmploymentType, WorkArrangement
 from app.schemas.application import (
@@ -152,6 +153,10 @@ def permanently_delete_applications(
     "/autofill",
     response_model=JobPostingAutofillResponse,
     response_model_exclude_none=True,
+    # Each autofill fetches an outside page, so cap it per user (SEC-02).
+    dependencies=[
+        Depends(limit_per_user("autofill-user", "rate_limit_autofill_per_user"))
+    ],
 )
 def autofill_job_posting(
     payload: JobPostingAutofillRequest,

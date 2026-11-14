@@ -28,7 +28,7 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 |---|---|---|---|---|---|
 | SEC-00 | Land the dependency vulnerability fixes | High | — | S | Done |
 | SEC-01 | Close SSRF holes in job-link autofill | High | A · Autofill | M | In progress |
-| SEC-02 | Rate limiting for auth and expensive endpoints | High | B · Rate limiting | M | Open |
+| SEC-02 | Rate limiting for auth and expensive endpoints | High | B · Rate limiting | M | Done |
 | SEC-03 | Replace hard account lockout with throttling (lockout DoS) | Medium | B · Rate limiting | S | Done |
 | SEC-04 | Fail-closed production configuration | Medium | C · Config & headers | S | Done |
 | SEC-05 | Security headers on API and frontend | Medium | C · Config & headers | S | Open |
@@ -108,6 +108,9 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 ## Track B · Rate limiting
 
 ### SEC-02 · Rate limiting for auth and expensive endpoints — High
+
+**Status: Done** on branch `sec-even-tasks`. Postgres-backed fixed-window limits (`backend/app/services/rate_limit.py`, all `RATE_LIMIT_*` settings): login 10/min per IP, signup 5/hour per IP, resend 3/hour per email and 10/hour per IP, verify 20/min per IP, refresh 30/min per session, autofill 20/min per user, résumé upload 10/hour per user, all answering `429 rate_limited` with `Retry-After`. The suggested per-email *login* limit was left out on purpose: anyone could trip it for a victim's email and lock them out, which SEC-03 handles safely. The AI tailor quota is SEC-07. Tests: `backend/tests/test_rate_limits.py`.
+
 
 **Where:** `backend/app/main.py` (middleware) and `backend/app/api/routes/auth.py`, `applications.py` (autofill), `ai_analysis.py` and `profile.py` (résumé upload).
 

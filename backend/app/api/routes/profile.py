@@ -3,7 +3,9 @@ from typing import Annotated
 from fastapi import APIRouter, File, Response, UploadFile, status
 
 from app.api.dependencies.current_user import CurrentUser, DatabaseSession
+from app.core.settings import get_settings
 from app.schemas.resume import ResumeProfileResponse
+from app.services.rate_limit import enforce
 from app.services.resume_service import ResumeService
 
 router = APIRouter(prefix="/profile", tags=["profile"])
@@ -23,6 +25,12 @@ async def upload_resume(
     session: DatabaseSession,
     file: Annotated[UploadFile, File()],
 ) -> ResumeProfileResponse:
+    enforce(
+        session,
+        "resume-upload-user",
+        str(current_user.id),
+        get_settings().rate_limit_resume_upload_per_user,
+    )
     data = await file.read()
     return resume_service.upload_resume(
         session,

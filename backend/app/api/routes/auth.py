@@ -5,6 +5,7 @@ from authx.exceptions import AuthXException, MissingTokenError
 from authx.schema import TokenPayload
 from fastapi import APIRouter, Request, Response, status
 
+from app.api.dependencies.client import client_ip
 from app.api.dependencies.current_user import CurrentUser, DatabaseSession
 from app.api.dependencies.email_delivery import EmailSenderDependency
 from app.core.auth import get_authx
@@ -36,6 +37,7 @@ from app.services.auth_service import (
 )
 from app.services.email_delivery import EmailDeliveryError, EmailSender
 from app.services.login_throttle import LoginThrottledError
+from app.services.rate_limit import enforce
 from app.services.registration_service import (
     InvalidVerificationTokenError,
     RegistrationService,
@@ -70,12 +72,6 @@ def _set_device_cookie(response: Response, user_id: UUID) -> None:
         httponly=True,
         samesite=settings.auth_cookie_samesite,
     )
-
-
-def _client_ip(request: Request) -> str:
-    # Behind a proxy, run uvicorn with --proxy-headers and a trusted
-    # --forwarded-allow-ips so this is the visitor's address, not the proxy's.
-    return request.client.host if request.client else "unknown"
 
 
 def _notify_login_paused(
@@ -113,12 +109,17 @@ def login(
     session: DatabaseSession,
     email_sender: EmailSenderDependency,
 ) -> Response:
+    settings = get_settings()
+    # Per-IP across all accounts, so one address can't spray guesses over
+    # many emails. Per-email limits live in the throttle (SEC-03), which
+    # can't be used to lock someone out.
+    enforce(session, "login-ip", client_ip(request), settings.rate_limit_login_per_ip)
     try:
         result = authentication_service.login(
             session,
             email=payload.email,
             password=payload.password,
-            client_ip=_client_ip(request),
+            client_ip=client_ip(request),
             device=read_device_cookie(request.cookies.get(DEVICE_COOKIE_NAME)),
         )
         session.commit()
@@ -160,9 +161,16 @@ def login(
 )
 def signup(
     payload: SignupRequest,
+    request: Request,
     session: DatabaseSession,
     email_sender: EmailSenderDependency,
 ) -> SignupResponse:
+    enforce(
+        session,
+        "signup-ip",
+        client_ip(request),
+        get_settings().rate_limit_signup_per_ip,
+    )
     try:
         registration_service.signup(session, payload, email_sender)
     except EmailDeliveryError as error:
@@ -177,8 +185,15 @@ def signup(
 @router.post("/verify-email", response_model=VerifyEmailResponse)
 def verify_email(
     payload: VerifyEmailRequest,
+    request: Request,
     session: DatabaseSession,
 ) -> VerifyEmailResponse:
+    enforce(
+        session,
+        "verify-ip",
+        client_ip(request),
+        get_settings().rate_limit_verify_per_ip,
+    )
     try:
         registration_service.verify(session, payload.token)
     except InvalidVerificationTokenError as error:
@@ -198,9 +213,15 @@ def verify_email(
 )
 def resend_verification(
     payload: ResendVerificationRequest,
+    request: Request,
     session: DatabaseSession,
     email_sender: EmailSenderDependency,
 ) -> ResendVerificationResponse:
+    settings = get_settings()
+    enforce(session, "resend-ip", client_ip(request), settings.rate_limit_resend_per_ip)
+    enforce(
+        session, "resend-email", payload.email, settings.rate_limit_resend_per_email
+    )
     try:
         registration_service.resend(session, payload.email, email_sender)
     except EmailDeliveryError as error:
@@ -215,6 +236,12 @@ def resend_verification(
 @router.post("/refresh", status_code=status.HTTP_204_NO_CONTENT)
 async def refresh(request: Request, session: DatabaseSession) -> Response:
     payload = await _refresh_token_payload(request)
+    enforce(
+        session,
+        "refresh-session",
+        str((payload.model_extra or {}).get("sid")),
+        get_settings().rate_limit_refresh_per_session,
+    )
     try:
         result = authentication_service.refresh(session, payload)
         session.commit()

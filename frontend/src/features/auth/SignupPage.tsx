@@ -52,6 +52,17 @@ function errorCode(error: unknown): string | undefined {
   return undefined;
 }
 
+/** Seconds the server asked us to wait (rate limits, SEC-02). */
+function retryAfterSeconds(error: unknown): number {
+  if (typeof error === "object" && error !== null && "details" in error) {
+    const details = (error as { details: unknown }).details;
+    if (typeof details === "object" && details !== null && "retry_after_seconds" in details) {
+      return Number((details as { retry_after_seconds: unknown }).retry_after_seconds) || 0;
+    }
+  }
+  return 0;
+}
+
 function TextField({
   id,
   label,
@@ -105,6 +116,8 @@ export function SignupPage({ onSignup, onResend }: SignupPageProps) {
   const [card, animate] = useAnimate<HTMLDivElement>();
   const [fields, setFields] = useState<SignupFields>(EMPTY_SIGNUP);
   const [errors, setErrors] = useState<SignupErrors>({});
+  // A problem with the whole form rather than one field (e.g. a rate limit).
+  const [formError, setFormError] = useState<string>();
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState(1);
   // The field to focus when a step mounts; none on first load.
@@ -144,6 +157,7 @@ export function SignupPage({ onSignup, onResend }: SignupPageProps) {
   const create = async () => {
     setPending(true);
     setDeliveryFailed(false);
+    setFormError(undefined);
     const email = fields.email.trim();
     try {
       await onSignup({
@@ -158,6 +172,9 @@ export function SignupPage({ onSignup, onResend }: SignupPageProps) {
       if (errorCode(error) === "email_delivery_unavailable") {
         setSubmittedEmail(email);
         setDeliveryFailed(true);
+      } else if (errorCode(error) === "rate_limited" && error instanceof Error) {
+        setFormError(error.message);
+        shake();
       } else {
         setErrors({ email: "The account could not be created. Check the form and try again." });
         goTo(0, "email");
@@ -205,8 +222,11 @@ export function SignupPage({ onSignup, onResend }: SignupPageProps) {
       await onResend(submittedEmail);
       setDeliveryFailed(false);
       setResendSeconds(RESEND_COOLDOWN_SECONDS);
-    } catch {
-      setDeliveryFailed(true);
+    } catch (error) {
+      const wait = errorCode(error) === "rate_limited" ? retryAfterSeconds(error) : 0;
+      // Over the resend limit: count down to when it's allowed again.
+      if (wait > 0) setResendSeconds(wait);
+      else setDeliveryFailed(true);
     } finally {
       setResendPending(false);
     }
@@ -363,6 +383,14 @@ export function SignupPage({ onSignup, onResend }: SignupPageProps) {
                         </>
                       )}
                     </div>
+                    {formError && step === LAST_STEP ? (
+                      <p
+                        role="alert"
+                        className="mt-5 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+                      >
+                        {formError}
+                      </p>
+                    ) : null}
                     <div className="mt-7 flex items-center gap-3">
                       {step > 0 ? (
                         <button

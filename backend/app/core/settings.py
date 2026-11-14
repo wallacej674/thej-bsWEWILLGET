@@ -48,6 +48,16 @@ class Settings(BaseSettings):
     login_throttle_base_lock_seconds: int = 60
     login_throttle_max_lock_minutes: int = 60
     login_device_cookie_days: int = 365
+    # Request rate limits (SEC-02), as "count/second|minute|hour|day".
+    rate_limits_enabled: bool = True
+    rate_limit_login_per_ip: str = "10/minute"
+    rate_limit_signup_per_ip: str = "5/hour"
+    rate_limit_resend_per_email: str = "3/hour"
+    rate_limit_resend_per_ip: str = "10/hour"
+    rate_limit_verify_per_ip: str = "20/minute"
+    rate_limit_refresh_per_session: str = "30/minute"
+    rate_limit_autofill_per_user: str = "20/minute"
+    rate_limit_resume_upload_per_user: str = "10/hour"
     smtp_host: str = "smtp.gmail.com"
     smtp_port: int = 587
     smtp_username: str | None = None

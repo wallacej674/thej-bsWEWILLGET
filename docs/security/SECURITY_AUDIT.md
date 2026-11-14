@@ -38,7 +38,7 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 | SEC-09 | Logout must work with an expired access token | Medium | F · Auth flows | S | Open |
 | SEC-10 | Secure "forgot password" flow | Medium | F · Auth flows | M | Open |
 | SEC-11 | Verification email content injection and email bombing | Medium | F · Auth flows | S | Open |
-| SEC-12 | Least-privilege database roles, TLS and timeouts | Medium | G · Database | M | Open |
+| SEC-12 | Least-privilege database roles, TLS and timeouts | Medium | G · Database | M | Done |
 | SEC-13 | Row-level security as tenant-isolation backstop | Low | G · Database | L | Open |
 | SEC-14 | Data retention and purge jobs | Low | G · Database | S | Open |
 | SEC-15 | Account deletion and data export | Medium | H · Privacy | M | Open |
@@ -346,6 +346,9 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 ## Track G · Database
 
 ### SEC-12 · Least-privilege database roles, TLS and timeouts — Medium
+
+**Status: Done** on branch `sec-even-tasks`. `python -m app.commands.create_db_roles` creates the schema-owning migrator and the DML-only app role (safe to rerun), Alembic uses `MIGRATION_DATABASE_URL` when set, every API connection sets `statement_timeout` and `idle_in_transaction_session_timeout`, the Postgres image is pinned by digest, and the README documents roles, TLS and a backup/PITR/restore checklist. Tests: `backend/tests/test_database_roles.py`.
+
 
 **Where:** `compose.yaml`, `backend/.env.example`, `backend/app/db/session.py`, the Alembic config, and the deployment.
 

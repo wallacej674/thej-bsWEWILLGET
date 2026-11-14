@@ -19,6 +19,14 @@ class Settings(BaseSettings):
     app_name: str = "ApplyTogether API"
     api_v1_prefix: str = "/api/v1"
     database_url: PostgresDsn
+    # Optional separate connection for Alembic, as the schema-owning migrator
+    # role; the API itself connects as a DML-only role (SEC-12).
+    migration_database_url: PostgresDsn | None = None
+    db_pool_size: int = 5
+    db_max_overflow: int = 10
+    # Server-side limits for the API's connections, in milliseconds.
+    db_statement_timeout_ms: int = 5_000
+    db_idle_in_transaction_timeout_ms: int = 10_000
     dev_identity_header_enabled: bool = False
     cors_origins: list[str] = Field(default_factory=list)
     # Host headers the API answers to. Production must list its own domains.

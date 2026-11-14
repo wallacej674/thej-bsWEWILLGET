@@ -27,29 +27,29 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 | ID | Title | Severity | Track | Effort | Status |
 |---|---|---|---|---|---|
 | SEC-00 | Land the dependency vulnerability fixes | High | — | S | Done |
-| SEC-01 | Close SSRF holes in job-link autofill | High | A · Autofill | M | In progress |
+| SEC-01 | Close SSRF holes in job-link autofill | High | A · Autofill | M | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/41) |
 | SEC-02 | Rate limiting for auth and expensive endpoints | High | B · Rate limiting | M | Open |
-| SEC-03 | Replace hard account lockout with throttling (lockout DoS) | Medium | B · Rate limiting | S | Done |
+| SEC-03 | Replace hard account lockout with throttling (lockout DoS) | Medium | B · Rate limiting | S | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/43) |
 | SEC-04 | Fail-closed production configuration | Medium | C · Config & headers | S | Open |
-| SEC-05 | Security headers on API and frontend | Medium | C · Config & headers | S | Open |
+| SEC-05 | Security headers on API and frontend | Medium | C · Config & headers | S | In progress |
 | SEC-06 | Harden résumé upload and PDF parsing | Medium | D · Uploads & AI | S | Open |
-| SEC-07 | AI tailor cost quota and prompt-injection hardening | Medium | D · Uploads & AI | S | Open |
+| SEC-07 | AI tailor cost quota and prompt-injection hardening | Medium | D · Uploads & AI | S | In progress |
 | SEC-08 | Security event logging and alerting | Medium | E · Observability | M | Open |
-| SEC-09 | Logout must work with an expired access token | Medium | F · Auth flows | S | Open |
+| SEC-09 | Logout must work with an expired access token | Medium | F · Auth flows | S | In progress |
 | SEC-10 | Secure "forgot password" flow | Medium | F · Auth flows | M | Open |
-| SEC-11 | Verification email content injection and email bombing | Medium | F · Auth flows | S | Open |
+| SEC-11 | Verification email content injection and email bombing | Medium | F · Auth flows | S | In progress |
 | SEC-12 | Least-privilege database roles, TLS and timeouts | Medium | G · Database | M | Open |
-| SEC-13 | Row-level security as tenant-isolation backstop | Low | G · Database | L | Open |
+| SEC-13 | Row-level security as tenant-isolation backstop | Low | G · Database | L | In progress |
 | SEC-14 | Data retention and purge jobs | Low | G · Database | S | Open |
-| SEC-15 | Account deletion and data export | Medium | H · Privacy | M | Open |
+| SEC-15 | Account deletion and data export | Medium | H · Privacy | M | In progress |
 | SEC-16 | Limit member email visibility | Low | H · Privacy | S | Open |
-| SEC-17 | Escape LIKE wildcards in search | Low | I · Small fixes | S | Open |
+| SEC-17 | Escape LIKE wildcards in search | Low | I · Small fixes | S | In progress |
 | SEC-18 | Caps on workspaces and invitations per user | Low | I · Small fixes | S | Open |
-| SEC-19 | Lockout counter keeps re-locking after expiry | Low | B · Rate limiting | S | Done (with SEC-03) |
+| SEC-19 | Lockout counter keeps re-locking after expiry | Low | B · Rate limiting | S | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/43) |
 | SEC-20 | Remove the verification token from the URL after use | Low | J · Frontend | S | Open |
-| SEC-21 | Self-host fonts and tighten third-party requests | Low | J · Frontend | S | Open |
+| SEC-21 | Self-host fonts and tighten third-party requests | Low | J · Frontend | S | In progress |
 | SEC-22 | CI and supply-chain hardening | Low | K · CI | S | Open |
-| SEC-23 | Session management: list and revoke devices | Low | F · Auth flows | M | Open |
+| SEC-23 | Session management: list and revoke devices | Low | F · Auth flows | M | In progress |
 | SEC-24 | Breached-password check and optional MFA | Low | F · Auth flows | M | Open |
 
 ---
@@ -73,7 +73,7 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-01 · Close SSRF holes in job-link autofill — High
 
-**Status: In progress.**
+**Status: Done.** Merged in [PR #41](https://github.com/wallacej674/thej-bsWEWILLGET/pull/41).
 
 **Where:** `backend/app/services/job_posting_autofill_service.py` (`SafeHttpJobPostingFetcher`, `_reject_blocked_host`), called from `POST /workspaces/{id}/applications/autofill`.
 
@@ -140,7 +140,7 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-03 · Replace hard account lockout with throttling — Medium
 
-**Status: Done** on branch `sec-03-login-throttling`.
+**Status: Done.** Merged in [PR #43](https://github.com/wallacej674/thej-bsWEWILLGET/pull/43).
 
 **Was:** five wrong passwords locked the account for 15 minutes, whoever typed them, so anyone who knew a user's email could keep them locked out. In practice the lock also never took effect: the login route rolled the transaction back on a wrong password, which discarded the failure count every time.
 
@@ -193,6 +193,8 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-05 · Security headers on API and frontend — Medium
 
+**Status: In progress.**
+
 **Where:** a new middleware in `backend/app/main.py`, plus the frontend hosting config (static host or reverse proxy; not in this repo yet). `frontend/index.html` currently sets no CSP.
 
 **Problem.** Neither the API nor the SPA sends HSTS, `Content-Security-Policy`, `X-Content-Type-Options`, `frame-ancestors`/`X-Frame-Options`, `Referrer-Policy` or `Permissions-Policy`. That leaves clickjacking possible and gives no defence-in-depth against any future XSS.
@@ -234,6 +236,8 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 **Tests:** an 8 MB upload is rejected without being fully read; a non-PDF renamed to `.pdf` is rejected; a 500-page PDF is truncated or refused; a malformed PDF that raises `KeyError` returns 422, not 500.
 
 ### SEC-07 · AI tailor cost quota and prompt-injection hardening — Medium
+
+**Status: In progress.**
 
 **Where:** `backend/app/services/ai_analysis_service.py:105` and `backend/app/services/ai_provider.py:118` (`_build_input`).
 
@@ -278,6 +282,8 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-09 · Logout must work with an expired access token — Medium
 
+**Status: In progress.**
+
 **Where:** `backend/app/api/routes/auth.py:171–190`.
 
 **Problem.** `verify_token` raises `TokenExpiredError` (a subclass of `AuthXException`) once the 15-minute access token expires. Logout then returns **403**, doesn't clear the cookies, and doesn't revoke the server-side session, so the 20-day refresh token stays valid. A user who leaves a tab idle and clicks "Log out" isn't really logged out.
@@ -307,6 +313,8 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-11 · Verification email content injection and email bombing — Medium
 
+**Status: In progress.**
+
 **Where:** `backend/app/services/email_delivery.py:45`, and `signup`/`resend` in `registration_service.py`.
 
 **Problems.**
@@ -323,6 +331,8 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 **Tests:** a display name containing a URL or newline is sanitized (or rejected at signup); limits apply.
 
 ### SEC-23 · Session management: list and revoke devices — Low
+
+**Status: In progress.**
 
 - **Where:** `auth_session` model, a new `/auth/sessions` route, and Profile → Security.
 - **Change:**
@@ -366,6 +376,8 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-13 · Row-level security as tenant-isolation backstop — Low
 
+**Status: In progress.**
+
 - **Where:** a new Alembic migration and a per-request `SET LOCAL app.user_id`.
 - **Problem:** workspace isolation depends entirely on every query remembering its `workspace_id` filter. One missed filter would leak another workspace's applications.
 - **Change:**
@@ -392,6 +404,8 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-15 · Account deletion and data export — Medium
 
+**Status: In progress.**
+
 - **Problem:** users can't delete their account or download their data (applications, résumé text, AI results). Privacy laws such as GDPR and CCPA expect both, and résumé text is sensitive personal data. It is also sent to OpenAI (with `store=False`), which needs a privacy notice.
 - **Change:**
   - Add `DELETE /users/me`. It re-checks the password, revokes sessions and deletes or anonymizes the user's data. Workspaces the user is sole owner of must be handled first (transfer ownership or delete).
@@ -411,6 +425,8 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 ## Track I · Small fixes
 
 ### SEC-17 · Escape LIKE wildcards in search — Low
+
+**Status: In progress.**
 
 - **Where:** `application_repository.py:332` and `:365`, and `workspace_repository.py:155`.
 - **Problem:** the search text is placed into `ilike(f"%{search}%")`. It's still parameterized, so this is **not** SQL injection, but `%` and `_` act as wildcards. That gives users unexpected matches and lets them force expensive scans.
@@ -436,6 +452,8 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 - **Tests:** after the page mounts, `location.search` no longer contains the token.
 
 ### SEC-21 · Self-host fonts and tighten third-party requests — Low
+
+**Status: In progress.**
 
 - **Where:** `frontend/src/styles/fonts.css:1`, which imports Inter, JetBrains Mono, Outfit and Space Grotesk from `fonts.googleapis.com`.
 - **Problem:** loading the fonts from Google sends every visitor's IP address to Google, and it forces SEC-05's CSP to allow those external origins.

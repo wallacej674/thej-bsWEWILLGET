@@ -329,7 +329,9 @@ class ApplicationRepository:
             .group_by(User.id, WorkspaceMembership.weekly_goal)
         )
         if search:
-            statement = statement.where(User.display_name.ilike(f"%{search}%"))
+            statement = statement.where(
+                User.display_name.icontains(search, autoescape=True)
+            )
 
         sort_columns: dict[str, ColumnElement[Any]] = {
             "active": active_total,
@@ -362,7 +364,9 @@ class ApplicationRepository:
             .join(User, User.id == owner_ids.c.user_id)
         )
         if search:
-            total_stmt = total_stmt.where(User.display_name.ilike(f"%{search}%"))
+            total_stmt = total_stmt.where(
+                User.display_name.icontains(search, autoescape=True)
+            )
         total = session.scalar(total_stmt)
         return rows, int(total or 0)
 
@@ -465,11 +469,10 @@ class ApplicationRepository:
             JobApplication.deleted_at.is_(None),
         ]
         if search:
-            pattern = f"%{search}%"
             filters.append(
                 or_(
-                    JobApplication.company_name.ilike(pattern),
-                    JobApplication.job_title.ilike(pattern),
+                    JobApplication.company_name.icontains(search, autoescape=True),
+                    JobApplication.job_title.icontains(search, autoescape=True),
                 )
             )
         if owner_id is not None:

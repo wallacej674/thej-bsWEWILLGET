@@ -1,8 +1,11 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
 from app.api.dependencies.ai_provider import get_ai_provider
 from app.core.settings import get_settings
 from app.main import app
+from app.services import ai_quota
 from tests.test_resume_profile import resume_pdf_bytes
 
 
@@ -70,6 +73,53 @@ def upload_resume(api_client, user_id) -> None:
         files={"file": ("resume.pdf", resume_pdf_bytes(), "application/pdf")},
     )
     assert response.status_code == 200
+
+
+def test_tailor_quota_rejects_21st_request_and_resets_at_utc_midnight(
+    api_client, active_member, shared_workspace, fake_ai_provider, monkeypatch
+) -> None:
+    now = datetime(2026, 11, 13, 23, 59, tzinfo=UTC)
+    monkeypatch.setattr(ai_quota, "utc_now", lambda: now)
+    application = create_application(api_client, shared_workspace.id, active_member.id)
+    upload_resume(api_client, active_member.id)
+    path = (
+        f"/api/v1/workspaces/{shared_workspace.id}/applications/"
+        f"{application['id']}/ai/resume-tailor"
+    )
+    headers = {"X-User-Id": str(active_member.id)}
+    for _ in range(20):
+        assert api_client.post(path, headers=headers).status_code == 200
+    rejected = api_client.post(path, headers=headers)
+    assert rejected.status_code == 429
+    assert rejected.json()["error"]["code"] == "ai_quota_exceeded"
+    assert rejected.json()["error"]["details"] == {
+        "scope": "user",
+        "reset_at": "2026-11-14T00:00:00Z",
+    }
+
+    now += timedelta(minutes=1)
+    assert api_client.post(path, headers=headers).status_code == 200
+
+
+def test_monthly_quota_rolls_back_partial_reservations(
+    database_session, active_member, shared_workspace, monkeypatch
+) -> None:
+    from uuid import uuid4
+
+    from app.core.errors import AppError
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "ai_tailor_daily_user_limit", 1)
+    monkeypatch.setattr(settings, "ai_tailor_daily_workspace_limit", 3)
+    monkeypatch.setattr(settings, "ai_tailor_monthly_request_limit", 1)
+    ai_quota.reserve_ai_request(database_session, active_member.id, shared_workspace.id)
+    other = uuid4()
+    with pytest.raises(AppError) as exceeded:
+        ai_quota.reserve_ai_request(database_session, other, shared_workspace.id)
+    assert exceeded.value.code == "ai_quota_exceeded"
+    assert exceeded.value.details["scope"] == "global"
+    monkeypatch.setattr(settings, "ai_tailor_monthly_request_limit", 2)
+    ai_quota.reserve_ai_request(database_session, other, shared_workspace.id)
 
 
 def test_application_owner_can_generate_and_fetch_resume_tailor_analysis(

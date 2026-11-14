@@ -13,6 +13,8 @@ import { avatarColor, initials } from "../members/avatar";
 import { ResumeProfilePanel } from "../resume/ResumeProfilePanel";
 import { BIN_SECONDARY_BUTTON, DeletedBin } from "./DeletedBin";
 import { PasswordForm } from "./PasswordForm";
+import { AccountData } from "./AccountData";
+import { SessionList } from "./SessionList";
 
 const ROLE_LABEL: Record<Workspace["role"], string> = {
   owner: "Owner",
@@ -144,6 +146,7 @@ export function ProfileHub({
   const [binCount, setBinCount] = useState<number | null>(null);
   const [previewKey, setPreviewKey] = useState(0);
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const [sessionsOpen, setSessionsOpen] = useState(false);
   const manageButton = useRef<HTMLButtonElement>(null);
   const color = avatarColor(user.id);
 
@@ -283,7 +286,20 @@ export function ProfileHub({
             />
           </Card>
 
+          <Card title="Privacy" delay={0.25}>
+            <AccountData client={client} onDeleted={logout} />
+          </Card>
+
           <Card title="Security" delay={0.26}>
+            {!developerTools && (
+              <>
+                <button type="button" className="mb-3 text-sm text-primary underline"
+                  aria-expanded={sessionsOpen} onClick={() => setSessionsOpen(!sessionsOpen)}>
+                  View active sessions
+                </button>
+                {sessionsOpen && <SessionList client={client} />}
+              </>
+            )}
             <AnimatePresence initial={false} mode="wait">
               {passwordOpen ? (
                 <motion.div

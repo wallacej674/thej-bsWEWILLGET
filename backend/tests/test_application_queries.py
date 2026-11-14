@@ -1,3 +1,33 @@
+import pytest
+
+
+@pytest.mark.parametrize("literal", ["%", "_", "/", "\\"])
+def test_application_search_treats_wildcards_as_literals(
+    api_client, active_member, shared_workspace, literal
+) -> None:
+    path = f"/api/v1/workspaces/{shared_workspace.id}/applications"
+    headers = {"X-User-Id": str(active_member.id)}
+    for index, company in enumerate([f"Team{literal}Works", "TeamXWorks"]):
+        response = api_client.post(
+            path,
+            headers=headers,
+            json={
+                "company_name": company,
+                "job_title": "Engineer",
+                "job_posting_url": f"https://jobs.example.test/{index}",
+                "location": "Remote",
+                "work_arrangement": "remote",
+                "employment_type": "full_time",
+            },
+        )
+        assert response.status_code == 201
+    response = api_client.get(path, headers=headers, params={"search": literal})
+    assert response.status_code == 200
+    assert [item["company_name"] for item in response.json()["items"]] == [
+        f"Team{literal}Works"
+    ]
+
+
 def test_application_list_filters_sorts_and_paginates(
     api_client, active_member, shared_workspace
 ) -> None:

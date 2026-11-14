@@ -43,12 +43,18 @@ class Settings(BaseSettings):
     smtp_timeout_seconds: int = 15
     frontend_base_url: str = "http://localhost:5173"
     email_verification_hours: int = 24
+    verification_email_hourly_ip_limit: int = Field(default=10, ge=1)
+    verification_email_hourly_domain_limit: int = Field(default=50, ge=1)
+    turnstile_secret_key: str | None = None
     email_resend_cooldown_seconds: int = 60
     openai_api_key: str | None = None
     openai_resume_tailor_model: str = "gpt-5.4-nano"
     openai_resume_tailor_max_input_tokens: int = 30_000
     openai_resume_tailor_max_output_tokens: int = 1_800
     openai_resume_tailor_timeout_seconds: int = 30
+    ai_tailor_daily_user_limit: int = Field(default=20, ge=0)
+    ai_tailor_daily_workspace_limit: int = Field(default=100, ge=0)
+    ai_tailor_monthly_request_limit: int = Field(default=1000, ge=0)
     log_level: str = "INFO"
     app_timezone: str = "America/Chicago"
     # Hard cap on active members per workspace, enforced on invite and accept.

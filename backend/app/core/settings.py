@@ -81,6 +81,9 @@ class Settings(BaseSettings):
     email_resend_cooldown_seconds: int = 60
     # How long an emailed password reset link works (SEC-10).
     password_reset_minutes: int = 30
+    # Refuse passwords found in Have I Been Pwned's breach corpus (SEC-24).
+    breached_password_check_enabled: bool = True
+    breached_password_timeout_seconds: float = 3.0
     openai_api_key: str | None = None
     openai_resume_tailor_model: str = "gpt-5.4-nano"
     openai_resume_tailor_max_input_tokens: int = 30_000

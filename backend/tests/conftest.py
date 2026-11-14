@@ -14,7 +14,9 @@ os.environ.setdefault("ENVIRONMENT", "test")
 os.environ.setdefault("DEV_IDENTITY_HEADER_ENABLED", "true")
 os.environ.setdefault("AUTH_JWT_SECRET_KEY", "test-only-authx-signing-secret-change-me")
 os.environ.setdefault("AUTH_COOKIE_SECURE", "false")
-# Rate limits are switched on per test where they're the subject.
+# Rate limits and the (networked) breached-password check are switched on
+# per test where they're the subject.
+os.environ.setdefault("BREACHED_PASSWORD_CHECK_ENABLED", "false")
 os.environ.setdefault("RATE_LIMITS_ENABLED", "false")
 os.environ.setdefault(
     "DATABASE_URL",

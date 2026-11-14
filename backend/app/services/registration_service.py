@@ -8,8 +8,9 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.breached_passwords import check_not_breached
 from app.core.enums import MembershipRole
-from app.core.passwords import hash_password
+from app.core.passwords import hash_password, validate_password
 from app.core.settings import get_settings
 from app.core.time import utc_now
 from app.models.membership import WorkspaceMembership
@@ -28,6 +29,10 @@ class RegistrationService:
     def signup(
         self, session: Session, payload: SignupRequest, email_sender: EmailSender
     ) -> None:
+        # Check the password first, for every request: checking only new
+        # emails would reveal which addresses already have accounts.
+        validate_password(payload.password)
+        check_not_breached(payload.password)
         now = utc_now()
         existing_user = session.scalar(
             select(User).where(func.lower(User.email) == payload.email)

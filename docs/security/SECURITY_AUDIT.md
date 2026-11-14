@@ -50,7 +50,7 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 | SEC-21 | Self-host fonts and tighten third-party requests | Low | J · Frontend | S | Open |
 | SEC-22 | CI and supply-chain hardening | Low | K · CI | S | Open |
 | SEC-23 | Session management: list and revoke devices | Low | F · Auth flows | M | Open |
-| SEC-24 | Breached-password check and optional MFA | Low | F · Auth flows | M | Open |
+| SEC-24 | Breached-password check and optional MFA | Low | F · Auth flows | M | Done |
 
 ---
 
@@ -346,6 +346,9 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-24 · Breached-password check and optional MFA — Low
 
+**Status: Done** on branch `sec-even-tasks`. Sign-up, password change and reset refuse passwords found in Have I Been Pwned's corpus, via the k-anonymity range API (only a 5-character SHA-1 prefix is sent, with padding on). It fails open with a warning if HIBP is down (`BREACHED_PASSWORD_CHECK_*` settings). Fixed along the way: sign-up policy errors were 500s, and sign-up revealed existing accounts by skipping the password check for them. **Optional TOTP MFA is still to do**; the task marked it "later". Tests: `backend/tests/test_breached_passwords.py`.
+
+
 - **Where:** `backend/app/core/passwords.py` (`validate_password`).
 - **Change:**
   - Reject passwords found in Have I Been Pwned's Pwned Passwords list, using its k-anonymity range API (send only the first five characters of the SHA-1 hash).
@@ -455,7 +458,7 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-20 · Remove the verification token from the URL after use — Low
 
-**Status: Done** on branch `sec-even-tasks`. The verify-email page and the new reset-password page read their token through `useUrlToken`, which keeps the value and removes it from the address bar straight away, and `index.html` sets `<meta name=\"referrer\" content=\"no-referrer\">` globally. Tests: `frontend/src/features/auth/VerifyEmailPage.test.tsx`, `PasswordReset.test.tsx`.
+**Status: Done** on branch `sec-even-tasks`. The verify-email page and the new reset-password page read their token through `useUrlToken`, which keeps the value and removes it from the address bar straight away, and `index.html` sets `<meta name="referrer" content="no-referrer">` globally. Tests: `frontend/src/features/auth/VerifyEmailPage.test.tsx`, `PasswordReset.test.tsx`.
 
 
 - **Where:** `frontend/src/features/auth/VerifyEmailPage.tsx`.

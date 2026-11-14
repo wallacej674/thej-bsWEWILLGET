@@ -175,6 +175,11 @@ export function SignupPage({ onSignup, onResend }: SignupPageProps) {
       } else if (errorCode(error) === "rate_limited" && error instanceof Error) {
         setFormError(error.message);
         shake();
+      } else if (errorCode(error) === "password_policy_failed" && error instanceof Error) {
+        // e.g. a password found in a known breach (SEC-24): pick another.
+        setErrors({ password: error.message });
+        goTo(1, "password");
+        shake();
       } else {
         setErrors({ email: "The account could not be created. Check the form and try again." });
         goTo(0, "email");

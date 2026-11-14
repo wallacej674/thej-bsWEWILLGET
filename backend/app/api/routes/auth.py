@@ -205,6 +205,10 @@ def signup(
     )
     try:
         registration_service.signup(session, payload, email_sender)
+    except PasswordPolicyError as error:
+        # Previously unhandled, so a short password sent straight to the API
+        # was a 500.
+        raise AppError(422, "password_policy_failed", str(error)) from error
     except EmailDeliveryError as error:
         security_event(
             "auth.signup", "email_failed", email_hash=email_hash(payload.email)

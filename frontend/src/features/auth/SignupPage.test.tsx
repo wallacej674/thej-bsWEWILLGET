@@ -148,6 +148,24 @@ describe("SignupPage", () => {
     expect(screen.getByLabelText("Workspace name")).toHaveValue("Amara's search");
   });
 
+  it("sends you back to the password step when the server refuses the password", async () => {
+    renderSignup({
+      signup: vi
+        .fn()
+        .mockRejectedValue(
+          new ApiError(422, "password_policy_failed", "This password has appeared in a known data breach."),
+        ),
+    });
+    await fillYou();
+    await fillPassword();
+    type("Workspace name", "Amara's search");
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+
+    expect(await screen.findByText("This password has appeared in a known data breach.")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Lock it down" })).toBeInTheDocument();
+    expect(await screen.findByLabelText("Password")).toHaveValue("");
+  });
+
   it("returns to the first step with a message when the account can't be created", async () => {
     renderSignup({ signup: vi.fn().mockRejectedValue(new Error("conflict")) });
     await fillYou();

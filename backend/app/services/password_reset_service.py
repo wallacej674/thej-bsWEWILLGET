@@ -18,6 +18,7 @@ from hashlib import sha256
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
+from app.core.breached_passwords import check_not_breached
 from app.core.passwords import validate_password
 from app.core.settings import get_settings
 from app.core.time import utc_now
@@ -83,6 +84,7 @@ class PasswordResetService:
 
         # Raises PasswordPolicyError before anything changes.
         validate_password(new_password)
+        check_not_breached(new_password)
         AuthenticationService().reset_password(
             session, user=user, password=new_password
         )

@@ -1,11 +1,14 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
+import type { LoginCredentials } from "./authApi";
+import type { LoginOptions } from "./AuthProvider";
 import { LoginPage } from "./LoginPage";
 
 function renderLoginPage(
-  onLogin = vi.fn(() => Promise.resolve()),
+  onLogin: ComponentProps<typeof LoginPage>["onLogin"] = vi.fn(() => Promise.resolve()),
   initialEntries: string[] = ["/login"],
 ) {
   return render(
@@ -31,10 +34,13 @@ describe("LoginPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Signing in…" }));
 
     expect(login).toHaveBeenCalledOnce();
-    expect(login).toHaveBeenCalledWith({
-      email: "jonathan@example.test",
-      password: "correct horse battery staple",
-    });
+    expect(login).toHaveBeenCalledWith(
+      {
+        email: "jonathan@example.test",
+        password: "correct horse battery staple",
+      },
+      expect.objectContaining({ onAccepted: expect.any(Function) }),
+    );
     expect(screen.getByRole("button", { name: "Signing in…" })).toBeDisabled();
   });
 
@@ -74,6 +80,69 @@ describe("LoginPage", () => {
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Email or password is incorrect.");
+  });
+
+  it("fills the goal ring and coaches each step as the form is completed", () => {
+    renderLoginPage();
+    const ring = screen.getByTestId("goal-ring-fill");
+
+    expect(ring).toHaveAttribute("data-progress", "0");
+    expect(screen.getByText("Start with your email.")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Email address"), {
+      target: { value: "jonathan@example.test" },
+    });
+    expect(ring).toHaveAttribute("data-progress", "0.5");
+    expect(screen.getByText("Now your password.")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "correct horse battery staple" },
+    });
+    expect(ring).toHaveAttribute("data-progress", "1");
+    expect(screen.getByText("Ready when you are.")).toBeInTheDocument();
+  });
+
+  it("closes the ring once the credentials are accepted", async () => {
+    const login = vi.fn(async (_credentials: LoginCredentials, options?: LoginOptions) => {
+      await options?.onAccepted?.();
+      await new Promise<void>(() => undefined);
+    });
+    renderLoginPage(login);
+
+    fireEvent.change(screen.getByLabelText("Email address"), {
+      target: { value: "jonathan@example.test" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "correct horse battery staple" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    });
+
+    expect(await screen.findByRole("button", { name: "Signed in" })).toBeDisabled();
+    expect(screen.getByText("You're in. Opening your week…")).toBeInTheDocument();
+    expect(screen.getByTestId("goal-ring-fill")).toHaveAttribute("data-progress", "1");
+  });
+
+  it("asks for another try after a rejected attempt", async () => {
+    renderLoginPage(vi.fn(() => Promise.reject(new Error("nope"))));
+
+    fireEvent.change(screen.getByLabelText("Email address"), {
+      target: { value: "jonathan@example.test" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "wrong password" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(await screen.findByText("That didn't match. Try again.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Password")).toHaveValue("");
+  });
+
+  it("links the logo back home", () => {
+    renderLoginPage();
+
+    expect(screen.getByRole("link", { name: "ApplyTogether home" })).toHaveAttribute("href", "/");
   });
 
   it("links to account creation", () => {

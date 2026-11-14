@@ -4,6 +4,10 @@ import { afterEach } from "vitest";
 
 afterEach(cleanup);
 
+// jsdom logs "Not implemented" for scrollTo, which motion calls when it
+// measures height: "auto" animations. Nothing in tests needs real scrolling.
+window.scrollTo = (() => undefined) as typeof window.scrollTo;
+
 // jsdom has no IntersectionObserver, which motion's in-view animations use.
 // Report every observed element as visible so entrance animations complete.
 if (!("IntersectionObserver" in globalThis)) {

@@ -28,13 +28,13 @@ describe("SignedOutRoutes", () => {
   it("shows sign in at /login, with the logo linking home", () => {
     renderAt("/login");
 
-    expect(screen.getByRole("heading", { name: "Sign in to ApplyTogether" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Welcome back" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "ApplyTogether home" })).toHaveAttribute("href", "/");
   });
 
   it("asks for sign in on any app page", () => {
     renderAt("/applications");
 
-    expect(screen.getByRole("heading", { name: "Sign in to ApplyTogether" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Welcome back" })).toBeInTheDocument();
   });
 });

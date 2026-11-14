@@ -1,0 +1,38 @@
+/* Ambient keyframes for the auth pages. Every animation is opt-in under
+   prefers-reduced-motion: no-preference. */
+
+@keyframes auth-column-up {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-50%);
+  }
+}
+
+@keyframes auth-column-down {
+  from {
+    transform: translateY(-50%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes auth-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .auth-column-up {
+    animation: auth-column-up var(--column-duration, 70s) linear infinite;
+  }
+  .auth-column-down {
+    animation: auth-column-down var(--column-duration, 70s) linear infinite;
+  }
+  .auth-spin {
+    animation: auth-spin 1.1s linear infinite;
+  }
+}

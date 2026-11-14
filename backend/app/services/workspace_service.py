@@ -86,6 +86,14 @@ class WorkspaceService:
     def create_workspace(
         self, session: Session, owner_id: UUID, payload: WorkspaceCreate
     ) -> WorkspaceSummary:
+        limit = get_settings().max_workspaces_per_user
+        if self._repository.count_owned_workspaces(session, owner_id) >= limit:
+            raise AppError(
+                409,
+                "workspace_limit_reached",
+                f"You can own up to {limit} workspaces. Delete one you no longer "
+                "use to create another.",
+            )
         workspace = Workspace(name=payload.name)
         session.add(workspace)
         session.flush()
@@ -167,6 +175,17 @@ class WorkspaceService:
     ) -> WorkspaceInvitationResponse:
         self._require_owner(actor_membership)
         self._enforce_member_cap(session, workspace_id)
+        pending_limit = get_settings().max_pending_invitations_per_workspace
+        if (
+            self._repository.count_pending_invitations(session, workspace_id)
+            >= pending_limit
+        ):
+            raise AppError(
+                409,
+                "invitation_limit_reached",
+                f"This workspace already has {pending_limit} invitations waiting. "
+                "Revoke some before inviting more people.",
+            )
         user = self._repository.get_user_by_email(session, payload.email)
         if user is not None:
             existing_membership = self._repository.get_active_membership(

@@ -44,7 +44,7 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 | SEC-15 | Account deletion and data export | Medium | H · Privacy | M | Open |
 | SEC-16 | Limit member email visibility | Low | H · Privacy | S | Done |
 | SEC-17 | Escape LIKE wildcards in search | Low | I · Small fixes | S | Open |
-| SEC-18 | Caps on workspaces and invitations per user | Low | I · Small fixes | S | Open |
+| SEC-18 | Caps on workspaces and invitations per user | Low | I · Small fixes | S | Done |
 | SEC-19 | Lockout counter keeps re-locking after expiry | Low | B · Rate limiting | S | Done (with SEC-03) |
 | SEC-20 | Remove the verification token from the URL after use | Low | J · Frontend | S | Open |
 | SEC-21 | Self-host fonts and tighten third-party requests | Low | J · Frontend | S | Open |
@@ -434,6 +434,9 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 - **Tests:** searching for `%` matches only names that literally contain `%`.
 
 ### SEC-18 · Caps on workspaces and invitations per user — Low
+
+**Status: Done** on branch `sec-even-tasks`. Creating a workspace returns 409 `workspace_limit_reached` once the user owns `MAX_WORKSPACES_PER_USER` (20) live workspaces, and inviting returns 409 `invitation_limit_reached` once a workspace has `MAX_PENDING_INVITATIONS_PER_WORKSPACE` (200) waiting. Tests: `backend/tests/test_abuse_caps.py`.
+
 
 - **Where:** `workspace_service.create_workspace` and `invite_member`.
 - **Problem:** one account can create unlimited workspaces and pending invitations, which is a storage-abuse and spam vector.

@@ -86,6 +86,10 @@ class Settings(BaseSettings):
     # Hard cap on active members per workspace, enforced on invite and accept.
     # Conservative default for the low-hundreds target; raise as scale grows.
     workspace_member_cap: int = 500
+    # Abuse caps (SEC-18): workspaces one person can own, and invitations
+    # one workspace can have waiting at once.
+    max_workspaces_per_user: int = 20
+    max_pending_invitations_per_workspace: int = 200
     seed_jonathan_email: str = "jonathan@example.test"
     seed_jonathan_display_name: str = "Jonathan"
     seed_kareem_email: str = "kareem@example.test"

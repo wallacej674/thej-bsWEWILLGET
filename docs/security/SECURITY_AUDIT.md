@@ -38,8 +38,8 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 | SEC-09 | Logout must work with an expired access token | Medium | F · Auth flows | S | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42) |
 | SEC-10 | Secure "forgot password" flow | Medium | F · Auth flows | M | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/44) |
 | SEC-11 | Verification email content injection and email bombing | Medium | F · Auth flows | S | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42) |
-| SEC-12 | Least-privilege database roles, TLS and timeouts | Medium | G · Database | M | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/44) |
-| SEC-13 | Row-level security as tenant-isolation backstop | Low | G · Database | L | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42) |
+| SEC-12 | Least-privilege database roles, TLS and timeouts | Medium | G · Database | M | [Done · Verified in production](#sec-12--least-privilege-database-roles-tls-and-timeouts--medium) |
+| SEC-13 | Row-level security as tenant-isolation backstop | Low | G · Database | L | [Done · Verified in production](#sec-13--row-level-security-as-tenant-isolation-backstop--low) |
 | SEC-14 | Data retention and purge jobs | Low | G · Database | S | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/44) |
 | SEC-15 | Account deletion and data export | Medium | H · Privacy | M | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42) |
 | SEC-16 | Limit member email visibility | Low | H · Privacy | S | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/44) |
@@ -376,6 +376,13 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 **Status: Done.** Merged in [PR #44](https://github.com/wallacej674/thej-bsWEWILLGET/pull/44). `python -m app.commands.create_db_roles` creates the schema-owning migrator and the DML-only app role (safe to rerun), Alembic uses `MIGRATION_DATABASE_URL` when set, every API connection sets `statement_timeout` and `idle_in_transaction_session_timeout`, the Postgres image is pinned by digest, and the README documents roles, TLS and a backup/PITR/restore checklist. Tests: `backend/tests/test_database_roles.py`.
 
+**Production verification (2026-11-14).** Neon showed new API connections as
+`applytogether_app` after the Vercel cutover. The role has no `BYPASSRLS`,
+cannot create objects in `public` or update `alembic_version`, and is not a
+member of `applytogether_migrator`. The non-login migrator owns the application
+tables. Both `/health` and `/health/db` returned HTTP 200, and a fresh login
+returned HTTP 204. See the [production Alembic runbook](../../README.md#run-alembic-migrations-in-production)
+and the [verified backend deployment](https://vercel.com/jonathan-s-team1/thej-bs-wewillget/3QgHgVGXmfGLRLenSFAvMcb4uZwQ).
 
 **Where:** `compose.yaml`, `backend/.env.example`, `backend/app/db/session.py`, the Alembic config, and the deployment.
 
@@ -398,6 +405,15 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 ### SEC-13 · Row-level security as tenant-isolation backstop — Low
 
 **Status: Done.** Merged in [PR #42](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42).
+
+**Production verification (2026-11-14).** PostgreSQL reported RLS active for
+`applytogether_app` on `job_applications`, `application_ai_analyses`,
+`workspace_invitations` and `workspace_memberships`. A direct database probe
+under the app role could read the signed-in user's own membership. It could
+see zero application or membership rows in an existing workspace where the
+user had no membership. The live API returned HTTP 200 for the member workspace
+and blocked the nonmember workspace with HTTP 404 for details and HTTP 403 for
+applications, members and invitations.
 
 - **Where:** a new Alembic migration and a per-request `SET LOCAL app.user_id`.
 - **Problem:** workspace isolation depends entirely on every query remembering its `workspace_id` filter. One missed filter would leak another workspace's applications.

@@ -31,7 +31,7 @@ export function VerifyEmailPage({
   const [resendPending, setResendPending] = useState(false);
   const [resendSent, setResendSent] = useState(false);
   const [resendFailed, setResendFailed] = useState(false);
-  const attemptedToken = useRef<string>();
+  const attemptedToken = useRef<string>(undefined);
 
   useEffect(() => {
     if (!token || attemptedToken.current === token) return;

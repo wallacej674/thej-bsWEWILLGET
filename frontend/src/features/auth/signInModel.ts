@@ -1,6 +1,7 @@
 // Pure rules behind the sign-in page's goal ring and coaching line.
 
-export type SignInPhase = "idle" | "pending" | "accepted" | "error";
+// "throttled": the server asked this browser to wait before trying again.
+export type SignInPhase = "idle" | "pending" | "accepted" | "error" | "throttled";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -19,7 +20,7 @@ export type RingTone = "primary" | "success" | "destructive";
 /** Red right after a rejected attempt, until a new password is typed. */
 export function ringTone(phase: SignInPhase, password: string): RingTone {
   if (phase === "accepted") return "success";
-  if (phase === "error" && !password) return "destructive";
+  if ((phase === "error" || phase === "throttled") && !password) return "destructive";
   return "primary";
 }
 
@@ -28,6 +29,7 @@ export function coachingLine(phase: SignInPhase, email: string, password: string
   if (phase === "pending") return "Checking your details…";
   if (phase === "accepted") return "You're in. Opening your week…";
   if (phase === "error" && !password) return "That didn't match. Try again.";
+  if (phase === "throttled" && !password) return "Too many tries. Take a short break.";
   if (!looksLikeEmail(email)) return "Start with your email.";
   if (!password) return "Now your password.";
   return "Ready when you are.";

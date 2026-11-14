@@ -25,7 +25,21 @@ interface LoginPageProps {
 const ACCEPTED_PAUSE_MS = 700;
 const SHAKE = { x: [0, -10, 9, -7, 5, -2, 0] };
 
+function errorCode(error: unknown): string | undefined {
+  return typeof error === "object" && error !== null && "code" in error
+    ? String(error.code)
+    : undefined;
+}
+
 function loginErrorMessage(error: unknown): string {
+  // The server says how long to wait, e.g. "Try again in 4 minutes."
+  if (
+    errorCode(error) === "login_throttled" &&
+    error instanceof Error &&
+    error.message
+  ) {
+    return error.message;
+  }
   if (
     typeof error === "object" &&
     error !== null &&
@@ -98,7 +112,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       setPhase("idle");
     } catch (caught) {
       setError(loginErrorMessage(caught));
-      setPhase("error");
+      setPhase(errorCode(caught) === "login_throttled" ? "throttled" : "error");
       if (!reduceMotion && column.current) {
         void animate(column.current, SHAKE, { duration: 0.45, ease: "easeOut" });
       }

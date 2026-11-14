@@ -49,4 +49,9 @@ describe("coachingLine", () => {
     expect(coachingLine("error", "maya@example.test", "")).toBe("That didn't match. Try again.");
     expect(coachingLine("error", "maya@example.test", "again")).toBe("Ready when you are.");
   });
+
+  it("asks for a break when the server throttles sign in", () => {
+    expect(coachingLine("throttled", "maya@example.test", "")).toBe("Too many tries. Take a short break.");
+    expect(ringTone("throttled", "")).toBe("destructive");
+  });
 });

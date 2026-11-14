@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_authx
+from app.core.device_cookie import DeviceClaim
 from app.core.passwords import (
     dummy_verify,
     hash_password,
@@ -20,13 +21,20 @@ from app.core.settings import get_settings
 from app.core.time import utc_now
 from app.models.auth_session import AuthenticationSession
 from app.models.user import User
-
-MAXIMUM_FAILED_LOGIN_ATTEMPTS = 5
-LOCKOUT_DURATION = timedelta(minutes=15)
+from app.services.login_throttle import LoginSource, LoginThrottle
 
 
 class InvalidCredentialsError(Exception):
     """A deliberately generic login failure."""
+
+    def __init__(
+        self, notify_user: User | None = None, paused_for_seconds: int = 0
+    ) -> None:
+        super().__init__("Invalid credentials.")
+        # Set when unrecognised devices were just paused for this account,
+        # so its owner should be told.
+        self.notify_user = notify_user
+        self.paused_for_seconds = paused_for_seconds
 
 
 class InvalidSessionError(Exception):
@@ -51,6 +59,8 @@ class TokenPair:
 class AuthenticationResult(TokenPair):
     user: User
     session: AuthenticationSession
+    # True when the browser already carried this account's device cookie.
+    trusted_device: bool = False
 
 
 def normalize_email(email: str) -> str:
@@ -84,30 +94,52 @@ def _session_id(payload: TokenPayload) -> UUID:
 
 class AuthenticationService:
     def login(
-        self, session: Session, *, email: str, password: str
+        self,
+        session: Session,
+        *,
+        email: str,
+        password: str,
+        client_ip: str = "unknown",
+        device: DeviceClaim | None = None,
     ) -> AuthenticationResult:
+        """Sign in, throttling failures per source (see login_throttle).
+
+        Raises LoginThrottledError before checking the password when this
+        source must wait, and InvalidCredentialsError for a wrong email or
+        password. Callers should commit after InvalidCredentialsError so the
+        failure is counted.
+        """
         normalized_email = normalize_email(email)
         user = session.scalar(
             select(User).where(func.lower(User.email) == normalized_email)
         )
+        trusted = device is not None and user is not None and device.user_id == user.id
+        source = (
+            LoginSource.device(device.device_id)
+            if trusted and device is not None
+            else LoginSource.ip(client_ip)
+        )
+        throttle = LoginThrottle(session)
+        throttle.check(normalized_email, source)
         now = utc_now()
 
         if user is None or user.password_hash is None:
             dummy_verify(password)
+            throttle.record_failure(normalized_email, source)
             raise InvalidCredentialsError
 
         verified, upgraded_hash = verify_and_upgrade(password, user.password_hash)
-        locked = user.locked_until is not None and user.locked_until > now
-        if not verified or not user.is_active or locked:
-            if not verified and user.is_active and not locked:
-                self._record_failed_login(user, now)
-                session.flush()
-            raise InvalidCredentialsError
+        if not verified or not user.is_active:
+            outcome = throttle.record_failure(normalized_email, source)
+            notify = outcome.notify_owner and user.is_active
+            raise InvalidCredentialsError(
+                notify_user=user if notify else None,
+                paused_for_seconds=outcome.paused_for_seconds,
+            )
 
+        throttle.record_success(normalized_email, source)
         if upgraded_hash is not None:
             user.password_hash = upgraded_hash
-        user.failed_login_attempts = 0
-        user.locked_until = None
         user.last_login_at = now
         authentication_session = self._create_session(session, user, now)
         access_token, refresh_token = self._issue_token_pair(
@@ -119,6 +151,7 @@ class AuthenticationService:
             session=authentication_session,
             access_token=access_token,
             refresh_token=refresh_token,
+            trusted_device=trusted,
         )
 
     def refresh(self, session: Session, payload: TokenPayload) -> TokenPair:
@@ -171,17 +204,17 @@ class AuthenticationService:
         validate_password(new_password)
         user.password_hash = hash_password(new_password)
         user.password_changed_at = utc_now()
-        user.failed_login_attempts = 0
-        user.locked_until = None
         self.revoke_all_sessions(session, user.id)
         session.flush()
 
     def reset_password(self, session: Session, *, user: User, password: str) -> None:
-        """Administrative password assignment for existing accounts only."""
+        """Administrative password assignment for existing accounts only.
+
+        Also lifts any sign-in throttling on the account.
+        """
         user.password_hash = hash_password(password)
         user.password_changed_at = utc_now()
-        user.failed_login_attempts = 0
-        user.locked_until = None
+        LoginThrottle(session).clear(normalize_email(user.email))
         self.revoke_all_sessions(session, user.id)
         session.flush()
 
@@ -249,9 +282,3 @@ class AuthenticationService:
             session.flush()
             raise RefreshTokenReuseError
         return authentication_session
-
-    @staticmethod
-    def _record_failed_login(user: User, now: datetime) -> None:
-        user.failed_login_attempts += 1
-        if user.failed_login_attempts >= MAXIMUM_FAILED_LOGIN_ATTEMPTS:
-            user.locked_until = now + LOCKOUT_DURATION

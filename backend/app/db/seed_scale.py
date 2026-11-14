@@ -63,7 +63,6 @@ def seed_large_workspace(
                 "email": f"scale-{uuid4().hex}@example.test",
                 "display_name": f"Member {index + 1:04d}",
                 "is_active": True,
-                "failed_login_attempts": 0,
             }
         )
         membership_rows.append(

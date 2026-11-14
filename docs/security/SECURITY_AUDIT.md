@@ -72,6 +72,8 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-01 · Close SSRF holes in job-link autofill — High
 
+**Status: In progress.**
+
 **Where:** `backend/app/services/job_posting_autofill_service.py` (`SafeHttpJobPostingFetcher`, `_reject_blocked_host`), called from `POST /workspaces/{id}/applications/autofill`.
 
 **Problem.** Any workspace member can make the server fetch an arbitrary URL. The current guard has five gaps:

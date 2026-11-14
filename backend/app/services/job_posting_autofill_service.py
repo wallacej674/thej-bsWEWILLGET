@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import html as html_lib
 import ipaddress
 import json
 import re
 import socket
-from collections.abc import Callable, Iterable
+import zlib
+from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any, Literal, TypedDict, cast
@@ -15,6 +17,7 @@ import extruct  # type: ignore[import-untyped]
 import httpx
 import trafilatura
 from selectolax.parser import HTMLParser, Node
+from starlette.concurrency import run_in_threadpool
 
 from app.core.enums import EmploymentType, SalaryPeriod, WorkArrangement
 from app.core.errors import AppError
@@ -27,8 +30,19 @@ from app.schemas.application import (
 MAX_FETCH_BYTES = 2_000_000
 MAX_DESCRIPTION_CHARS = 20_000
 FETCH_TIMEOUT_SECONDS = 12
+MAX_REDIRECTS = 3
 USER_AGENT = "ApplyTogetherJobAutofill/3.0"
 BLOCKED_HOSTNAMES = {"localhost", "localhost.localdomain"}
+NAT64_WELL_KNOWN_PREFIX = ipaddress.IPv6Network("64:ff9b::/96")
+NAT64_LOCAL_USE_PREFIX = ipaddress.IPv6Network("64:ff9b:1::/48")
+ALLOWED_MEDIA_TYPES = {
+    "text/html",
+    "application/xhtml",
+    "application/xhtml+xml",
+    "text/plain",
+}
+CONTENT_ENCODING_WINDOWS = {"gzip": zlib.MAX_WBITS | 16, "deflate": zlib.MAX_WBITS}
+COMPRESSED_CHUNK_BYTES = 4096
 JOB_BOARD_SITE_NAMES = {
     "linkedin",
     "indeed",
@@ -77,25 +91,54 @@ class ExtractionResult:
     warnings: list[str] = field(default_factory=list)
 
 
+class PinnedJobPostingTransport(httpx.AsyncHTTPTransport):
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        url = request.url
+        hostname = url.raw_host.decode("ascii")
+        if url.scheme not in {"http", "https"} or not hostname or url.userinfo:
+            raise _invalid_url()
+        port = (
+            url.port if url.port is not None else (443 if url.scheme == "https" else 80)
+        )
+        if port not in {80, 443}:
+            raise _blocked_url()
+        addresses = await _resolve_public_addresses(hostname, port)
+
+        for address in addresses[:-1]:
+            try:
+                return await self._send_to_address(request, address, hostname)
+            except (httpx.ConnectError, httpx.ConnectTimeout):
+                continue
+        return await self._send_to_address(request, addresses[-1], hostname)
+
+    async def _send_to_address(
+        self, request: httpx.Request, address: str, hostname: str
+    ) -> httpx.Response:
+        # The numeric URL is used only for the connection. HTTPX still sees the
+        # original origin for relative redirects, cookies, and error reporting.
+        pinned = httpx.Request(
+            request.method,
+            request.url.copy_with(host=address),
+            headers=request.headers,
+            stream=request.stream,
+            extensions={**request.extensions, "sni_hostname": hostname},
+        )
+        return await super().handle_async_request(pinned)
+
+
 class SafeHttpJobPostingFetcher:
-    def __call__(self, url: str) -> str:
-        self._reject_private_resolution(url)
+    async def __call__(self, url: str) -> str:
         try:
-            with httpx.Client(
-                timeout=FETCH_TIMEOUT_SECONDS,
-                follow_redirects=True,
-                max_redirects=3,
-                headers={"User-Agent": USER_AGENT},
-            ) as client:
-                response = client.get(url)
-                self._reject_private_resolution(str(response.url))
-                response.raise_for_status()
-        except httpx.TimeoutException as error:
+            async with asyncio.timeout(FETCH_TIMEOUT_SECONDS):
+                return await self._fetch(url)
+        except (TimeoutError, httpx.TimeoutException) as error:
             raise AppError(
                 504,
                 "job_posting_fetch_timeout",
                 "The job posting took too long to respond.",
             ) from error
+        except httpx.InvalidURL as error:
+            raise _invalid_url() from error
         except httpx.HTTPError as error:
             raise AppError(
                 502,
@@ -103,60 +146,46 @@ class SafeHttpJobPostingFetcher:
                 "We could not read that job posting right now.",
             ) from error
 
-        content_type = response.headers.get("content-type", "").lower()
-        if content_type and not any(
-            allowed in content_type
-            for allowed in ("text/html", "application/xhtml", "text/plain")
-        ):
-            raise AppError(
-                415,
-                "job_posting_content_type_unsupported",
-                "That URL did not return a readable job posting page.",
-            )
-        if len(response.content) > MAX_FETCH_BYTES:
-            raise AppError(
-                413,
-                "job_posting_response_too_large",
-                "That job posting page is too large to autofill.",
-            )
-        return response.text
-
-    def _reject_private_resolution(self, url: str) -> None:
-        parsed = urlparse(url)
-        hostname = parsed.hostname
-        if hostname is None:
-            raise AppError(
-                400,
-                "job_posting_url_invalid",
-                "Enter a valid job posting URL.",
-            )
-        try:
-            addresses = {
-                socket_info[4][0]
-                for socket_info in socket.getaddrinfo(
-                    hostname,
-                    parsed.port or (443 if parsed.scheme == "https" else 80),
-                    type=socket.SOCK_STREAM,
-                )
-            }
-        except socket.gaierror as error:
-            raise AppError(
-                400,
-                "job_posting_url_unreachable",
-                "We could not resolve that job posting URL.",
-            ) from error
-        for address in addresses:
-            _reject_blocked_host(str(address))
+    async def _fetch(self, url: str) -> str:
+        # Pool keys use the pinned IP, so never reuse a connection across hops.
+        transport = PinnedJobPostingTransport(
+            trust_env=False, limits=httpx.Limits(max_keepalive_connections=0)
+        )
+        target = httpx.URL(url)
+        async with httpx.AsyncClient(
+            transport=transport,
+            trust_env=False,
+            timeout=FETCH_TIMEOUT_SECONDS,
+            follow_redirects=False,
+            headers={
+                "User-Agent": USER_AGENT,
+                "Accept-Encoding": "gzip, deflate, identity",
+            },
+        ) as client:
+            for _ in range(MAX_REDIRECTS + 1):
+                async with client.stream("GET", target) as response:
+                    if response.next_request is not None:
+                        target = response.next_request.url
+                        continue
+                    response.raise_for_status()
+                    return await _read_posting(response)
+        raise httpx.TooManyRedirects("Exceeded maximum allowed redirects.")
 
 
 class JobPostingAutofillService:
     def __init__(self, fetcher: Callable[[str], str] | None = None) -> None:
-        self._fetcher = fetcher or SafeHttpJobPostingFetcher()
+        self._fetcher: Callable[[str], Awaitable[str]] = SafeHttpJobPostingFetcher()
+        if fetcher is not None:
 
-    def autofill(self, job_posting_url: str) -> JobPostingAutofillResponse:
+            async def fetch_in_thread(url: str) -> str:
+                return await run_in_threadpool(fetcher, url)
+
+            self._fetcher = fetch_in_thread
+
+    async def autofill(self, job_posting_url: str) -> JobPostingAutofillResponse:
         normalized_url = self._validate_url(job_posting_url)
-        document = self._fetcher(normalized_url)
-        result = _extract_best_effort(normalized_url, document)
+        document = await self._fetcher(normalized_url)
+        result = await run_in_threadpool(_extract_best_effort, normalized_url, document)
         fields, field_sources, skipped = _trusted_fields(result.candidates)
         warnings = _warnings_for(fields, result.warnings, skipped)
         source: SourceName = result.source
@@ -173,19 +202,11 @@ class JobPostingAutofillService:
         try:
             normalized_url = normalize_job_posting_url(url.strip())
         except ValueError as error:
-            raise AppError(
-                400,
-                "job_posting_url_invalid",
-                "Enter a valid job posting URL.",
-            ) from error
+            raise _invalid_url() from error
 
         parsed = urlparse(normalized_url)
         if parsed.scheme not in {"http", "https"} or parsed.hostname is None:
-            raise AppError(
-                400,
-                "job_posting_url_invalid",
-                "Enter a valid job posting URL.",
-            )
+            raise _invalid_url()
         _reject_blocked_host(parsed.hostname)
         return normalized_url
 
@@ -221,31 +242,162 @@ def _extract_best_effort(url: str, document: str) -> ExtractionResult:
     return _extract_html(parser, document, metadata)
 
 
-def _reject_blocked_host(host: str) -> None:
-    hostname = host.strip("[]").lower()
+def _invalid_url() -> AppError:
+    return AppError(400, "job_posting_url_invalid", "Enter a valid job posting URL.")
+
+
+def _blocked_url() -> AppError:
+    return AppError(
+        400,
+        "job_posting_url_not_allowed",
+        "That URL cannot be used for autofill.",
+    )
+
+
+def _reject_blocked_host(hostname: str) -> None:
+    hostname = hostname.rstrip(".").lower()
     if hostname in BLOCKED_HOSTNAMES or hostname.endswith(".localhost"):
-        raise AppError(
-            400,
-            "job_posting_url_not_allowed",
-            "That URL cannot be used for autofill.",
-        )
+        raise _blocked_url()
     try:
         address = ipaddress.ip_address(hostname)
     except ValueError:
         return
-    if (
-        address.is_private
-        or address.is_loopback
-        or address.is_link_local
-        or address.is_multicast
-        or address.is_reserved
-        or address.is_unspecified
-    ):
+    _require_global_address(address)
+
+
+def _require_global_address(
+    address: ipaddress.IPv4Address | ipaddress.IPv6Address,
+) -> None:
+    if not address.is_global or address.is_multicast:
+        raise _blocked_url()
+    if isinstance(address, ipaddress.IPv6Address):
+        if (
+            address.scope_id
+            or address.is_site_local
+            or address in NAT64_LOCAL_USE_PREFIX
+        ):
+            raise _blocked_url()
+        if address in NAT64_WELL_KNOWN_PREFIX:
+            _require_global_address(ipaddress.IPv4Address(int(address) & 0xFFFFFFFF))
+            return
+        embedded = address.ipv4_mapped or address.sixtofour
+        if embedded is not None:
+            _require_global_address(embedded)
+            return
+        if address.teredo is not None:
+            server, client = address.teredo
+            _require_global_address(server)
+            _require_global_address(client)
+    if address.is_reserved:
+        raise _blocked_url()
+
+
+async def _resolve_public_addresses(hostname: str, port: int) -> list[str]:
+    _reject_blocked_host(hostname)
+    try:
+        answers = await asyncio.get_running_loop().getaddrinfo(
+            hostname, port, type=socket.SOCK_STREAM
+        )
+        addresses = list(
+            dict.fromkeys(ipaddress.ip_address(answer[4][0]) for answer in answers)
+        )
+        if not addresses:
+            raise socket.gaierror("No addresses found")
+    except (socket.gaierror, ValueError) as error:
         raise AppError(
             400,
-            "job_posting_url_not_allowed",
-            "That URL cannot be used for autofill.",
+            "job_posting_url_unreachable",
+            "We could not resolve that job posting URL.",
+        ) from error
+    for address in addresses:
+        _require_global_address(address)
+    return [str(address) for address in addresses]
+
+
+def _response_too_large() -> AppError:
+    return AppError(
+        413,
+        "job_posting_response_too_large",
+        "That job posting page is too large to autofill.",
+    )
+
+
+async def _read_posting(response: httpx.Response) -> str:
+    media_type = (
+        response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+    )
+    encoding = response.headers.get("content-encoding", "identity").strip().lower()
+    window = CONTENT_ENCODING_WINDOWS.get(encoding)
+    if media_type not in ALLOWED_MEDIA_TYPES or (
+        encoding != "identity" and window is None
+    ):
+        raise AppError(
+            415,
+            "job_posting_content_type_unsupported",
+            "That URL did not return a readable job posting page.",
         )
+    content_length = response.headers.get("content-length")
+    if content_length is not None:
+        try:
+            length = int(content_length)
+        except ValueError as error:
+            raise httpx.RemoteProtocolError(
+                "Invalid job posting content length"
+            ) from error
+        if length > MAX_FETCH_BYTES:
+            raise _response_too_large()
+
+    body = bytearray()
+    wire_bytes = 0
+    # Bound decompressor output before allocation. HTTPX's decoded iterator
+    # decompresses each transport chunk in full before yielding it.
+    decoder = None
+    deflate_prefix = b""
+    try:
+        async for chunk in response.aiter_raw():
+            wire_bytes += len(chunk)
+            if wire_bytes > MAX_FETCH_BYTES:
+                raise _response_too_large()
+            if window is None:
+                body.extend(chunk)
+                continue
+            if decoder is None:
+                if encoding == "deflate":
+                    chunk = deflate_prefix + chunk
+                    if len(chunk) < 2:
+                        deflate_prefix = chunk
+                        continue
+                    # The zlib wrapper has a two-byte header. Some servers omit it.
+                    cmf, flg = chunk[:2]
+                    if cmf & 0x0F != 8 or cmf >> 4 > 7 or (cmf * 256 + flg) % 31:
+                        window = -zlib.MAX_WBITS
+                decoder = zlib.decompressobj(wbits=window)
+            # Bound the data zlib can copy into unused_data for each gzip member.
+            for offset in range(0, len(chunk), COMPRESSED_CHUNK_BYTES):
+                compressed = chunk[offset : offset + COMPRESSED_CHUNK_BYTES]
+                while compressed:
+                    if decoder.eof:
+                        if encoding != "gzip":
+                            raise httpx.DecodingError(
+                                "Unexpected data after deflate body"
+                            )
+                        decoder = zlib.decompressobj(
+                            wbits=CONTENT_ENCODING_WINDOWS["gzip"]
+                        )
+                    remaining = MAX_FETCH_BYTES - len(body)
+                    decoded = decoder.decompress(compressed, remaining + 1)
+                    if len(decoded) > remaining:
+                        raise _response_too_large()
+                    body.extend(decoded)
+                    compressed = decoder.unused_data
+    except zlib.error as error:
+        raise httpx.DecodingError("Invalid compressed body") from error
+    if window is not None and (decoder is None or not decoder.eof):
+        raise httpx.DecodingError("Incomplete compressed body")
+    try:
+        return body.decode(response.encoding or "utf-8", errors="replace")
+    except (LookupError, UnicodeError):
+        return body.decode("utf-8", errors="replace")
 
 
 def _extract_metadata(url: str, document: str) -> dict[str, Any]:

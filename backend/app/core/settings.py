@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     login_throttle_max_lock_minutes: int = 60
     login_device_cookie_days: int = 365
     # Request rate limits (SEC-02), as "count/second|minute|hour|day".
+    # Largest request body the API accepts at all (SEC-06); resume uploads
+    # are further capped at 3 MB.
+    max_request_bytes: int = 4 * 1024 * 1024
     rate_limits_enabled: bool = True
     rate_limit_login_per_ip: str = "10/minute"
     rate_limit_signup_per_ip: str = "5/hour"

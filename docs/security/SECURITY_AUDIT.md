@@ -32,7 +32,7 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 | SEC-03 | Replace hard account lockout with throttling (lockout DoS) | Medium | B · Rate limiting | S | Done |
 | SEC-04 | Fail-closed production configuration | Medium | C · Config & headers | S | Done |
 | SEC-05 | Security headers on API and frontend | Medium | C · Config & headers | S | Open |
-| SEC-06 | Harden résumé upload and PDF parsing | Medium | D · Uploads & AI | S | Open |
+| SEC-06 | Harden résumé upload and PDF parsing | Medium | D · Uploads & AI | S | Done |
 | SEC-07 | AI tailor cost quota and prompt-injection hardening | Medium | D · Uploads & AI | S | Open |
 | SEC-08 | Security event logging and alerting | Medium | E · Observability | M | Open |
 | SEC-09 | Logout must work with an expired access token | Medium | F · Auth flows | S | Open |
@@ -217,6 +217,9 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 ## Track D · Uploads & AI
 
 ### SEC-06 · Harden résumé upload and PDF parsing — Medium
+
+**Status: Done** on branch `sec-even-tasks`. A request-size middleware (`MAX_REQUEST_BYTES`, 4 MB, including chunked bodies) answers 413 before buffering; uploads are read in chunks and stop at 3 MB; files must start with the `%PDF-` signature; parsing reads at most 10 pages and 50,000 characters within a 5-second budget; and any parser exception is a 422. Tests: `backend/tests/test_resume_upload_limits.py`.
+
 
 **Where:** `backend/app/api/routes/profile.py:26` and `backend/app/services/resume_service.py:81–125`.
 

@@ -8,6 +8,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.router import api_router
 from app.api.routes.health import router as health_router
+from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.errors import install_error_handlers
 from app.core.settings import Settings, get_settings
 
@@ -35,6 +36,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         openapi_url="/openapi.json" if show_docs else None,
     )
     install_error_handlers(app)
+    # Inside CORS so a 413 still carries CORS headers the browser can read.
+    app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_request_bytes)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

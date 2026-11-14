@@ -42,7 +42,7 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 | SEC-13 | Row-level security as tenant-isolation backstop | Low | G · Database | L | Open |
 | SEC-14 | Data retention and purge jobs | Low | G · Database | S | Done |
 | SEC-15 | Account deletion and data export | Medium | H · Privacy | M | Open |
-| SEC-16 | Limit member email visibility | Low | H · Privacy | S | Open |
+| SEC-16 | Limit member email visibility | Low | H · Privacy | S | Done |
 | SEC-17 | Escape LIKE wildcards in search | Low | I · Small fixes | S | Open |
 | SEC-18 | Caps on workspaces and invitations per user | Low | I · Small fixes | S | Open |
 | SEC-19 | Lockout counter keeps re-locking after expiry | Low | B · Rate limiting | S | Done (with SEC-03) |
@@ -413,6 +413,9 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 - **Tests:** deletion removes or anonymizes all rows; the export contains only the requester's data; sole-owner workspaces block deletion with a clear error.
 
 ### SEC-16 · Limit member email visibility — Low
+
+**Status: Done** on branch `sec-even-tasks`. The member list returns other members' emails only to owners and admins (everyone still sees their own), and plain members' searches match display names only, so they can't probe for addresses. The workspace page hides the missing email line. Tests: `backend/tests/test_member_email_visibility.py`.
+
 
 - **Where:** `backend/app/schemas/workspace.py:23` (`WorkspaceMemberUser.email`) and `list_members`.
 - **Problem:** every member, of any role, can list every other member's email address, in workspaces of up to 500 people.

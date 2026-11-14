@@ -2409,9 +2409,11 @@ export function WorkspacePage({ context }: { context: AppContext }) {
                             </span>
                           )}
                         </div>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {member.user.email}
-                        </p>
+                        {member.user.email ? (
+                          <p className="truncate text-xs text-muted-foreground">
+                            {member.user.email}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">

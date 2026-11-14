@@ -50,7 +50,7 @@ def get_workspace(
 @router.get("/{workspace_id}/members", response_model=WorkspaceMemberListResponse)
 def list_workspace_members(
     workspace_id: UUID,
-    _membership: WorkspaceAccess,
+    membership: WorkspaceAccess,
     session: DatabaseSession,
     search: Annotated[str | None, Query(max_length=200)] = None,
     page: Annotated[int, Query(ge=1)] = 1,
@@ -59,6 +59,7 @@ def list_workspace_members(
     return workspace_service.list_members(
         session,
         workspace_id,
+        viewer=membership,
         search=search.strip() or None if search else None,
         page=page,
         page_size=page_size,

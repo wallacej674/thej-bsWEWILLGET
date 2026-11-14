@@ -108,12 +108,27 @@ class WorkspaceService:
         session: Session,
         workspace_id: UUID,
         *,
+        viewer: WorkspaceMembership | None = None,
         search: str | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> WorkspaceMemberListResponse:
+        """List active members; emails only for owners, admins and oneself.
+
+        Plain members can't search by email either, so they can't probe
+        whether an address belongs to the workspace (SEC-16).
+        """
+        sees_emails = viewer is None or viewer.role in {
+            MembershipRole.OWNER,
+            MembershipRole.ADMIN,
+        }
         rows, total = self._repository.list_active_members(
-            session, workspace_id, search=search, page=page, page_size=page_size
+            session,
+            workspace_id,
+            search=search,
+            search_emails=sees_emails,
+            page=page,
+            page_size=page_size,
         )
         member_count = (
             total
@@ -126,7 +141,11 @@ class WorkspaceService:
                     user=WorkspaceMemberUser(
                         id=user.id,
                         display_name=user.display_name,
-                        email=user.email,
+                        email=(
+                            user.email
+                            if sees_emails or (viewer and viewer.user_id == user.id)
+                            else None
+                        ),
                         avatar_url=user.avatar_url,
                     ),
                     role=membership.role,

@@ -52,6 +52,7 @@ class WorkspaceRepository:
         workspace_id: UUID,
         *,
         search: str | None = None,
+        search_emails: bool = True,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[tuple[WorkspaceMembership, User]], int]:
@@ -63,6 +64,8 @@ class WorkspaceRepository:
             pattern = f"%{search}%"
             filters.append(
                 or_(User.display_name.ilike(pattern), User.email.ilike(pattern))
+                if search_emails
+                else User.display_name.ilike(pattern)
             )
         statement: Select[tuple[WorkspaceMembership, User]] = (
             select(WorkspaceMembership, User)

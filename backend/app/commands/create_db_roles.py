@@ -23,7 +23,7 @@ import argparse
 import os
 
 from psycopg import sql
-from sqlalchemy import Connection, create_engine, text
+from sqlalchemy import Connection, ScalarResult, create_engine, text
 
 DEFAULT_MIGRATOR = "applytogether_migrator"
 DEFAULT_APP = "applytogether_app"
@@ -76,7 +76,7 @@ def apply_roles(
                 ),
             )
 
-    database = connection.execute(text("SELECT current_database()")).scalar_one()
+    database: str = connection.execute(text("SELECT current_database()")).scalar_one()
     m, a = sql.Identifier(migrator), sql.Identifier(app_role)
     statements: list[sql.Composable] = [
         sql.SQL("GRANT CONNECT ON DATABASE {} TO {}, {}").format(
@@ -86,7 +86,7 @@ def apply_roles(
         sql.SQL("GRANT USAGE, CREATE ON SCHEMA public TO {}").format(m),
         sql.SQL("GRANT USAGE ON SCHEMA public TO {}").format(a),
     ]
-    tables = connection.execute(
+    tables: ScalarResult[str] = connection.execute(
         text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
     ).scalars()
     statements += [

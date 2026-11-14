@@ -4,7 +4,6 @@ from uuid import UUID
 
 from sqlalchemy import (
     ColumnElement,
-    Select,
     and_,
     asc,
     case,
@@ -239,7 +238,7 @@ class ApplicationRepository:
     def list_recent_activity(
         self, session: Session, workspace_id: UUID, limit: int
     ) -> list[tuple[JobApplication, User]]:
-        statement: Select[tuple[JobApplication, User]] = (
+        statement = (
             select(JobApplication, User)
             .join(User, User.id == JobApplication.owner_id)
             .where(
@@ -412,7 +411,7 @@ class ApplicationRepository:
         ]
         owner = aliased(User)
         deleter = aliased(User)
-        statement: Select[tuple[JobApplication, User, User]] = (
+        statement = (
             select(JobApplication, owner, deleter)
             .join(owner, owner.id == JobApplication.owner_id)
             .join(deleter, deleter.id == JobApplication.deleted_by_user_id)
@@ -492,7 +491,7 @@ class ApplicationRepository:
             "job_title": JobApplication.job_title,
         }[sort_by]
         ordering = asc(sort_column) if sort_order == "asc" else desc(sort_column)
-        statement: Select[tuple[JobApplication, User]] = (
+        statement = (
             select(JobApplication, User)
             .join(User, User.id == JobApplication.owner_id)
             .where(*filters)

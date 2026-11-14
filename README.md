@@ -93,7 +93,7 @@ in development or test with an explicit backend setting and frontend flag.
 - Docker Desktop with Docker Compose
 - Python 3.12
 - [uv](https://docs.astral.sh/uv/)
-- Node.js 22
+- Node.js 22.22 or newer in the 22.x release line
 - npm (the frontend package manager)
 
 ## Run the integrated application

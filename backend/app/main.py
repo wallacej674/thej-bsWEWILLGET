@@ -10,6 +10,10 @@ from app.api.router import api_router
 from app.api.routes.health import router as health_router
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.errors import install_error_handlers
+from app.core.security_events import (
+    RequestContextMiddleware,
+    configure_security_logging,
+)
 from app.core.settings import Settings, get_settings
 
 # Headers the frontend actually sends (see frontend/src/api/client.ts).
@@ -26,6 +30,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     logging.basicConfig(level=settings.log_level.upper())
+    configure_security_logging()
     # Interactive API docs and the schema are for local development only.
     show_docs = settings.environment == "development"
     app = FastAPI(
@@ -48,6 +53,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     # Added last so it runs first: reject unexpected Host headers outright.
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
+    # Outermost: every request gets an id and its origin noted for logging.
+    app.add_middleware(RequestContextMiddleware)
     app.include_router(health_router)
     app.include_router(api_router, prefix=settings.api_v1_prefix)
     return app

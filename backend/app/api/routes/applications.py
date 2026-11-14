@@ -7,6 +7,7 @@ from app.api.dependencies.current_user import CurrentUser, DatabaseSession
 from app.api.dependencies.rate_limits import limit_per_user
 from app.api.dependencies.workspace_access import WorkspaceAccess
 from app.core.enums import ApplicationStatus, EmploymentType, WorkArrangement
+from app.core.security_events import security_event
 from app.schemas.application import (
     ApplicationCreate,
     ApplicationListResponse,
@@ -144,9 +145,17 @@ def permanently_delete_applications(
     _membership: WorkspaceAccess,
     session: DatabaseSession,
 ) -> PermanentDeleteResponse:
-    return application_service.permanently_delete(
+    result = application_service.permanently_delete(
         session, workspace_id, current_user, payload
     )
+    security_event(
+        "applications.permanently_deleted",
+        "success",
+        workspace_id=workspace_id,
+        user_id=current_user.id,
+        count=result.deleted_count,
+    )
+    return result
 
 
 @router.post(

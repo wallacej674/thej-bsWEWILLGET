@@ -11,6 +11,7 @@ RATE_LIMITS_ENABLED=false (the test suite does this by default).
 
 from __future__ import annotations
 
+import logging
 import math
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -20,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.core.device_cookie import keyed_digest
 from app.core.errors import AppError
+from app.core.security_events import security_event
 from app.core.settings import get_settings
 from app.core.time import utc_now
 from app.models.rate_limit import RateLimitCounter
@@ -87,5 +89,8 @@ def enforce(session: Session, rule: str, key: str, rate: str) -> None:
     # Commit now: the count must stick even if the request then fails.
     session.commit()
     if hits > parsed.limit:
+        security_event(
+            "rate_limit.exceeded", "blocked", level=logging.WARNING, rule=rule
+        )
         window_end = start + timedelta(seconds=parsed.seconds)
         raise rate_limited(math.ceil((window_end - now).total_seconds()))

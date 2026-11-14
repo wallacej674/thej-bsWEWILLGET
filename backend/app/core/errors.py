@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -5,6 +6,8 @@ from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+
+from app.core.security_events import security_event
 
 
 class AppError(Exception):
@@ -27,9 +30,20 @@ def error_payload(code: str, message: str, details: Any = None) -> dict[str, Any
     return {"error": {"code": code, "message": message, "details": details}}
 
 
-async def app_error_handler(_request: Request, error: Exception) -> JSONResponse:
+async def app_error_handler(request: Request, error: Exception) -> JSONResponse:
     if not isinstance(error, AppError):
         raise TypeError("Expected AppError")
+    if error.status_code in {401, 403}:
+        # Refused access is worth a trail; 403s (a signed-in user reaching
+        # for something not theirs) more so than ordinary expired sessions.
+        security_event(
+            "access.denied",
+            error.code,
+            level=logging.WARNING if error.status_code == 403 else logging.INFO,
+            status=error.status_code,
+            method=request.method,
+            path=request.url.path,
+        )
     return JSONResponse(
         status_code=error.status_code,
         content=jsonable_encoder(

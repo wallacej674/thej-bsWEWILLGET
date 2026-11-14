@@ -34,7 +34,7 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 | SEC-05 | Security headers on API and frontend | Medium | C · Config & headers | S | Open |
 | SEC-06 | Harden résumé upload and PDF parsing | Medium | D · Uploads & AI | S | Done |
 | SEC-07 | AI tailor cost quota and prompt-injection hardening | Medium | D · Uploads & AI | S | Open |
-| SEC-08 | Security event logging and alerting | Medium | E · Observability | M | Open |
+| SEC-08 | Security event logging and alerting | Medium | E · Observability | M | Done |
 | SEC-09 | Logout must work with an expired access token | Medium | F · Auth flows | S | Open |
 | SEC-10 | Secure "forgot password" flow | Medium | F · Auth flows | M | Open |
 | SEC-11 | Verification email content injection and email bombing | Medium | F · Auth flows | S | Open |
@@ -265,6 +265,9 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 ## Track E · Observability
 
 ### SEC-08 · Security event logging and alerting — Medium
+
+**Status: Done** on branch `sec-even-tasks`. `backend/app/core/security_events.py` writes JSON lines to the `applytogether.security` logger with a per-request id (echoed as `X-Request-ID`), IP, user agent and outcome. It covers sign-in, throttling, pausing, refresh-token reuse (warning), logout, password changes, signup and verification; role changes, removals, workspace deletion and invitations; permanent deletes; rate limits; and every 401/403 (`access.denied`). Emails appear only as keyed-hash pseudonyms, never with passwords or tokens. No database table was added; ship the log stream to your log platform and alert on `auth.refresh_reuse` and `auth.login_paused`. Tests: `backend/tests/test_security_events.py`.
+
 
 **Where:** the backend has essentially no application logging (`grep logger.` finds nothing in `app/`).
 

@@ -17,6 +17,7 @@ from app.core.device_cookie import (
 )
 from app.core.errors import AppError
 from app.core.passwords import PasswordPolicyError
+from app.core.security_events import email_hash, security_event
 from app.core.settings import get_settings
 from app.schemas.auth import (
     ChangePasswordRequest,
@@ -125,6 +126,13 @@ def login(
         session.commit()
     except LoginThrottledError as error:
         session.rollback()
+        security_event(
+            "auth.login",
+            "throttled",
+            level=logging.WARNING,
+            email_hash=email_hash(payload.email),
+            retry_after_seconds=error.retry_after_seconds,
+        )
         minutes = error.retry_after_minutes
         raise AppError(
             429,
@@ -137,7 +145,15 @@ def login(
     except InvalidCredentialsError as error:
         # Commit, not roll back: the failure has to be counted.
         session.commit()
+        security_event("auth.login", "failure", email_hash=email_hash(payload.email))
         if error.notify_user is not None:
+            security_event(
+                "auth.login_paused",
+                "paused",
+                level=logging.WARNING,
+                user_id=error.notify_user.id,
+                paused_for_seconds=error.paused_for_seconds,
+            )
             _notify_login_paused(
                 email_sender, error.notify_user.email, error.paused_for_seconds
             )
@@ -147,6 +163,13 @@ def login(
             "Email or password is incorrect.",
         ) from error
 
+    security_event(
+        "auth.login",
+        "success",
+        user_id=result.user.id,
+        session_id=result.session.id,
+        recognised_device=result.trusted_device,
+    )
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
     _set_auth_cookies(response, result.access_token, result.refresh_token)
     if not result.trusted_device:
@@ -174,11 +197,15 @@ def signup(
     try:
         registration_service.signup(session, payload, email_sender)
     except EmailDeliveryError as error:
+        security_event(
+            "auth.signup", "email_failed", email_hash=email_hash(payload.email)
+        )
         raise AppError(
             503,
             "email_delivery_unavailable",
             "Your registration was saved, but the verification email could not be sent.",
         ) from error
+    security_event("auth.signup", "requested", email_hash=email_hash(payload.email))
     return SignupResponse()
 
 
@@ -198,11 +225,13 @@ def verify_email(
         registration_service.verify(session, payload.token)
     except InvalidVerificationTokenError as error:
         session.rollback()
+        security_event("auth.email_verified", "failure")
         raise AppError(
             400,
             "verification_link_invalid",
             "This verification link is invalid or has expired.",
         ) from error
+    security_event("auth.email_verified", "success")
     return VerifyEmailResponse()
 
 
@@ -247,6 +276,14 @@ async def refresh(request: Request, session: DatabaseSession) -> Response:
         session.commit()
     except RefreshTokenReuseError as error:
         session.commit()
+        # A rotated refresh token came back: likely stolen. Worth an alert.
+        security_event(
+            "auth.refresh_reuse",
+            "blocked",
+            level=logging.WARNING,
+            user_id=payload.sub,
+            session_id=(payload.model_extra or {}).get("sid"),
+        )
         raise AppError(
             401,
             "session_revoked",
@@ -274,6 +311,12 @@ async def logout(request: Request, session: DatabaseSession) -> Response:
         payload = authx.verify_token(token, verify_csrf=True)
         authentication_service.revoke_session(session, payload)
         session.commit()
+        security_event(
+            "auth.logout",
+            "success",
+            user_id=payload.sub,
+            session_id=(payload.model_extra or {}).get("sid"),
+        )
     except MissingTokenError:
         # Logging out twice must remain safe and clear any stale cookies.
         session.rollback()
@@ -304,6 +347,12 @@ def change_password(
         session.commit()
     except CurrentPasswordInvalidError as error:
         session.rollback()
+        security_event(
+            "auth.password_changed",
+            "failure",
+            level=logging.WARNING,
+            user_id=current_user.id,
+        )
         raise AppError(
             400,
             "current_password_invalid",
@@ -317,6 +366,7 @@ def change_password(
             str(error),
         ) from error
 
+    security_event("auth.password_changed", "success", user_id=current_user.id)
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
     _clear_auth_cookies(response)
     return response

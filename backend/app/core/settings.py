@@ -52,6 +52,10 @@ class Settings(BaseSettings):
     # Largest request body the API accepts at all (SEC-06); resume uploads
     # are further capped at 3 MB.
     max_request_bytes: int = 4 * 1024 * 1024
+    # Days after which soft-deleted applications are erased by the purge job
+    # (SEC-14). Unset by default: users can restore them, so enabling this is
+    # a product decision.
+    purge_deleted_applications_after_days: int | None = None
     rate_limits_enabled: bool = True
     rate_limit_login_per_ip: str = "10/minute"
     rate_limit_signup_per_ip: str = "5/hour"

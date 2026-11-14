@@ -167,6 +167,10 @@ Before going live, also check:
 - **Restore drill.** Restore a backup to a scratch database at least once a
   quarter and run `python -m alembic current` against it.
 - **Network.** Only the API's hosts may reach the database port.
+- **Retention.** Schedule `python -m app.commands.purge` to run daily. It
+  deletes expired sessions, stale pending registrations (which hold password
+  hashes), and old throttle and rate-limit rows. Soft-deleted applications are
+  only erased if `PURGE_DELETED_APPLICATIONS_AFTER_DAYS` is set.
 
 ## Validation
 

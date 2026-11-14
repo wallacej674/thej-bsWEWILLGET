@@ -40,7 +40,7 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 | SEC-11 | Verification email content injection and email bombing | Medium | F · Auth flows | S | Open |
 | SEC-12 | Least-privilege database roles, TLS and timeouts | Medium | G · Database | M | Done |
 | SEC-13 | Row-level security as tenant-isolation backstop | Low | G · Database | L | Open |
-| SEC-14 | Data retention and purge jobs | Low | G · Database | S | Open |
+| SEC-14 | Data retention and purge jobs | Low | G · Database | S | Done |
 | SEC-15 | Account deletion and data export | Medium | H · Privacy | M | Open |
 | SEC-16 | Limit member email visibility | Low | H · Privacy | S | Open |
 | SEC-17 | Escape LIKE wildcards in search | Low | I · Small fixes | S | Open |
@@ -385,6 +385,9 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 - **Tests:** a query run as user A with a hand-built `workspace_id` filter for workspace B returns 0 rows.
 
 ### SEC-14 · Data retention and purge jobs — Low
+
+**Status: Done** on branch `sec-even-tasks`. `python -m app.commands.purge` (daily, safe to repeat) removes sessions 30 days past expiry or revocation, pending registrations 7 days past expiry or use, idle unlocked throttle buckets, and rate-limit windows older than a day. Soft-deleted applications are erased only if `PURGE_DELETED_APPLICATIONS_AFTER_DAYS` is set, because that's still a product decision. Tests: `backend/tests/test_purge.py`.
+
 
 - **Problem:** several kinds of data are never deleted.
   - Expired or revoked `auth_sessions`.

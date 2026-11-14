@@ -16,7 +16,8 @@ from urllib.parse import urlparse
 import extruct  # type: ignore[import-untyped]
 import httpx
 import trafilatura
-from selectolax.parser import HTMLParser, Node
+from selectolax.lexbor import LexborHTMLParser as HTMLParser
+from selectolax.lexbor import LexborNode as Node
 from starlette.concurrency import run_in_threadpool
 
 from app.core.enums import EmploymentType, SalaryPeriod, WorkArrangement

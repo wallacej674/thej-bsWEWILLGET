@@ -62,7 +62,8 @@ npm test
 npm run build
 ```
 
-CI runs those commands on Node.js 22 after `npm ci`.
+CI runs those commands on Node.js 22 after `npm ci`. React Router requires at
+least Node.js 22.22.
 
 ## Known limitations
 

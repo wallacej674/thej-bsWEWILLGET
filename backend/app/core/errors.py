@@ -32,10 +32,10 @@ async def app_error_handler(_request: Request, error: Exception) -> JSONResponse
         raise TypeError("Expected AppError")
     return JSONResponse(
         status_code=error.status_code,
-        headers=error.headers,
         content=jsonable_encoder(
             error_payload(error.code, error.message, error.details)
         ),
+        headers=error.headers,
     )
 
 

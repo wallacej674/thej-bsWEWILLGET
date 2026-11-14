@@ -2,6 +2,7 @@ from fastapi import APIRouter, Response, status
 
 from app.api.dependencies.current_user import CurrentUser, DatabaseSession
 from app.core.auth import get_authx
+from app.core.device_cookie import DEVICE_COOKIE_NAME, DEVICE_COOKIE_PATH
 from app.schemas.user import AccountExport, CurrentUserResponse, DeleteAccountRequest
 from app.services.account_data import delete_account, export_account
 
@@ -27,4 +28,5 @@ def remove_account(
     delete_account(session, current_user.id, payload.password)
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
     get_authx().unset_cookies(response)
+    response.delete_cookie(DEVICE_COOKIE_NAME, path=DEVICE_COOKIE_PATH)
     return response

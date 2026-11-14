@@ -12,6 +12,7 @@ This is a code-review audit, not a penetration test. Every finding below was fou
   - Backend: `uv run python -m pytest`, `uv run python -m ruff check .`, `uv run python -m mypy app` (call tools through `python -m`; see `backend/` CI for the exact steps).
   - Frontend: `npm run lint`, `npm run typecheck`, `npm test`.
 - Never commit secrets or real credentials. Test accounts use `@example.test` addresses.
+- Keep the **Status** column in the summary current: set a task to `In progress` when you start it and `Done` when its PR merges, linking the PR.
 
 ### Severity
 
@@ -23,39 +24,39 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### Summary
 
-| ID | Title | Severity | Track | Effort |
-|---|---|---|---|---|
-| SEC-00 | Land the dependency vulnerability fixes | High | — | S |
-| SEC-01 | Close SSRF holes in job-link autofill | High | A · Autofill | M |
-| SEC-02 | Rate limiting for auth and expensive endpoints | High | B · Rate limiting | M |
-| SEC-03 | Replace hard account lockout with throttling (lockout DoS) | Medium | B · Rate limiting | S |
-| SEC-04 | Fail-closed production configuration | Medium | C · Config & headers | S |
-| SEC-05 | Security headers on API and frontend | Medium | C · Config & headers | S |
-| SEC-06 | Harden résumé upload and PDF parsing | Medium | D · Uploads & AI | S |
-| SEC-07 | AI tailor cost quota and prompt-injection hardening | Medium | D · Uploads & AI | S |
-| SEC-08 | Security event logging and alerting | Medium | E · Observability | M |
-| SEC-09 | Logout must work with an expired access token | Medium | F · Auth flows | S |
-| SEC-10 | Secure "forgot password" flow | Medium | F · Auth flows | M |
-| SEC-11 | Verification email content injection and email bombing | Medium | F · Auth flows | S |
-| SEC-12 | Least-privilege database roles, TLS and timeouts | Medium | G · Database | M |
-| SEC-13 | Row-level security as tenant-isolation backstop | Low | G · Database | L |
-| SEC-14 | Data retention and purge jobs | Low | G · Database | S |
-| SEC-15 | Account deletion and data export | Medium | H · Privacy | M |
-| SEC-16 | Limit member email visibility | Low | H · Privacy | S |
-| SEC-17 | Escape LIKE wildcards in search | Low | I · Small fixes | S |
-| SEC-18 | Caps on workspaces and invitations per user | Low | I · Small fixes | S |
-| SEC-19 | Lockout counter keeps re-locking after expiry | Low | B · Rate limiting | S |
-| SEC-20 | Remove the verification token from the URL after use | Low | J · Frontend | S |
-| SEC-21 | Self-host fonts and tighten third-party requests | Low | J · Frontend | S |
-| SEC-22 | CI and supply-chain hardening | Low | K · CI | S |
-| SEC-23 | Session management: list and revoke devices | Low | F · Auth flows | M |
-| SEC-24 | Breached-password check and optional MFA | Low | F · Auth flows | M |
+| ID | Title | Severity | Track | Effort | Status |
+|---|---|---|---|---|---|
+| SEC-00 | Land the dependency vulnerability fixes | High | — | S | Done |
+| SEC-01 | Close SSRF holes in job-link autofill | High | A · Autofill | M | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/41) |
+| SEC-02 | Rate limiting for auth and expensive endpoints | High | B · Rate limiting | M | Open |
+| SEC-03 | Replace hard account lockout with throttling (lockout DoS) | Medium | B · Rate limiting | S | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/43) |
+| SEC-04 | Fail-closed production configuration | Medium | C · Config & headers | S | Open |
+| SEC-05 | Security headers on API and frontend | Medium | C · Config & headers | S | In progress |
+| SEC-06 | Harden résumé upload and PDF parsing | Medium | D · Uploads & AI | S | Open |
+| SEC-07 | AI tailor cost quota and prompt-injection hardening | Medium | D · Uploads & AI | S | In progress |
+| SEC-08 | Security event logging and alerting | Medium | E · Observability | M | Open |
+| SEC-09 | Logout must work with an expired access token | Medium | F · Auth flows | S | In progress |
+| SEC-10 | Secure "forgot password" flow | Medium | F · Auth flows | M | Open |
+| SEC-11 | Verification email content injection and email bombing | Medium | F · Auth flows | S | In progress |
+| SEC-12 | Least-privilege database roles, TLS and timeouts | Medium | G · Database | M | Open |
+| SEC-13 | Row-level security as tenant-isolation backstop | Low | G · Database | L | In progress |
+| SEC-14 | Data retention and purge jobs | Low | G · Database | S | Open |
+| SEC-15 | Account deletion and data export | Medium | H · Privacy | M | In progress |
+| SEC-16 | Limit member email visibility | Low | H · Privacy | S | Open |
+| SEC-17 | Escape LIKE wildcards in search | Low | I · Small fixes | S | In progress |
+| SEC-18 | Caps on workspaces and invitations per user | Low | I · Small fixes | S | Open |
+| SEC-19 | Lockout counter keeps re-locking after expiry | Low | B · Rate limiting | S | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/43) |
+| SEC-20 | Remove the verification token from the URL after use | Low | J · Frontend | S | Open |
+| SEC-21 | Self-host fonts and tighten third-party requests | Low | J · Frontend | S | In progress |
+| SEC-22 | CI and supply-chain hardening | Low | K · CI | S | Open |
+| SEC-23 | Session management: list and revoke devices | Low | F · Auth flows | M | In progress |
+| SEC-24 | Breached-password check and optional MFA | Low | F · Auth flows | M | Open |
 
 ---
 
 ## SEC-00 · Land the dependency vulnerability fixes — High
 
-**Status:** the fixes exist but are **uncommitted** on local branch `fix-dependabot-alerts`.
+**Status: Done.** Merged into `main` in PR #39 (commit `c8ea7a8`). Afterwards, `npm audit` and `pip-audit` both report 0 on `main`, and GitHub's Dependabot alerts dropped from 29 to 1.
 
 - **What was fixed:**
   - `react-router` 7.18.0 → 7.18.5 (RSC CSRF bypass).
@@ -63,14 +64,16 @@ This is a code-review audit, not a penetration test. Every finding below was fou
   - Refreshed transitive `tar`, `postcss`, `brace-expansion`, `browserslist`, `js-yaml` and `nanoid`.
   - An npm `overrides` entry forcing `minimatch ^11.0.8` under `@typescript-eslint/typescript-estree` (GHSA-g3hv-75wg-m249).
   - `cryptography` 49 → 50.0.2, `dnspython` 2.8 → 2.9.2, `soupsieve` 2.8.4 → 4.1.
-- **Do:** commit only `frontend/package.json`, `frontend/package-lock.json` and `backend/uv.lock`, open the PR, and merge it. Then confirm the GitHub Dependabot alert count drops to 0.
-- **Done when:** `npm audit` and `pip-audit` report 0 on `main`, and the Dependabot alerts are closed.
+- **Left over:** one moderate alert, [#102](https://github.com/wallacej674/thej-bsWEWILLGET/security/dependabot/102), is still open, but neither local audit reproduces it. It may be a stale alert that clears on the next scan, or one in a file the local tools don't check (the GitHub Actions workflows or the Postgres image in `compose.yaml`). Whoever picks up SEC-22 should check it on GitHub and fix it or dismiss it with a reason.
+- **Stale branch:** `dependabot/npm_and_yarn/frontend/source-map-js-1.2.2` is already part of `main` and can be deleted.
 
 ---
 
 ## Track A · Autofill
 
 ### SEC-01 · Close SSRF holes in job-link autofill — High
+
+**Status: Done.** Merged in [PR #41](https://github.com/wallacej674/thej-bsWEWILLGET/pull/41).
 
 **Where:** `backend/app/services/job_posting_autofill_service.py` (`SafeHttpJobPostingFetcher`, `_reject_blocked_host`), called from `POST /workspaces/{id}/applications/autofill`.
 
@@ -137,27 +140,26 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-03 · Replace hard account lockout with throttling — Medium
 
-**Where:** `backend/app/services/auth_service.py` (`MAXIMUM_FAILED_LOGIN_ATTEMPTS` at line 24, `_record_failed_login` at line 254).
+**Status: Done.** Merged in [PR #43](https://github.com/wallacej674/thej-bsWEWILLGET/pull/43).
 
-**Problem.** Five wrong passwords lock the account for 15 minutes, no matter who sent them. Anyone who knows a user's email can keep that user locked out indefinitely (a targeted denial of service).
+**Was:** five wrong passwords locked the account for 15 minutes, whoever typed them, so anyone who knew a user's email could keep them locked out. In practice the lock also never took effect: the login route rolled the transaction back on a wrong password, which discarded the failure count every time.
 
-**Change.**
+**Now** (OWASP's device-cookie defence; see `backend/app/services/login_throttle.py`):
 
-- Once SEC-02's per-IP limiting is in place, switch to *progressive delay*: after N failures, require exponentially longer waits, or a CAPTCHA/turnstile challenge on the login form, instead of refusing the correct password.
-- Keep the hard lock only as a last resort, at a much higher threshold.
-- Email the user when their account hits the threshold.
+- **Failures count per source, not per account.** A source is either a recognised device or an IP address. A recognised device is a browser carrying a signed `applytogether_device` cookie, issued on a successful sign-in (`backend/app/core/device_cookie.py`). A stranger can only throttle their own source.
+- **Thresholds and lock lengths.** Five failures in 15 minutes throttle a source. Locks double each time (1, 2, 4 … minutes, capped at 60). A lock that has run out starts a fresh count, which fixes SEC-19. A quiet day forgets the lock history.
+- **Account-wide backstop.** Attempts from unrecognised devices are also counted together: 20 failures pause unrecognised devices only, so browsers the owner already uses keep working. The owner gets at most one "sign-in attempts paused" email a day; it contains no user-supplied text (SEC-11).
+- **Throttled responses.** A throttled request gets `429 login_throttled` with `Retry-After` and "Try again in N minutes", before the password is checked. The sign-in page shows that message.
+- **No account enumeration.** Buckets are keyed by the typed email, so unknown emails behave exactly like real ones. Only keyed hashes of the email and the source are stored, in `login_throttle_buckets`.
+- **Settings and schema.** All limits are `LOGIN_THROTTLE_*` settings. The unused `users.failed_login_attempts` and `users.locked_until` columns are dropped (migration `20261113_0011`). An administrator password reset clears the account's buckets.
 
-**Tests:** an attacker IP failing 20 times doesn't stop the real user, from another IP, signing in with the right password; the challenge is required after the threshold.
+**Still needed from SEC-02:** buckets are per email, so one IP trying a single password against thousands of different accounts (credential stuffing) isn't slowed here. That needs SEC-02's per-IP limit across all accounts. CAPTCHA was not added; progressive delay was used instead.
+
+**Deploying:** behind a proxy, run uvicorn with `--proxy-headers` and a trusted `--forwarded-allow-ips`, so the IP is the visitor's and not the proxy's.
 
 ### SEC-19 · Lockout counter keeps re-locking after expiry — Low
 
-**Where:** `auth_service.py`, the `login` method and `_record_failed_login`.
-
-**Problem.** `failed_login_attempts` resets only after a *successful* login. When a 15-minute lock expires, the counter is still at or above 5, so a single further typo locks the account for another 15 minutes.
-
-**Change.** Reset or decay the counter once `locked_until` has passed, or store failure timestamps and count them in a sliding window. Coordinate with SEC-03 (same file).
-
-**Test:** after a lock expires, one wrong password doesn't re-lock the account.
+**Status: Done**, as part of SEC-03. The per-account counter is gone. In its place, a throttle lock that has run out starts a fresh count, so one typo afterwards doesn't re-lock. This is covered by `test_locks_double_and_a_spent_lock_starts_a_fresh_count`.
 
 ---
 
@@ -471,6 +473,7 @@ This is a code-review audit, not a penetration test. Every finding below was fou
   - Add `npm audit --audit-level=high` and `pip-audit` steps.
   - Add CodeQL (Python and JavaScript), `gitleaks` secret scanning, and `actions/dependency-review-action` on pull requests.
   - Add `.github/dependabot.yml` covering npm (`/frontend`), uv/pip (`/backend`), github-actions and docker (compose).
+- **Also:** resolve the leftover Dependabot alert #102 noted under SEC-00.
 - **Tests:** CI fails on a deliberately added vulnerable package or a fake secret, checked on a throwaway branch.
 
 ---

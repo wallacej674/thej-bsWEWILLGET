@@ -3,6 +3,7 @@ from app.models.ai_quota import AiQuotaBucket
 from app.models.application import JobApplication
 from app.models.auth_session import AuthenticationSession
 from app.models.invitation import WorkspaceInvitation
+from app.models.login_throttle import LoginThrottleBucket
 from app.models.membership import WorkspaceMembership
 from app.models.pending_registration import PendingRegistration
 from app.models.resume import UserResume
@@ -14,6 +15,7 @@ __all__ = [
     "ApplicationAiAnalysis",
     "AuthenticationSession",
     "JobApplication",
+    "LoginThrottleBucket",
     "PendingRegistration",
     "User",
     "UserResume",

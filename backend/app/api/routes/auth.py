@@ -1,3 +1,4 @@
+import logging
 from ipaddress import ip_address, ip_network
 from uuid import UUID
 
@@ -13,8 +14,15 @@ from app.api.dependencies.current_user import (
 )
 from app.api.dependencies.email_delivery import EmailSenderDependency
 from app.core.auth import get_authx
+from app.core.device_cookie import (
+    DEVICE_COOKIE_NAME,
+    DEVICE_COOKIE_PATH,
+    issue_device_cookie,
+    read_device_cookie,
+)
 from app.core.errors import AppError
 from app.core.passwords import PasswordPolicyError
+from app.core.settings import get_settings
 from app.core.time import utc_now
 from app.models.auth_session import AuthenticationSession
 from app.schemas.auth import (
@@ -35,7 +43,8 @@ from app.services.auth_service import (
     InvalidSessionError,
     RefreshTokenReuseError,
 )
-from app.services.email_delivery import EmailDeliveryError
+from app.services.email_delivery import EmailDeliveryError, EmailSender
+from app.services.login_throttle import LoginThrottledError
 from app.services.registration_service import (
     InvalidVerificationTokenError,
     RegistrationService,
@@ -45,6 +54,7 @@ from app.services.signup_abuse import (
     verify_signup_challenge,
 )
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 authentication_service = AuthenticationService()
 registration_service = RegistrationService()
@@ -60,6 +70,38 @@ def _set_auth_cookies(
 
 def _clear_auth_cookies(response: Response) -> None:
     get_authx().unset_cookies(response)
+
+
+def _set_device_cookie(response: Response, user_id: UUID) -> None:
+    settings = get_settings()
+    response.set_cookie(
+        DEVICE_COOKIE_NAME,
+        issue_device_cookie(user_id),
+        max_age=settings.login_device_cookie_days * 24 * 60 * 60,
+        path=DEVICE_COOKIE_PATH,
+        secure=settings.auth_cookie_secure,
+        httponly=True,
+        samesite=settings.auth_cookie_samesite,
+    )
+
+
+def _client_ip(request: Request) -> str:
+    # Behind a proxy, run uvicorn with --proxy-headers and a trusted
+    # --forwarded-allow-ips so this is the visitor's address, not the proxy's.
+    return request.client.host if request.client else "unknown"
+
+
+def _notify_login_paused(
+    email_sender: EmailSender, recipient: str, paused_for_seconds: int
+) -> None:
+    try:
+        email_sender.send_login_paused_notice(
+            recipient=recipient,
+            paused_minutes=max(1, -(-paused_for_seconds // 60)),
+        )
+    except EmailDeliveryError:
+        # The pause still protects the account; the email is a courtesy.
+        logger.warning("Could not send the sign-in paused notice.")
 
 
 async def _refresh_token_payload(request: Request) -> TokenPayload:
@@ -79,11 +121,18 @@ async def _refresh_token_payload(request: Request) -> TokenPayload:
 
 @router.post("/login", status_code=status.HTTP_204_NO_CONTENT)
 def login(
-    payload: LoginRequest, session: DatabaseSession, request: Request
+    payload: LoginRequest,
+    request: Request,
+    session: DatabaseSession,
+    email_sender: EmailSenderDependency,
 ) -> Response:
     try:
         result = authentication_service.login(
-            session, email=payload.email, password=payload.password
+            session,
+            email=payload.email,
+            password=payload.password,
+            client_ip=_client_ip(request),
+            device=read_device_cookie(request.cookies.get(DEVICE_COOKIE_NAME)),
         )
         result.session.user_agent = request.headers.get("user-agent", "")[:512] or None
         if request.client is not None:
@@ -96,8 +145,24 @@ def login(
             except ValueError:
                 pass
         session.commit()
-    except InvalidCredentialsError as error:
+    except LoginThrottledError as error:
         session.rollback()
+        minutes = error.retry_after_minutes
+        raise AppError(
+            429,
+            "login_throttled",
+            f"Too many sign-in attempts. Try again in {minutes} "
+            f"minute{'' if minutes == 1 else 's'}.",
+            {"retry_after_seconds": error.retry_after_seconds},
+            headers={"Retry-After": str(error.retry_after_seconds)},
+        ) from error
+    except InvalidCredentialsError as error:
+        # Commit, not roll back: the failure has to be counted.
+        session.commit()
+        if error.notify_user is not None:
+            _notify_login_paused(
+                email_sender, error.notify_user.email, error.paused_for_seconds
+            )
         raise AppError(
             401,
             "invalid_credentials",
@@ -106,6 +171,8 @@ def login(
 
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
     _set_auth_cookies(response, result.access_token, result.refresh_token)
+    if not result.trusted_device:
+        _set_device_cookie(response, result.user.id)
     return response
 
 

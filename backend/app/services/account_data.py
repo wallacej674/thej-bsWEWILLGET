@@ -19,6 +19,7 @@ from app.models.resume import UserResume
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.schemas.user import AccountExport
+from app.services.login_throttle import LoginThrottle
 
 
 def lock_active_user(session: Session, user_id: UUID) -> User:
@@ -163,6 +164,7 @@ def delete_account(session: Session, user_id: UUID, password: str) -> None:
     session.execute(
         delete(PendingRegistration).where(PendingRegistration.email == user.email)
     )
+    LoginThrottle(session).clear(user.email)
     session.execute(
         delete(WorkspaceInvitation).where(
             func.lower(WorkspaceInvitation.email) == user.email

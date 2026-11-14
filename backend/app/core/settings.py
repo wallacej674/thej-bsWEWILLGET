@@ -23,6 +23,16 @@ class Settings(BaseSettings):
     auth_refresh_token_days: int = 20
     auth_cookie_secure: bool = True
     auth_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
+    # Sign-in throttling (SEC-03). Failures are counted per source (a
+    # recognised device or an IP) so a stranger can only slow themselves
+    # down; a higher account-wide limit catches attempts spread across IPs
+    # and only ever pauses unrecognised devices.
+    login_throttle_source_failures: int = 5
+    login_throttle_account_failures: int = 20
+    login_throttle_window_minutes: int = 15
+    login_throttle_base_lock_seconds: int = 60
+    login_throttle_max_lock_minutes: int = 60
+    login_device_cookie_days: int = 365
     smtp_host: str = "smtp.gmail.com"
     smtp_port: int = 587
     smtp_username: str | None = None

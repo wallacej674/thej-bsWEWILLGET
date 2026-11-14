@@ -101,6 +101,7 @@ def test_refresh_token_reuse_raises_a_warning(api_client, member, log) -> None:
     )
     assert rotated.status_code == 204
 
+    api_client.cookies.delete("applytogether_refresh")
     api_client.cookies.set("applytogether_refresh", old_refresh, path="/api/v1/auth")
     replay = api_client.post(
         "/api/v1/auth/refresh", headers={"X-Refresh-CSRF-Token": old_csrf or ""}

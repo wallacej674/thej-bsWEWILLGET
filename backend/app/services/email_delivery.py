@@ -5,7 +5,7 @@ from email.utils import formataddr
 from html import escape
 from typing import Protocol
 
-from app.core.settings import get_settings
+from app.core.settings import Settings, get_settings
 
 
 class EmailDeliveryError(RuntimeError):
@@ -17,30 +17,22 @@ class EmailSender(Protocol):
         self, *, recipient: str, display_name: str, token: str
     ) -> None: ...
 
+    def send_login_paused_notice(
+        self, *, recipient: str, paused_minutes: int
+    ) -> None: ...
+
 
 class SmtpEmailSender:
     def send_verification_email(
         self, *, recipient: str, display_name: str, token: str
     ) -> None:
-        settings = get_settings()
-        if (
-            not settings.smtp_username
-            or not settings.smtp_app_password
-            or not settings.smtp_from_email
-        ):
-            raise EmailDeliveryError("Outbound email is not configured.")
-
+        settings = self._configured_settings()
         verification_url = (
             f"{settings.frontend_base_url.rstrip('/')}/verify-email?token={token}"
         )
         safe_display_name = escape(display_name)
         safe_verification_url = escape(verification_url, quote=True)
-        message = EmailMessage()
-        message["Subject"] = "Verify your ApplyTogether email"
-        message["From"] = formataddr(
-            (settings.smtp_from_name, settings.smtp_from_email)
-        )
-        message["To"] = recipient
+        message = self._message(settings, recipient, "Verify your ApplyTogether email")
         message.set_content(
             f"Hi {display_name},\n\n"
             "Verify your email to finish creating your ApplyTogether account:\n"
@@ -58,7 +50,63 @@ class SmtpEmailSender:
             "</body></html>",
             subtype="html",
         )
+        self._deliver(settings, message, "The verification email could not be sent.")
 
+    def send_login_paused_notice(self, *, recipient: str, paused_minutes: int) -> None:
+        """Tell an account owner that sign-ins from new devices were paused.
+
+        Deliberately carries no user-supplied text (see SEC-11).
+        """
+        settings = self._configured_settings()
+        unit = "minute" if paused_minutes == 1 else "minutes"
+        lines = [
+            "Someone has been repeatedly trying to sign in to your ApplyTogether "
+            "account with the wrong password.",
+            "To protect it, we've paused sign-in attempts from devices you haven't "
+            f"used before for {paused_minutes} {unit}. Browsers you've already "
+            "signed in from still work.",
+            "If this was you, wait a few minutes and try again. If it wasn't, "
+            "nobody got in. Consider switching to a longer, unique password from "
+            "your Profile.",
+        ]
+        message = self._message(
+            settings, recipient, "Sign-in attempts paused on your ApplyTogether account"
+        )
+        message.set_content("\n\n".join(lines))
+        message.add_alternative(
+            "<html><body>"
+            + "".join(f"<p>{escape(line)}</p>" for line in lines)
+            + "</body></html>",
+            subtype="html",
+        )
+        self._deliver(settings, message, "The security notice could not be sent.")
+
+    @staticmethod
+    def _configured_settings() -> Settings:
+        settings = get_settings()
+        if (
+            not settings.smtp_username
+            or not settings.smtp_app_password
+            or not settings.smtp_from_email
+        ):
+            raise EmailDeliveryError("Outbound email is not configured.")
+        return settings
+
+    @staticmethod
+    def _message(settings: Settings, recipient: str, subject: str) -> EmailMessage:
+        message = EmailMessage()
+        message["Subject"] = subject
+        # _configured_settings has already refused a missing sender address.
+        message["From"] = formataddr(
+            (settings.smtp_from_name, settings.smtp_from_email or "")
+        )
+        message["To"] = recipient
+        return message
+
+    @staticmethod
+    def _deliver(settings: Settings, message: EmailMessage, failure: str) -> None:
+        assert settings.smtp_username is not None
+        assert settings.smtp_app_password is not None
         try:
             with smtplib.SMTP(
                 settings.smtp_host,
@@ -75,6 +123,4 @@ class SmtpEmailSender:
                 )
                 smtp.send_message(message)
         except (OSError, smtplib.SMTPException) as error:
-            raise EmailDeliveryError(
-                "The verification email could not be sent."
-            ) from error
+            raise EmailDeliveryError(failure) from error

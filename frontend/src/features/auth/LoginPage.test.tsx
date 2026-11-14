@@ -3,6 +3,7 @@ import type { ComponentProps } from "react";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "../../api/client";
 import type { LoginCredentials } from "./authApi";
 import type { LoginOptions } from "./AuthProvider";
 import { LoginPage } from "./LoginPage";
@@ -137,6 +138,29 @@ describe("LoginPage", () => {
 
     expect(await screen.findByText("That didn't match. Try again.")).toBeInTheDocument();
     expect(screen.getByLabelText("Password")).toHaveValue("");
+  });
+
+  it("says how long to wait when sign in is throttled", async () => {
+    renderLoginPage(
+      vi.fn(() =>
+        Promise.reject(
+          new ApiError(429, "login_throttled", "Too many sign-in attempts. Try again in 2 minutes."),
+        ),
+      ),
+    );
+
+    fireEvent.change(screen.getByLabelText("Email address"), {
+      target: { value: "jonathan@example.test" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "correct horse battery staple" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Too many sign-in attempts. Try again in 2 minutes.",
+    );
+    expect(screen.getByText("Too many tries. Take a short break.")).toBeInTheDocument();
   });
 
   it("links the logo back home", () => {

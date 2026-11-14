@@ -33,9 +33,17 @@ export interface AuthState {
   error?: unknown;
 }
 
+export interface LoginOptions {
+  /**
+   * Runs once the credentials are accepted, before the session loads and the
+   * sign-in page is replaced, so the page can show that sign in worked.
+   */
+  onAccepted?(): Promise<void> | void;
+}
+
 export interface AuthContextValue extends AuthState {
   client: AuthClient;
-  login(credentials: LoginCredentials): Promise<void>;
+  login(credentials: LoginCredentials, options?: LoginOptions): Promise<void>;
   signup(input: SignupInput): Promise<MessageResponse>;
   verifyEmail(token: string): Promise<VerificationResponse>;
   resendVerification(email: string): Promise<MessageResponse>;
@@ -102,12 +110,13 @@ export function AuthProvider({ client, children }: AuthProviderProps) {
   }, [client]);
 
   const login = useCallback(
-    (credentials: LoginCredentials): Promise<void> => {
+    (credentials: LoginCredentials, options?: LoginOptions): Promise<void> => {
       if (loginInFlight.current) return loginInFlight.current;
 
       const attempt = (async () => {
         try {
           await authApi.login(client, credentials);
+          await options?.onAccepted?.();
           await restoreSession();
         } finally {
           loginInFlight.current = null;

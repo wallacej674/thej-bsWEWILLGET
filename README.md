@@ -183,8 +183,15 @@ the header is honoured only for requests from the same machine.
 
 ## Production database
 
-The API should not connect as the database owner. Create two roles once per
-database, as its owner or a superuser:
+Set the API's `DATABASE_URL` to the restricted `applytogether_app` login. It
+can read and write application rows subject to RLS. It cannot run DDL or
+change `alembic_version`. In production Neon, `applytogether_migrator` is the
+non-login role that owns the application tables and RLS functions. The
+`neondb_owner` maintenance login can assume it with `SET ROLE`.
+
+For a new self-managed database, its owner or a superuser can provision the
+roles with the helper below. The existing Neon production roles are already
+provisioned.
 
 ```powershell
 $env:DATABASE_ADMIN_URL = "postgresql+psycopg://postgres:...@db-host/applytogether"
@@ -193,25 +200,89 @@ $env:APP_DB_PASSWORD = "..."
 uv run python -m app.commands.create_db_roles
 ```
 
-- `applytogether_migrator` owns the schema. Point `MIGRATION_DATABASE_URL` at
-  it; Alembic uses it when set.
-- `applytogether_app` can only read and write rows. Point `DATABASE_URL` at it.
-  It cannot create, alter or drop tables, or change `alembic_version`.
-
-Both URLs need `?sslmode=verify-full` in production, and the API refuses to
-start without it. Every API connection sets `statement_timeout` (5 seconds) and
+Use `sslmode=verify-full` on both production connection URLs. Every API
+connection sets `statement_timeout` (5 seconds) and
 `idle_in_transaction_session_timeout` (10 seconds); tune them with
 `DB_STATEMENT_TIMEOUT_MS` and `DB_IDLE_IN_TRANSACTION_TIMEOUT_MS`.
 
-Before going live, also check:
+### Run Alembic migrations in production
+
+Run from `backend/` in a fresh shell on a trusted maintenance machine. Check
+out the release commit whose migrations you intend to apply and confirm that
+Neon can restore to a point before the change. Use the direct Neon endpoint
+and the `neondb_owner` maintenance login. Keep the password in a protected
+libpq password file with a matching `hostname:5432:database:neondb_owner:password`
+entry and set `PGPASSFILE` to its path. Set
+`MIGRATION_DATABASE_URL` to a URL of this form, with the actual direct hostname
+and database name:
+
+```text
+postgresql+psycopg://neondb_owner@<direct-neon-host>/<database>?sslmode=verify-full&sslrootcert=system
+```
+
+Use `sslrootcert=system` with a working local CA store, or supply a trusted local
+CA bundle path. Keep the maintenance connection and password file on the
+maintenance machine. Vercel's production `DATABASE_URL` uses the app login.
+
+The settings loader also requires `ENVIRONMENT`, `DATABASE_URL` and
+`AUTH_JWT_SECRET_KEY`. The example supplies process-local values for the
+Alembic command. The role check uses the same migration URL as Alembic. Leave
+`options` out of that URL so `PGOPTIONS` can set the role when each connection
+opens.
+
+```powershell
+if (-not $env:MIGRATION_DATABASE_URL) { throw 'Load MIGRATION_DATABASE_URL first.' }
+if (-not $env:PGPASSFILE -or -not (Test-Path -LiteralPath $env:PGPASSFILE -PathType Leaf)) {
+    throw 'Set PGPASSFILE to the protected maintenance password file.'
+}
+
+$env:ENVIRONMENT = 'production'
+$env:DATABASE_URL = $env:MIGRATION_DATABASE_URL
+$env:AUTH_JWT_SECRET_KEY = [guid]::NewGuid().ToString('N')
+$env:PGOPTIONS = '-c role=applytogether_migrator'
+
+try {
+    @'
+from sqlalchemy import create_engine, text
+
+from app.core.settings import get_settings
+
+with create_engine(str(get_settings().migration_database_url)).connect() as connection:
+    login, role = connection.execute(text("SELECT session_user, current_user")).one()
+    if (login, role) != ("neondb_owner", "applytogether_migrator"):
+        raise SystemExit("Unexpected migration login or effective role")
+    print(f"{login} is acting as {role}")
+'@ | uv run --locked python -
+    if ($LASTEXITCODE) { throw 'Migration role preflight failed.' }
+
+    uv run --locked alembic current
+    if ($LASTEXITCODE) { throw 'Could not read the current Alembic revision.' }
+    uv run --locked alembic upgrade head
+    if ($LASTEXITCODE) { throw 'Migration failed. Check the current revision and error before retrying.' }
+    uv run --locked alembic current --check-heads
+    if ($LASTEXITCODE) { throw 'The database is missing one or more Alembic heads.' }
+} finally {
+    Remove-Item Env:PGOPTIONS, Env:PGPASSFILE, Env:MIGRATION_DATABASE_URL, Env:DATABASE_URL, `
+        Env:AUTH_JWT_SECRET_KEY, Env:ENVIRONMENT -ErrorAction SilentlyContinue
+}
+```
+
+After the upgrade, check the [production database health endpoint](https://thej-bs-wewillget.vercel.app/health/db)
+and confirm a fresh sign-in can load a workspace. For connection details, see
+[Neon direct connections](https://neon.com/docs/connect/connection-pooling#when-to-use-pooled-vs-direct-connections)
+and the libpq documentation for [password files](https://www.postgresql.org/docs/current/libpq-pgpass.html)
+and [`PGOPTIONS`](https://www.postgresql.org/docs/current/libpq-envars.html).
+
+### Database operations checklist
 
 - **Backups.** Daily encrypted backups plus point-in-time recovery (WAL
   archiving, or the provider's PITR) with at least 7 days' retention.
 - **Restore drill.** Restore a backup to a scratch database at least once a
   quarter and run `python -m alembic current` against it.
 - **Network.** Only the API's hosts may reach the database port.
-- **Retention.** Schedule `python -m app.commands.purge` to run daily with
-  `MIGRATION_DATABASE_URL` so it can purge across workspaces. It
+- **Retention.** Schedule `python -m app.commands.purge` to run daily from a
+  maintenance environment with the migration connection and effective migrator
+  role so it can purge across workspaces. It
   deletes expired sessions, stale pending registrations (which hold password
   hashes), and old throttle and rate-limit rows. Soft-deleted applications are
   only erased if `PURGE_DELETED_APPLICATIONS_AFTER_DAYS` is set.

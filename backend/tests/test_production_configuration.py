@@ -1,5 +1,6 @@
 """SEC-04: production refuses to start with unsafe settings."""
 
+import secrets
 from typing import Any
 
 import pytest
@@ -8,7 +9,8 @@ from fastapi.testclient import TestClient
 from app.core.settings import Settings, get_settings, jwt_secret_is_strong
 from app.main import create_app
 
-STRONG_SECRET = "q8VZ3m1kT7xN2pR5wC9yB4hL6dF0sJ8gA1eK3uM7"
+# Generated per run, so no secret-looking literal sits in the repo (gitleaks).
+STRONG_SECRET = secrets.token_urlsafe(32)
 
 
 def production(**overrides: Any) -> Settings:

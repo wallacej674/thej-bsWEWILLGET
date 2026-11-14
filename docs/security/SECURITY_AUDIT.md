@@ -48,7 +48,7 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 | SEC-19 | Lockout counter keeps re-locking after expiry | Low | B · Rate limiting | S | Done (with SEC-03) |
 | SEC-20 | Remove the verification token from the URL after use | Low | J · Frontend | S | Done |
 | SEC-21 | Self-host fonts and tighten third-party requests | Low | J · Frontend | S | Open |
-| SEC-22 | CI and supply-chain hardening | Low | K · CI | S | Open |
+| SEC-22 | CI and supply-chain hardening | Low | K · CI | S | Done |
 | SEC-23 | Session management: list and revoke devices | Low | F · Auth flows | M | Open |
 | SEC-24 | Breached-password check and optional MFA | Low | F · Auth flows | M | Done |
 
@@ -478,6 +478,9 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 ## Track K · CI
 
 ### SEC-22 · CI and supply-chain hardening — Low
+
+**Status: Done** on branch `sec-even-tasks`. Actions are pinned to commit SHAs (current majors kept). CI runs `npm audit --audit-level=high` and `pip-audit`. A CodeQL workflow (Python, JS/TS, security-extended) and a Supply chain workflow (full-history gitleaks; dependency review failing on high severity) are added, and `.github/dependabot.yml` covers npm, uv, github-actions and docker-compose. **Still to check:** the workflows' first runs once pushed (a throwaway-branch test with a known-vulnerable package and a fake secret is recommended), and Dependabot alert #102, which needs someone signed in to GitHub to read.
+
 
 - **Where:** `.github/workflows/*.yml`.
 - **Problem:** actions are pinned by tag (`@v4`) rather than commit SHA, and CI does no dependency or secret scanning. Dependabot is set up only in the GitHub settings; there's no `.github/dependabot.yml` in the repo.

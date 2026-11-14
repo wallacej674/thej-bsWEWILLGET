@@ -31,25 +31,25 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 | SEC-02 | Rate limiting for auth and expensive endpoints | High | B · Rate limiting | M | Open |
 | SEC-03 | Replace hard account lockout with throttling (lockout DoS) | Medium | B · Rate limiting | S | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/43) |
 | SEC-04 | Fail-closed production configuration | Medium | C · Config & headers | S | Open |
-| SEC-05 | Security headers on API and frontend | Medium | C · Config & headers | S | In progress |
+| SEC-05 | Security headers on API and frontend | Medium | C · Config & headers | S | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42) |
 | SEC-06 | Harden résumé upload and PDF parsing | Medium | D · Uploads & AI | S | Open |
-| SEC-07 | AI tailor cost quota and prompt-injection hardening | Medium | D · Uploads & AI | S | In progress |
+| SEC-07 | AI tailor cost quota and prompt-injection hardening | Medium | D · Uploads & AI | S | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42) |
 | SEC-08 | Security event logging and alerting | Medium | E · Observability | M | Open |
-| SEC-09 | Logout must work with an expired access token | Medium | F · Auth flows | S | In progress |
+| SEC-09 | Logout must work with an expired access token | Medium | F · Auth flows | S | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42) |
 | SEC-10 | Secure "forgot password" flow | Medium | F · Auth flows | M | Open |
-| SEC-11 | Verification email content injection and email bombing | Medium | F · Auth flows | S | In progress |
+| SEC-11 | Verification email content injection and email bombing | Medium | F · Auth flows | S | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42) |
 | SEC-12 | Least-privilege database roles, TLS and timeouts | Medium | G · Database | M | Open |
-| SEC-13 | Row-level security as tenant-isolation backstop | Low | G · Database | L | In progress |
+| SEC-13 | Row-level security as tenant-isolation backstop | Low | G · Database | L | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42) |
 | SEC-14 | Data retention and purge jobs | Low | G · Database | S | Open |
-| SEC-15 | Account deletion and data export | Medium | H · Privacy | M | In progress |
+| SEC-15 | Account deletion and data export | Medium | H · Privacy | M | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42) |
 | SEC-16 | Limit member email visibility | Low | H · Privacy | S | Open |
-| SEC-17 | Escape LIKE wildcards in search | Low | I · Small fixes | S | In progress |
+| SEC-17 | Escape LIKE wildcards in search | Low | I · Small fixes | S | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42) |
 | SEC-18 | Caps on workspaces and invitations per user | Low | I · Small fixes | S | Open |
 | SEC-19 | Lockout counter keeps re-locking after expiry | Low | B · Rate limiting | S | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/43) |
 | SEC-20 | Remove the verification token from the URL after use | Low | J · Frontend | S | Open |
-| SEC-21 | Self-host fonts and tighten third-party requests | Low | J · Frontend | S | In progress |
+| SEC-21 | Self-host fonts and tighten third-party requests | Low | J · Frontend | S | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42) |
 | SEC-22 | CI and supply-chain hardening | Low | K · CI | S | Open |
-| SEC-23 | Session management: list and revoke devices | Low | F · Auth flows | M | In progress |
+| SEC-23 | Session management: list and revoke devices | Low | F · Auth flows | M | [Done](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42) |
 | SEC-24 | Breached-password check and optional MFA | Low | F · Auth flows | M | Open |
 
 ---
@@ -193,7 +193,7 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-05 · Security headers on API and frontend — Medium
 
-**Status: In progress.**
+**Status: Done.** Merged in [PR #42](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42).
 
 **Where:** a new middleware in `backend/app/main.py`, plus the frontend hosting config (static host or reverse proxy; not in this repo yet). `frontend/index.html` currently sets no CSP.
 
@@ -237,7 +237,7 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-07 · AI tailor cost quota and prompt-injection hardening — Medium
 
-**Status: In progress.**
+**Status: Done.** Merged in [PR #42](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42).
 
 **Where:** `backend/app/services/ai_analysis_service.py:105` and `backend/app/services/ai_provider.py:118` (`_build_input`).
 
@@ -282,7 +282,7 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-09 · Logout must work with an expired access token — Medium
 
-**Status: In progress.**
+**Status: Done.** Merged in [PR #42](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42).
 
 **Where:** `backend/app/api/routes/auth.py:171–190`.
 
@@ -313,7 +313,7 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-11 · Verification email content injection and email bombing — Medium
 
-**Status: In progress.**
+**Status: Done.** Merged in [PR #42](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42).
 
 **Where:** `backend/app/services/email_delivery.py:45`, and `signup`/`resend` in `registration_service.py`.
 
@@ -332,7 +332,7 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-23 · Session management: list and revoke devices — Low
 
-**Status: In progress.**
+**Status: Done.** Merged in [PR #42](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42).
 
 - **Where:** `auth_session` model, a new `/auth/sessions` route, and Profile → Security.
 - **Change:**
@@ -376,7 +376,7 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-13 · Row-level security as tenant-isolation backstop — Low
 
-**Status: In progress.**
+**Status: Done.** Merged in [PR #42](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42).
 
 - **Where:** a new Alembic migration and a per-request `SET LOCAL app.user_id`.
 - **Problem:** workspace isolation depends entirely on every query remembering its `workspace_id` filter. One missed filter would leak another workspace's applications.
@@ -404,7 +404,7 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-15 · Account deletion and data export — Medium
 
-**Status: In progress.**
+**Status: Done.** Merged in [PR #42](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42).
 
 - **Problem:** users can't delete their account or download their data (applications, résumé text, AI results). Privacy laws such as GDPR and CCPA expect both, and résumé text is sensitive personal data. It is also sent to OpenAI (with `store=False`), which needs a privacy notice.
 - **Change:**
@@ -426,7 +426,7 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-17 · Escape LIKE wildcards in search — Low
 
-**Status: In progress.**
+**Status: Done.** Merged in [PR #42](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42).
 
 - **Where:** `application_repository.py:332` and `:365`, and `workspace_repository.py:155`.
 - **Problem:** the search text is placed into `ilike(f"%{search}%")`. It's still parameterized, so this is **not** SQL injection, but `%` and `_` act as wildcards. That gives users unexpected matches and lets them force expensive scans.
@@ -453,7 +453,7 @@ This is a code-review audit, not a penetration test. Every finding below was fou
 
 ### SEC-21 · Self-host fonts and tighten third-party requests — Low
 
-**Status: In progress.**
+**Status: Done.** Merged in [PR #42](https://github.com/wallacej674/thej-bsWEWILLGET/pull/42).
 
 - **Where:** `frontend/src/styles/fonts.css:1`, which imports Inter, JetBrains Mono, Outfit and Space Grotesk from `fonts.googleapis.com`.
 - **Problem:** loading the fonts from Google sends every visitor's IP address to Google, and it forces SEC-05's CSP to allow those external origins.

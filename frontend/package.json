@@ -90,7 +90,7 @@
     "globals": "16.2.0",
     "jsdom": "26.1.0",
     "tailwindcss": "4.3.5",
-    "typescript": "5.8.3",
+    "typescript": "7.0.2",
     "typescript-eslint": "8.33.1",
     "vite": "8.3.8",
     "vitest": "5.1.0"

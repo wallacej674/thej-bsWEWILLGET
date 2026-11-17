@@ -7,10 +7,12 @@
     "node": "^22.22.0"
   },
   "scripts": {
+    "audit:dependencies": "node scripts/audit.mjs",
     "build": "vite build",
     "dev": "vite",
     "lint": "eslint .",
-    "test": "vitest run",
+    "test": "vitest run && npm run test:audit",
+    "test:audit": "node --test scripts/audit-policy.check.mjs",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },

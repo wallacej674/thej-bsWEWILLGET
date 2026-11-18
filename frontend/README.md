@@ -65,6 +65,11 @@ npm run build
 CI runs those commands on Node.js 22 after `npm ci`. React Router requires at
 least Node.js 22.22.
 
+`npm run typecheck` invokes TypeScript 7.0.2 through the `typescript-compiler`
+npm alias. The `typescript` dependency supplies the TypeScript 6.0.3 API for
+typescript-eslint, whose supported range is currently below 6.1. Use the npm
+script so type checks consistently run the version 7 compiler.
+
 ## Known limitations
 
 - Identity selection is a development aid, not authentication.

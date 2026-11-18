@@ -14,7 +14,7 @@
     "test": "vitest run && npm run test:audit",
     "test:audit": "node --test scripts/audit-policy.check.mjs",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "node node_modules/typescript-compiler/bin/tsc --noEmit"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
@@ -92,7 +92,8 @@
     "globals": "17.14.0",
     "jsdom": "26.1.0",
     "tailwindcss": "4.3.5",
-    "typescript": "5.8.3",
+    "typescript": "6.0.3",
+    "typescript-compiler": "npm:typescript@7.0.2",
     "typescript-eslint": "8.73.0",
     "vite": "8.3.8",
     "vitest": "5.1.0"

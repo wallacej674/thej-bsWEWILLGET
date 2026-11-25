@@ -15,14 +15,14 @@ const context = {
     },
     workspace: {
       id: "workspace-1",
-      name: "ApplyTogether",
+      name: "ApplyHuddle",
       role: "owner" as const,
     },
   },
   workspaces: [
     {
       id: "workspace-1",
-      name: "ApplyTogether",
+      name: "ApplyHuddle",
       role: "owner" as const,
     },
   ],

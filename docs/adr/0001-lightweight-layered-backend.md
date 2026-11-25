@@ -6,7 +6,7 @@ Accepted for Milestone 1.
 
 ## Context
 
-ApplyTogether needs a small backend that is easy to understand while enforcing
+ApplyHuddle needs a small backend that is easy to understand while enforcing
 shared-workspace visibility, per-application ownership, duplicate handling,
 and atomic database writes. The initial authentication method is temporary,
 and the project must remain able to add more users and workspaces later.

@@ -184,7 +184,7 @@ describe("LoginPage", () => {
   it("links the logo back home", () => {
     renderLoginPage();
 
-    expect(screen.getByRole("link", { name: "ApplyTogether home" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "ApplyHuddle home" })).toHaveAttribute("href", "/");
   });
 
   it("links to the forgot-password page", () => {

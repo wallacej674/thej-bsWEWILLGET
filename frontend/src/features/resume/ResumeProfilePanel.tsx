@@ -78,7 +78,7 @@ export function ResumeProfilePanel({ client }: { client: ApiClient }) {
             AI resume profile
           </h3>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Upload a PDF resume. ApplyTogether extracts ATS-readable text and
+            Upload a PDF resume. ApplyHuddle extracts ATS-readable text and
             discards the original file.
           </p>
         </div>

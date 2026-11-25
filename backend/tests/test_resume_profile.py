@@ -10,7 +10,7 @@ def resume_pdf_bytes() -> bytes:
 3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj
 4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj
 5 0 obj << /Length 220 >> stream
-BT /F1 12 Tf 72 720 Td (Kareem Wallace Resume) Tj 0 -20 Td (Experience Python FastAPI React SQL) Tj 0 -20 Td (Education Computer Science) Tj 0 -20 Td (Skills Python TypeScript PostgreSQL APIs) Tj 0 -20 Td (Projects ApplyTogether AI Resume Tailor) Tj ET
+BT /F1 12 Tf 72 720 Td (Kareem Wallace Resume) Tj 0 -20 Td (Experience Python FastAPI React SQL) Tj 0 -20 Td (Education Computer Science) Tj 0 -20 Td (Skills Python TypeScript PostgreSQL APIs) Tj 0 -20 Td (Projects ApplyHuddle AI Resume Tailor) Tj ET
 endstream endobj
 xref
 0 6

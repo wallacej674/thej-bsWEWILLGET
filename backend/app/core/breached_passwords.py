@@ -40,7 +40,7 @@ def breach_count(password: str) -> int | None:
             RANGE_URL.format(prefix=prefix),
             headers={
                 "Add-Padding": "true",
-                "User-Agent": "ApplyTogether-password-check",
+                "User-Agent": "ApplyHuddle-password-check",
             },
             timeout=get_settings().breached_password_timeout_seconds,
         )

@@ -1,7 +1,7 @@
-# ApplyTogether frontend
+# ApplyHuddle frontend
 
 The Milestone 2 frontend is a React, TypeScript, Vite application integrated
-with the ApplyTogether FastAPI backend. npm is the package manager; use the
+with the ApplyHuddle FastAPI backend. npm is the package manager; use the
 committed `package-lock.json` and `npm ci`.
 
 ## Configure and run

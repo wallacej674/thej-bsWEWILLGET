@@ -48,7 +48,7 @@ wheels = [
 ]
 
 [[package]]
-name = "apply-together-backend"
+name = "apply-huddle-backend"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

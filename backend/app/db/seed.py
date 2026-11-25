@@ -1,4 +1,4 @@
-"""Create the local ApplyTogether development workspace without startup seeding."""
+"""Create the local ApplyHuddle development workspace without startup seeding."""
 
 import argparse
 from uuid import UUID
@@ -35,12 +35,24 @@ def _get_or_create_user(session: Session, email: str, display_name: str) -> User
     return user
 
 
+WORKSPACE_NAME = "ApplyHuddle"
+# The product was called ApplyTogether before the rebrand; reuse a workspace
+# seeded under that name instead of creating a second one beside it.
+LEGACY_WORKSPACE_NAME = "ApplyTogether"
+
+
 def _get_or_create_workspace(session: Session) -> Workspace:
     workspace = session.scalar(
-        select(Workspace).where(Workspace.name == "ApplyTogether")
+        select(Workspace).where(Workspace.name == WORKSPACE_NAME)
     )
     if workspace is None:
-        workspace = Workspace(name="ApplyTogether")
+        workspace = session.scalar(
+            select(Workspace).where(Workspace.name == LEGACY_WORKSPACE_NAME)
+        )
+        if workspace is not None:
+            workspace.name = WORKSPACE_NAME
+    if workspace is None:
+        workspace = Workspace(name=WORKSPACE_NAME)
         session.add(workspace)
         session.flush()
     return workspace
@@ -119,14 +131,14 @@ def seed(with_sample_applications: bool = False) -> tuple[UUID, UUID, UUID]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Seed the ApplyTogether development data."
+        description="Seed the ApplyHuddle development data."
     )
     parser.add_argument("--with-sample-applications", action="store_true")
     args = parser.parse_args()
     jonathan_id, kareem_id, workspace_id = seed(args.with_sample_applications)
     print(f"Jonathan user UUID: {jonathan_id}")
     print(f"Kareem user UUID: {kareem_id}")
-    print(f"ApplyTogether workspace UUID: {workspace_id}")
+    print(f"ApplyHuddle workspace UUID: {workspace_id}")
 
 
 if __name__ == "__main__":

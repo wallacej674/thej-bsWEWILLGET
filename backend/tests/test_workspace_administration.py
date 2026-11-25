@@ -164,7 +164,7 @@ def test_user_can_create_a_workspace_and_becomes_its_owner(
         headers={"X-User-Id": str(active_member.id)},
     ).json()["items"]
     assert {workspace["name"] for workspace in workspaces} == {
-        "ApplyTogether",
+        "ApplyHuddle",
         "Finance Search",
     }
 

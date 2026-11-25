@@ -179,7 +179,7 @@ export function LandingHero() {
             transition={{ duration: 0.7, ease: EASE_OUT, delay: 0.4 }}
             className="mt-7 max-w-lg text-pretty text-base leading-7 text-subtle sm:text-lg"
           >
-            ApplyTogether is a shared job-search workspace for friends, cohorts and career clubs. Set weekly
+            ApplyHuddle is a shared job-search workspace for friends, cohorts and career clubs. Set weekly
             goals, see who's showing up, and keep each other going until everyone lands.
           </motion.p>
           <motion.div

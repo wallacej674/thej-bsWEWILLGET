@@ -9,7 +9,7 @@ import { ProfileHub } from "./ProfileHub";
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const user = { id: "user-1", display_name: "Jonathan Wallace", avatar_url: null };
-const workspace: Workspace = { id: "ws-1", name: "ApplyTogether", role: "owner" };
+const workspace: Workspace = { id: "ws-1", name: "ApplyHuddle", role: "owner" };
 const otherWorkspace: Workspace = { id: "ws-2", name: "Night School", role: "member" };
 
 const myWeek: MyWeek = {
@@ -98,9 +98,9 @@ describe("ProfileHub", () => {
     renderHub();
 
     expect(screen.getByRole("heading", { level: 1, name: "Jonathan Wallace" })).toBeInTheDocument();
-    const roleLine = screen.getByText(/Owner of ApplyTogether/);
+    const roleLine = screen.getByText(/Owner of ApplyHuddle/);
     await waitFor(() =>
-      expect(roleLine).toHaveTextContent("jonathan@example.test · Owner of ApplyTogether"),
+      expect(roleLine).toHaveTextContent("jonathan@example.test · Owner of ApplyHuddle"),
     );
     expect(screen.getByText("Sent all-time")).toBeInTheDocument();
     expect(await screen.findByText("/9")).toBeInTheDocument();

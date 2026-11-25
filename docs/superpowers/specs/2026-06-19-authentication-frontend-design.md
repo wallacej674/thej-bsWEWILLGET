@@ -1,4 +1,4 @@
-# ApplyTogether Milestone 3 Frontend Authentication Design
+# ApplyHuddle Milestone 3 Frontend Authentication Design
 
 ## Scope
 

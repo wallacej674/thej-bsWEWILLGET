@@ -1,6 +1,6 @@
-# ApplyTogether
+# ApplyHuddle
 
-ApplyTogether is a shared job-application accountability workspace for Jonathan
+ApplyHuddle is a shared job-application accountability workspace for Jonathan
 and Kareem. Milestone 1, the FastAPI/PostgreSQL foundation, is complete.
 Milestone 2 integrates the React/Vite frontend with that API for shared
 visibility, owner-only changes, soft deletion, restoration, filtering, and

@@ -6,7 +6,7 @@ Accepted.
 
 ## Context
 
-ApplyTogether users need to participate in more than one workspace and create
+ApplyHuddle users need to participate in more than one workspace and create
 new collaboration spaces without database seeding. Workspace owners also need a
 way to invite guests before production authentication and outbound email
 delivery are available.
@@ -20,7 +20,7 @@ delivery are available.
 - Invitations target a normalized lowercase email and always grant the
   `member` role.
 - Invitations remain pending whether or not the email already belongs to an
-  active ApplyTogether user.
+  active ApplyHuddle user.
 - A signed-in user sees pending invitations addressed to their normalized
   signup email in the in-app invitation inbox and explicitly accepts or
   declines each invitation.

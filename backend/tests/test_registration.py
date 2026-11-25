@@ -247,7 +247,7 @@ def test_verification_preserves_invitation_and_creates_fallback_workspace(
     assert inbox.status_code == 200
     assert inbox.json()["items"][0]["workspace"] == {
         "id": str(shared_workspace.id),
-        "name": "ApplyTogether",
+        "name": "ApplyHuddle",
     }
 
 

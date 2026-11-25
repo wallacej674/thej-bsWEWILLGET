@@ -1,1 +1,1 @@
-"""ApplyTogether backend package."""
+"""ApplyHuddle backend package."""

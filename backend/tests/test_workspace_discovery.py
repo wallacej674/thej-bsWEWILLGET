@@ -14,7 +14,7 @@ def test_active_member_can_discover_a_shared_workspace(
         "items": [
             {
                 "id": str(shared_workspace.id),
-                "name": "ApplyTogether",
+                "name": "ApplyHuddle",
                 "role": "owner",
             }
         ]

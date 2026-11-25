@@ -6,7 +6,7 @@ Accepted. Supersedes the deletion and restoration portions of ADR 0003.
 
 ## Context
 
-ApplyTogether needs meaningful workspace-level roles. General members should
+ApplyHuddle needs meaningful workspace-level roles. General members should
 collaborate through a shared application list without gaining authority over
 records authored by other people. Owners additionally manage members and the
 workspace. ADR 0006 delegates application moderation to admins without

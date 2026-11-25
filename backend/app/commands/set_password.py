@@ -13,7 +13,7 @@ from app.services.auth_service import AuthenticationService, normalize_email
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Set a local password for an existing ApplyTogether user."
+        description="Set a local password for an existing ApplyHuddle user."
     )
     parser.add_argument("--email", required=True, help="Existing user email address")
     return parser.parse_args()

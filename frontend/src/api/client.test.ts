@@ -83,8 +83,8 @@ describe("API client", () => {
     const client = createApiClient({
       baseUrl: "http://localhost:8000",
       csrf: {
-        cookieName: "apply-together-csrf",
-        headerName: "X-ApplyTogether-CSRF",
+        cookieName: "apply-huddle-csrf",
+        headerName: "X-ApplyHuddle-CSRF",
         readCookie,
       },
       fetcher,
@@ -94,19 +94,19 @@ describe("API client", () => {
     await client.post("/workspaces/workspace-1/applications", { company_name: "Acme" });
 
     expect(readCookie).toHaveBeenCalledTimes(1);
-    expect(readCookie).toHaveBeenCalledWith("apply-together-csrf");
+    expect(readCookie).toHaveBeenCalledWith("apply-huddle-csrf");
     expect(fetcher).toHaveBeenNthCalledWith(
       1,
       "http://localhost:8000/api/v1/users/me",
       expect.objectContaining({
-        headers: expect.not.objectContaining({ "X-ApplyTogether-CSRF": expect.anything() }),
+        headers: expect.not.objectContaining({ "X-ApplyHuddle-CSRF": expect.anything() }),
       }),
     );
     expect(fetcher).toHaveBeenNthCalledWith(
       2,
       "http://localhost:8000/api/v1/workspaces/workspace-1/applications",
       expect.objectContaining({
-        headers: expect.objectContaining({ "X-ApplyTogether-CSRF": "csrf-value" }),
+        headers: expect.objectContaining({ "X-ApplyHuddle-CSRF": "csrf-value" }),
       }),
     );
   });

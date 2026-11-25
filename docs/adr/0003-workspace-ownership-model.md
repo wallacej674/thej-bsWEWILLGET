@@ -7,7 +7,7 @@ workspace owners now have explicit moderation deletion authority.
 
 ## Context
 
-ApplyTogether is collaborative: active members need visibility into the shared
+ApplyHuddle is collaborative: active members need visibility into the shared
 workspace, while each person retains control over the lifecycle of the
 applications they recorded. Jonathan and Kareem are both seeded as workspace
 owners, so using the workspace role as blanket edit authority would let either

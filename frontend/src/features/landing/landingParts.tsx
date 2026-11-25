@@ -5,7 +5,7 @@ import { ArrowRight, Flame } from "lucide-react";
 import { motion, useMotionValueEvent, useReducedMotion, useScroll } from "motion/react";
 
 import { ThemeToggle } from "../../app/theme/ThemeToggle";
-import logoUrl from "../../assets/applytogether-logo.png";
+import logoUrl from "../../assets/applyhuddle-logo.png";
 import { EASE_OUT } from "../dashboard/dashboardStyles";
 import { avatarColor, initials } from "../members/avatar";
 import { crew } from "./landingData";
@@ -62,7 +62,7 @@ export function LandingNav() {
         >
           <Logo />
           <span className="font-display text-[1.05rem] font-semibold tracking-tight text-foreground">
-            ApplyTogether
+            ApplyHuddle
           </span>
         </Link>
         <div className="ml-6 hidden items-center gap-5 text-sm text-muted-foreground md:flex">
@@ -123,12 +123,12 @@ export function LandingFooter() {
       <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:px-6">
         <span className="flex items-center gap-2">
           <Logo size={24} />
-          <span className="font-display font-semibold text-foreground">ApplyTogether</span>
+          <span className="font-display font-semibold text-foreground">ApplyHuddle</span>
         </span>
         <span className="text-[0.7rem] font-semibold uppercase tracking-[0.18em]">
           Accountable · Present · Active
         </span>
-        <span>© {new Date().getFullYear()} ApplyTogether</span>
+        <span>© {new Date().getFullYear()} ApplyHuddle</span>
       </div>
     </footer>
   );

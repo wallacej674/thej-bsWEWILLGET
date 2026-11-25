@@ -21,7 +21,7 @@ export function AccountData({ client, onDeleted }: {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = "applytogether-data.json";
+      link.download = "applyhuddle-data.json";
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 0);
     } catch {

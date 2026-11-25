@@ -42,7 +42,7 @@ def test_google_smtp_sender_uses_starttls_and_app_password(monkeypatch) -> None:
         smtp_username="sender@gmail.com",
         smtp_app_password="abcd efgh ijkl mnop",
         smtp_from_email="sender@gmail.com",
-        smtp_from_name="ApplyTogether",
+        smtp_from_name="ApplyHuddle",
         smtp_starttls=True,
         smtp_timeout_seconds=15,
         frontend_base_url="https://apply.example",
@@ -71,7 +71,7 @@ def test_google_smtp_sender_uses_starttls_and_app_password(monkeypatch) -> None:
         ("login", "sender@gmail.com", "abcdefghijklmnop"),
         "send_message",
     ]
-    assert smtp.message["From"] == "ApplyTogether <sender@gmail.com>"
+    assert smtp.message["From"] == "ApplyHuddle <sender@gmail.com>"
     assert smtp.message["To"] == "member@example.com"
     assert "attacker.example" not in str(smtp.message)
     assert "https://apply.example/verify-email?token=verification-token" in str(

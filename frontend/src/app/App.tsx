@@ -100,7 +100,7 @@ import {
   createIdentityStore,
   type DevelopmentIdentity,
 } from "../features/session/identity";
-import logoUrl from "../assets/applytogether-logo.png";
+import logoUrl from "../assets/applyhuddle-logo.png";
 import { PrivacyPage } from "../features/privacy/PrivacyPage";
 import { AccountData } from "../features/profile/AccountData";
 
@@ -367,7 +367,7 @@ function IdentityGate({
           Who are you testing as?
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          ApplyTogether uses the seeded backend UUIDs during Milestone 2. This
+          ApplyHuddle uses the seeded backend UUIDs during Milestone 2. This
           selector disappears when production authentication replaces it.
         </p>
         {identities.length > 0 ? (
@@ -423,7 +423,7 @@ function AppShell({ context }: { context: AppContext }) {
               <img src={logoUrl} alt="" className="h-full w-full object-contain p-0.5" />
             </span>
             <span className="hidden text-base font-semibold tracking-tight text-foreground sm:block">
-              ApplyTogether
+              ApplyHuddle
             </span>
           </Link>
           <span className="hidden text-xs text-muted-foreground sm:block">/</span>
@@ -2583,7 +2583,7 @@ function NotFoundPage() {
     <div className="mx-auto max-w-3xl px-4 py-20">
       <EmptyState
         title="Page not found"
-        description="That route does not exist in the ApplyTogether workspace."
+        description="That route does not exist in the ApplyHuddle workspace."
         action={
           <Link to="/">
             <PrimaryButton>Return to dashboard</PrimaryButton>

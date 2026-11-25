@@ -1,8 +1,8 @@
-# ApplyTogether product requirements
+# ApplyHuddle product requirements
 
 ## Purpose
 
-ApplyTogether is a shared job-application accountability product. Its first
+ApplyHuddle is a shared job-application accountability product. Its first
 workspace is for Jonathan and Kareem: each records the jobs they have applied
 to, and both can see the active applications in their shared workspace. The
 product is designed to support more users and workspaces later without changing
@@ -15,7 +15,7 @@ behind that API.
 ## Initial users and shared workspace
 
 The development seed data provides two active users, Jonathan and Kareem, in a
-workspace named `ApplyTogether`. Both have the workspace role `owner`.
+workspace named `ApplyHuddle`. Both have the workspace role `owner`.
 
 Workspace membership grants visibility, not control of another person's
 application. Every active workspace member can view every active application in

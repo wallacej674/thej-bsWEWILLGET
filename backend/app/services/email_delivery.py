@@ -35,16 +35,16 @@ class SmtpEmailSender:
             f"{settings.frontend_base_url.rstrip('/')}/verify-email?token={token}"
         )
         safe_verification_url = escape(verification_url, quote=True)
-        message = self._message(settings, recipient, "Verify your ApplyTogether email")
+        message = self._message(settings, recipient, "Verify your ApplyHuddle email")
         message.set_content(
-            "Verify your email to finish creating your ApplyTogether account:\n"
+            "Verify your email to finish creating your ApplyHuddle account:\n"
             f"{verification_url}\n\n"
             f"This link expires in {settings.email_verification_hours} hours."
         )
         message.add_alternative(
             "<html><body>"
             "<p>Verify your email to finish creating your "
-            "ApplyTogether account.</p>"
+            "ApplyHuddle account.</p>"
             f'<p><a href="{safe_verification_url}">Verify email</a></p>'
             f"<p>This link expires in "
             f"{settings.email_verification_hours} hours.</p>"
@@ -61,7 +61,7 @@ class SmtpEmailSender:
         settings = self._configured_settings()
         unit = "minute" if paused_minutes == 1 else "minutes"
         lines = [
-            "Someone has been repeatedly trying to sign in to your ApplyTogether "
+            "Someone has been repeatedly trying to sign in to your ApplyHuddle "
             "account with the wrong password.",
             "To protect it, we've paused sign-in attempts from devices you haven't "
             f"used before for {paused_minutes} {unit}. Browsers you've already "
@@ -71,7 +71,7 @@ class SmtpEmailSender:
             "your Profile.",
         ]
         message = self._message(
-            settings, recipient, "Sign-in attempts paused on your ApplyTogether account"
+            settings, recipient, "Sign-in attempts paused on your ApplyHuddle account"
         )
         message.set_content("\n\n".join(lines))
         message.add_alternative(
@@ -88,11 +88,9 @@ class SmtpEmailSender:
             f"{settings.frontend_base_url.rstrip('/')}/reset-password?token={token}"
         )
         minutes = settings.password_reset_minutes
-        message = self._message(
-            settings, recipient, "Reset your ApplyTogether password"
-        )
+        message = self._message(settings, recipient, "Reset your ApplyHuddle password")
         message.set_content(
-            "Someone asked to reset the password for your ApplyTogether account.\n\n"
+            "Someone asked to reset the password for your ApplyHuddle account.\n\n"
             f"Choose a new password here (the link works once, for {minutes} "
             f"minutes):\n{reset_url}\n\n"
             "If you didn't ask for this, ignore this email; your password stays "
@@ -100,7 +98,7 @@ class SmtpEmailSender:
         )
         message.add_alternative(
             "<html><body>"
-            "<p>Someone asked to reset the password for your ApplyTogether "
+            "<p>Someone asked to reset the password for your ApplyHuddle "
             "account.</p>"
             f'<p><a href="{escape(reset_url, quote=True)}">Choose a new password</a>'
             f" (works once, for {minutes} minutes).</p>"
@@ -114,13 +112,13 @@ class SmtpEmailSender:
     def send_password_changed_notice(self, *, recipient: str) -> None:
         settings = self._configured_settings()
         lines = [
-            "The password for your ApplyTogether account was just changed, and "
+            "The password for your ApplyHuddle account was just changed, and "
             "every device was signed out.",
             "If this was you, there's nothing else to do. If it wasn't, reset "
             "your password straight away from the sign-in page.",
         ]
         message = self._message(
-            settings, recipient, "Your ApplyTogether password was changed"
+            settings, recipient, "Your ApplyHuddle password was changed"
         )
         message.set_content("\n\n".join(lines))
         message.add_alternative(

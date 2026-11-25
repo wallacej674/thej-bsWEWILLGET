@@ -30,7 +30,7 @@ def test_invited_user_sees_pending_invitation_with_inviter_display_name(
             "id": created.json()["id"],
             "workspace": {
                 "id": str(shared_workspace.id),
-                "name": "ApplyTogether",
+                "name": "ApplyHuddle",
             },
             "invited_by": {"display_name": active_member.display_name},
             "invited_at": created.json()["invited_at"],
@@ -67,7 +67,7 @@ def test_invited_user_can_accept_workspace_invitation(
     assert accepted.status_code == 200
     assert accepted.json() == {
         "id": str(shared_workspace.id),
-        "name": "ApplyTogether",
+        "name": "ApplyHuddle",
         "role": "member",
     }
     assert inbox.json()["items"] == []

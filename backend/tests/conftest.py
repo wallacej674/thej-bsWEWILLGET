@@ -91,7 +91,7 @@ def api_client(database_connection: Connection) -> Generator[TestClient, None, N
 
 @pytest.fixture
 def shared_workspace(database_session: Session) -> Workspace:
-    workspace = Workspace(name="ApplyTogether")
+    workspace = Workspace(name="ApplyHuddle")
     database_session.add(workspace)
     database_session.flush()
     return workspace

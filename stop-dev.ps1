@@ -23,7 +23,7 @@ function Test-PortAvailable {
 }
 
 Write-Host ""
-Write-Host "Stopping ApplyTogether dev servers..." -ForegroundColor Cyan
+Write-Host "Stopping ApplyHuddle dev servers..." -ForegroundColor Cyan
 
 foreach ($Port in $Ports) {
     if (Test-PortAvailable -Port $Port) {

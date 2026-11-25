@@ -6,7 +6,7 @@ import { Link } from "react-router";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 
 import { ThemeToggle } from "../../app/theme/ThemeToggle";
-import logoUrl from "../../assets/applytogether-logo.png";
+import logoUrl from "../../assets/applyhuddle-logo.png";
 import { EASE_OUT } from "../dashboard/dashboardStyles";
 import { WallBackdrop } from "./WallBackdrop";
 
@@ -45,7 +45,7 @@ export function AuthShell({
                 to="/"
                 className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-black p-1 shadow-[0_0_0_1px_color-mix(in_srgb,var(--primary)_28%,transparent),0_14px_44px_-10px_color-mix(in_srgb,var(--primary)_40%,transparent)] transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
-                <img src={logoUrl} alt="ApplyTogether home" className="h-full w-full object-contain" />
+                <img src={logoUrl} alt="ApplyHuddle home" className="h-full w-full object-contain" />
               </Link>
             </motion.div>
 

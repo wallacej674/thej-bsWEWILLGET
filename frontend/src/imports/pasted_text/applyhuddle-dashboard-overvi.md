@@ -1,6 +1,6 @@
-Design a premium dark-mode web app frontend for a product called ApplyTogether.
+Design a premium dark-mode web app frontend for a product called ApplyHuddle.
 
-ApplyTogether is a shared job-application accountability dashboard. The first workspace is shared by two users, Jonathan and Kareem. Each user logs job applications they personally own, and both users can see all active applications in the shared workspace. Users can only edit, delete, or restore their own applications.
+ApplyHuddle is a shared job-application accountability dashboard. The first workspace is shared by two users, Jonathan and Kareem. Each user logs job applications they personally own, and both users can see all active applications in the shared workspace. Users can only edit, delete, or restore their own applications.
 
 This is frontend design only. Do not design backend architecture. Do not design marketing pages. Do not design OAuth, password login, signup, invitations, workspace creation, workspace editing, membership management, role management, weekly goals, interview tracking, recruiter tracking, offer tracking, company CRM pages, AWS deployment, or admin settings.
 
@@ -39,8 +39,8 @@ Use a top navigation layout, not a left sidebar.
 
 Top nav should include:
 
-* ApplyTogether logo/name on the left
-* Workspace selector showing “ApplyTogether”
+* ApplyHuddle logo/name on the left
+* Workspace selector showing “ApplyHuddle”
 * Navigation tabs:
 
   * Dashboard
@@ -404,7 +404,7 @@ Subtitle:
 
 Include a locked ownership/workspace card:
 
-* Workspace: ApplyTogether
+* Workspace: ApplyHuddle
 * Owner: Jonathan or Kareem
 * Note: “Owner and workspace are assigned automatically and cannot be changed.”
 
@@ -475,7 +475,7 @@ Page title:
 
 Show:
 
-* Workspace name: ApplyTogether
+* Workspace name: ApplyHuddle
 * Current user role: Owner
 * Workspace members:
 
@@ -664,7 +664,7 @@ Mock users:
 
 Mock workspace:
 
-* ApplyTogether
+* ApplyHuddle
 
 Do not include real emails unless needed. If emails are shown, use fictional examples:
 

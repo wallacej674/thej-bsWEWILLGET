@@ -1,8 +1,8 @@
-# ApplyTogether Milestone 1 Design
+# ApplyHuddle Milestone 1 Design
 
 ## Purpose and scope
 
-ApplyTogether Milestone 1 provides a backend-only shared job-application
+ApplyHuddle Milestone 1 provides a backend-only shared job-application
 workspace for Jonathan and Kareem. It records applications, makes active
 applications visible to every active workspace member, and enforces that only
 the application owner can change its lifecycle. The design intentionally
@@ -118,7 +118,7 @@ non-test environments. Configuration is entirely environment based and no
 startup operation seeds data.
 
 `python -m app.db.seed` is allowed only in development and test. It idempotently
-creates or updates Jonathan, Kareem, the ApplyTogether workspace, and their
+creates or updates Jonathan, Kareem, the ApplyHuddle workspace, and their
 active owner memberships, then prints their UUIDs. Its optional sample-data
 flag adds fictional, idempotent applications for manual testing.
 

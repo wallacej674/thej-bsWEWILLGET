@@ -1,4 +1,4 @@
-// Self-playing miniatures of real ApplyTogether features. Each loops while it
+// Self-playing miniatures of real ApplyHuddle features. Each loops while it
 // is on screen and holds its final frame for reduced motion.
 import { useId, useRef } from "react";
 import { BellRing, Check, Sparkles, TriangleAlert, X } from "lucide-react";

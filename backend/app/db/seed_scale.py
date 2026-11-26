@@ -109,7 +109,7 @@ def seed_large_workspace(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Seed a large ApplyTogether workspace for scale validation."
+        description="Seed a large ApplyHuddle workspace for scale validation."
     )
     parser.add_argument("--members", type=int, default=150)
     parser.add_argument("--apps-per-member", type=int, default=3)

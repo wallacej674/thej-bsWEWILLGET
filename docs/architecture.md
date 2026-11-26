@@ -1,4 +1,4 @@
-# ApplyTogether architecture
+# ApplyHuddle architecture
 
 ## Current scope
 

@@ -19,7 +19,7 @@ function errorMessage(error: unknown): string {
   if (typeof error === "object" && error !== null && "code" in error) {
     if (error.code === "rate_limited" && error instanceof Error) return error.message;
     if (error.code === "network_error") {
-      return "ApplyTogether is unavailable. Check the connection and try again.";
+      return "ApplyHuddle is unavailable. Check the connection and try again.";
     }
   }
   return "That didn't work. Check the email address and try again.";

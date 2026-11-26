@@ -25,7 +25,7 @@ class FakeAiProvider:
                 "Built FastAPI services with PostgreSQL-backed workflows.",
                 "Implemented tested AI-ready API integrations.",
             ],
-            "interview_talking_points": ["Discuss ApplyTogether architecture."],
+            "interview_talking_points": ["Discuss ApplyHuddle architecture."],
             "caution_notes": ["Do not claim Azure OpenAI production experience."],
             "ats_warnings": prompt.ats_warnings,
         }

@@ -1,4 +1,4 @@
-# ApplyTogether security audit — task list
+# ApplyHuddle security audit — task list
 
 _Audit date: 2026-11-13 · Scope: `backend/` (FastAPI, SQLAlchemy, Alembic, Postgres), `frontend/` (React/Vite), `compose.yaml`, `.github/workflows/`, git history._
 

@@ -1,7 +1,7 @@
 [project]
-name = "apply-together-backend"
+name = "apply-huddle-backend"
 version = "0.1.0"
-description = "ApplyTogether Milestone 1 backend"
+description = "ApplyHuddle Milestone 1 backend"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.15,<2",

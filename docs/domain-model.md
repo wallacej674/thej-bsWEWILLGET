@@ -1,4 +1,4 @@
-# ApplyTogether domain model
+# ApplyHuddle domain model
 
 ## Core entities
 
@@ -23,7 +23,7 @@ already owns remain visible to active members of their workspace.
 A workspace is the visibility boundary for a group of users and their
 applications. It has a required name, creation and update timestamps, and a
 nullable `deleted_at` timestamp. The initial seeded workspace is named
-`ApplyTogether`.
+`ApplyHuddle`.
 
 ### Workspace membership
 

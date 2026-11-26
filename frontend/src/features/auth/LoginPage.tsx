@@ -48,7 +48,7 @@ function loginErrorMessage(error: unknown): string {
     "code" in error &&
     error.code === "network_error"
   ) {
-    return "ApplyTogether is unavailable. Check the connection and try again.";
+    return "ApplyHuddle is unavailable. Check the connection and try again.";
   }
 
   return "Email or password is incorrect.";
@@ -270,7 +270,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               animate={{ opacity: 1 }}
               transition={{ delay: 0.6, duration: 0.5 }}
             >
-              New to ApplyTogether?{" "}
+              New to ApplyHuddle?{" "}
               <Link to="/signup" className={authLinkClass}>
                 Create an account
               </Link>

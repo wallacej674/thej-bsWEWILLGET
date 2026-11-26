@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     # No default: a deploy that forgets ENVIRONMENT must fail to start rather
     # than quietly run with development behaviour (SEC-04).
     environment: Literal["development", "test", "production"]
-    app_name: str = "ApplyTogether API"
+    app_name: str = "ApplyHuddle API"
     api_v1_prefix: str = "/api/v1"
     database_url: PostgresDsn
     # Optional separate connection for Alembic, as the schema-owning migrator
@@ -73,7 +73,7 @@ class Settings(BaseSettings):
     smtp_username: str | None = None
     smtp_app_password: str | None = None
     smtp_from_email: str | None = None
-    smtp_from_name: str = "ApplyTogether"
+    smtp_from_name: str = "ApplyHuddle"
     smtp_starttls: bool = True
     smtp_timeout_seconds: int = 15
     frontend_base_url: str = "http://localhost:5173"

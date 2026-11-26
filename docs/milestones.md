@@ -1,4 +1,4 @@
-# ApplyTogether milestones
+# ApplyHuddle milestones
 
 ## Milestone 1 — complete: backend foundation
 
@@ -37,7 +37,7 @@ session revocation. Google account linking remains a future enhancement.
 
 ## Milestone 4 — Tracker to assistant
 
-Milestone 4 turns ApplyTogether from passive record-keeping into an active
+Milestone 4 turns ApplyHuddle from passive record-keeping into an active
 job-search assistant. The three capabilities below build on existing data and
 respect the membership/ownership boundary: stage changes are owner-only
 mutations, all reads stay workspace-scoped, and soft-delete semantics are

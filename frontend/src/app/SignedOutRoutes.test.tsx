@@ -30,7 +30,7 @@ describe("SignedOutRoutes", () => {
     renderAt("/login");
 
     expect(screen.getByRole("heading", { name: "Welcome back" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "ApplyTogether home" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "ApplyHuddle home" })).toHaveAttribute("href", "/");
   });
 
   it("asks for sign in on any app page", () => {

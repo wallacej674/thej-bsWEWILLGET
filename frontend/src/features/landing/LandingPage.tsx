@@ -115,7 +115,7 @@ function Promises() {
           We'll help you keep showing up.
         </h2>
         <p className="mt-4 text-pretty text-base leading-7 text-subtle">
-          Most job searches don't fail in an interview. They fade out quietly. Everything in ApplyTogether is
+          Most job searches don't fail in an interview. They fade out quietly. Everything in ApplyHuddle is
           built around three promises to stop that from happening.
         </p>
       </Reveal>

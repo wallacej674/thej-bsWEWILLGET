@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router";
 
 import { ThemeToggle } from "../../app/theme/ThemeToggle";
-import logoUrl from "../../assets/applytogether-logo.png";
+import logoUrl from "../../assets/applyhuddle-logo.png";
 
 const VALUES = ["Shared pipeline", "Weekly goals", "Team accountability"];
 
@@ -51,7 +51,7 @@ export function AuthLayout({
             >
               <img
                 src={logoUrl}
-                alt="ApplyTogether home"
+                alt="ApplyHuddle home"
                 className="h-full w-full object-contain"
               />
             </Link>
